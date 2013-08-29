@@ -33,6 +33,8 @@
  *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
  *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
  *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.                                                                                                                                                                                                                                                                                                         
+ * OSX implemenation was derived from the qextserialport project - https://code.google.com/p/qextserialport/
+ * The qextserialport is under MIT 
  */
 
 #ifdef _MSC_VER
@@ -63,6 +65,26 @@ extern "C" {
 
 	using namespace boost::filesystem;
 
+#endif
+
+#ifdef  __APPLE__
+#include <CoreFoundation/CoreFoundation.h>
+#include <IOKit/IOKitLib.h>
+#include <IOKit/IOCFPlugIn.h>
+#include <IOKit/usb/IOUSBLib.h>
+#include <IOKit/IOMessage.h>
+#include <mach/mach_port.h>
+#include <IOKit/serial/IOSerialKeys.h> 
+#define MAXPATHLEN 128
+#define MAXNAMELEN 64
+
+struct CDCPortInfo {
+	char *portName;
+	char *physName;
+	char *friendName;
+	int vendorID;
+	int productID;
+};
 #endif
 
 using namespace TI::DLL430;
@@ -156,8 +178,8 @@ void UsbCdcIoChannel::createCcdPortList(const std::string& cdcId, PortMap& portL
 	}
 	::SetupDiDestroyDeviceInfoList(hDevInfo);//free resources
 
-#else
-
+#endif
+#ifdef __linux__
 	path p("/sys/class/tty/");
 	if (exists(p) && is_directory(p))
 	{
@@ -200,6 +222,159 @@ void UsbCdcIoChannel::createCcdPortList(const std::string& cdcId, PortMap& portL
 					portList[portInfo.name] = portInfo;
 				}
 			}
+		}
+	}
+#endif
+#ifdef __APPLE__
+
+	CFMutableDictionaryRef matchingDict;
+	kern_return_t kernResult;
+	io_iterator_t iterator;
+
+	matchingDict = IOServiceMatching(kIOSerialBSDServiceValue);
+	CFDictionarySetValue(matchingDict, CFSTR(kIOSerialBSDTypeKey), CFSTR(kIOSerialBSDModemType));
+	kernResult = IOServiceGetMatchingServices(kIOMasterPortDefault, matchingDict, &iterator);
+
+	if (kernResult != KERN_SUCCESS) {
+		return;
+	}
+
+	for (;;) {
+		if (!IOIteratorIsValid(iterator)) {
+			/*
+			* Apple documentation advises resetting the iterator if
+			* it should become invalid during iteration.
+			*/
+			IOIteratorReset(iterator);
+			continue;
+		}
+
+		io_service_t device = IOIteratorNext(iterator);
+
+		if (device == 0) {
+			break;
+		}
+
+		struct CDCPortInfo info = {0, 0, NULL, NULL, NULL};
+
+		bool retval = true;
+		CFTypeRef bsdPathAsCFString = NULL;
+		CFTypeRef productNameAsCFString = NULL;
+		CFTypeRef vendorIdAsCFNumber = NULL;
+		CFTypeRef productIdAsCFNumber = NULL;
+		CFTypeRef ttyDeviceAsCFString = NULL;
+		CFTypeRef interfaceNumberAsCFNumber = NULL;
+
+		// Get the name of the modem's callout device
+		bsdPathAsCFString = IORegistryEntryCreateCFProperty(device, CFSTR(kIOCalloutDeviceKey),
+									kCFAllocatorDefault, 0);
+
+		ttyDeviceAsCFString = IORegistryEntryCreateCFProperty(device, CFSTR(kIOTTYDeviceKey),
+									 kCFAllocatorDefault, 0);
+
+		io_name_t name;
+		IORegistryEntryGetName(device, name);
+
+		// wander up the hierarchy until we find the level that can give us the
+		// vendor/product IDs and the product name, if available
+		io_registry_entry_t parent;
+		kern_return_t kernResult = IORegistryEntryGetParentEntry(device, kIOServicePlane, &parent);
+		IOObjectRelease(device);
+
+		while( kernResult == KERN_SUCCESS && !vendorIdAsCFNumber && !productIdAsCFNumber )
+		{
+			if(!productNameAsCFString)
+				productNameAsCFString = IORegistryEntrySearchCFProperty(parent,
+										kIOServicePlane,
+										CFSTR("Product Name"),
+										kCFAllocatorDefault, 0);
+
+			if(!vendorIdAsCFNumber)
+				vendorIdAsCFNumber = IORegistryEntrySearchCFProperty(parent,
+									kIOServicePlane,
+									CFSTR(kUSBVendorID),
+									kCFAllocatorDefault, 0);
+			if(!productIdAsCFNumber)
+				productIdAsCFNumber = IORegistryEntrySearchCFProperty(parent,
+									kIOServicePlane,
+									CFSTR(kUSBProductID),
+									kCFAllocatorDefault, 0);
+			if(interfaceNumberAsCFNumber)
+				interfaceNumberAsCFNumber = IORegistryEntrySearchCFProperty(parent,
+									kIOServicePlane,
+									CFSTR(kUSBInterfaceNumber),
+									kCFAllocatorDefault, 0);
+
+			io_registry_entry_t oldparent = parent;
+			kernResult = IORegistryEntryGetParentEntry(parent, kIOServicePlane, &parent);
+			IOObjectRelease(oldparent);
+		}
+
+		if(interfaceNumberAsCFNumber)
+		{
+			SInt32 interfaceNumber;
+			if(CFNumberGetValue((CFNumberRef)interfaceNumberAsCFNumber, kCFNumberSInt32Type, &interfaceNumber))
+				CFRelease(interfaceNumberAsCFNumber);
+			if(interfaceNumber != 0x01)
+				continue;
+		}
+
+		if(ttyDeviceAsCFString) {
+			char ttyDevice[MAXNAMELEN];
+			if( CFStringGetCString((CFStringRef)ttyDeviceAsCFString, ttyDevice,
+						PATH_MAX, kCFStringEncodingUTF8) ) {
+				info.portName = ttyDevice;
+			}
+			CFRelease(ttyDeviceAsCFString);
+		}
+
+		if(bsdPathAsCFString) {
+			char path[MAXPATHLEN];
+			if(CFStringGetCString((CFStringRef)bsdPathAsCFString, path,
+						PATH_MAX, kCFStringEncodingUTF8)) {
+				info.physName = path;
+			}
+			CFRelease(bsdPathAsCFString);
+		}
+
+		if(productNameAsCFString) {
+			char productName[MAXPATHLEN];
+			if(CFStringGetCString((CFStringRef)productNameAsCFString, productName,
+						PATH_MAX, kCFStringEncodingUTF8)) {
+				info.friendName = productName;
+			}
+			CFRelease(productNameAsCFString);
+		}
+
+		if(vendorIdAsCFNumber) {
+			SInt32 vID;
+			if(CFNumberGetValue((CFNumberRef)vendorIdAsCFNumber, kCFNumberSInt32Type, &vID)) {
+				info.vendorID = vID;
+			}
+			CFRelease(vendorIdAsCFNumber);
+		}
+
+		if(productIdAsCFNumber) {
+			SInt32 pID;
+			if(CFNumberGetValue((CFNumberRef)productIdAsCFNumber, kCFNumberSInt32Type, &pID)) {
+				info.productID = pID;
+			}
+			CFRelease(productIdAsCFNumber);
+		}
+
+		if(info.vendorID == 0x2047 && info.productID == 0x13) {
+			PortInfo portInfo(info.portName, info.physName, PortInfo::CDC);
+			portInfo.useFlowControl = false;
+			portInfo.useCrc = false;
+			portInfo.status = UsbCdcIoChannel(portInfo).getStatus();
+			portList[portInfo.name] = portInfo;
+#if 0
+			printf("Name: %s\n", info.friendName);
+			printf("\tport name: %s\n", info.portName);
+			printf("\tvid: 0x%02x\n", info.vendorID);
+			printf("\tpid: 0x%02x\n", info.productID);
+			printf("\tpath: %s\n", info.physName);
+#endif
 		}
 	}
 #endif

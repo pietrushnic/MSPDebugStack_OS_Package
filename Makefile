@@ -10,6 +10,7 @@ endif
 
 ifdef DEBUG
 CXXFLAGS += -g -O0
+$(info Building with debugging enables)
 else
 CXXFLAGS += -Os
 DEFINES += -DNDEBUG
@@ -41,8 +42,14 @@ endif
 LIBS :=
 STATIC_LIBS :=
 
+UNAME_S := $(shell sh -c 'uname -s')
+ifeq ($(UNAME_S),Darwin) # Mac OS X/MacPorts stuff
+$(info Darin)
+STATIC_LIBS :=-framework IOKit -framework CoreFoundation
+endif
+
 ifdef STATIC
-STATIC_LIBS += -lboost_thread -lboost_filesystem -lboost_date_time -lboost_system -lbsl430 -lusb-1.0 -lrt
+STATIC_LIBS += libboost_thread.a libboost_filesystem.a libboost_date_time.a libboost_system.a ThirdParty/lib/libbsl430.a
 else
 LIBS += -lboost_thread -lboost_filesystem -lboost_date_time -lboost_system -lbsl430 -lusb-1.0 -lrt
 endif
@@ -78,7 +85,7 @@ OBJS := $(patsubst %.cpp, %.o, $(SRC))
 OUTPUT := libmsp430.so
 
 all: libbsl.a $(OBJS)
-	$(CXX) $(CXXFLAGS) -shared -Wl,-soname,$(OUTPUT) -o $(OUTPUT) $(OBJS) ThirdParty/lib/hid-libusb.o $(LIBDIRS) -Wl,-Bstatic $(STATIC_LIBS) -Wl,-Bdynamic $(LIBS)
+	$(CXX) $(CXXFLAGS) -shared -o $(OUTPUT) $(OBJS) ThirdParty/lib/hid-libusb.o $(LIBDIRS) $(STATIC_LIBS)
 
 %.o: %.cpp
 	$(CXX) -c -o $@ $< $(CXXFLAGS) $(INCLUDES) $(DEFINES)
