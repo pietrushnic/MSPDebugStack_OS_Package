@@ -1,0 +1,25 @@
+Microsoft Visual Studio Solution File, Format Version 11.00
+# Visual C++ Express 2010
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "DLL430_v3", "DLL430_v3\DLL430_v3.vcxproj", "{09C86548-E56B-439C-B8C8-6ADAA90ED37A}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "HalObjectDb", "HalObjectDb\HalObjectDb.vcxproj", "{67464D50-E0DB-4215-B80C-A6A159C0FF14}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Win32 = Debug|Win32
+		Release|Win32 = Release|Win32
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{09C86548-E56B-439C-B8C8-6ADAA90ED37A}.Debug|Win32.ActiveCfg = Debug|Win32
+		{09C86548-E56B-439C-B8C8-6ADAA90ED37A}.Debug|Win32.Build.0 = Debug|Win32
+		{09C86548-E56B-439C-B8C8-6ADAA90ED37A}.Release|Win32.ActiveCfg = Release|Win32
+		{09C86548-E56B-439C-B8C8-6ADAA90ED37A}.Release|Win32.Build.0 = Release|Win32
+		{67464D50-E0DB-4215-B80C-A6A159C0FF14}.Debug|Win32.ActiveCfg = Debug|Win32
+		{67464D50-E0DB-4215-B80C-A6A159C0FF14}.Debug|Win32.Build.0 = Debug|Win32
+		{67464D50-E0DB-4215-B80C-A6A159C0FF14}.Release|Win32.ActiveCfg = Release|Win32
+		{67464D50-E0DB-4215-B80C-A6A159C0FF14}.Release|Win32.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal

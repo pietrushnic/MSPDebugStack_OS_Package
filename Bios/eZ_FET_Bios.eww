@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="iso-8859-1"?>
+
+<workspace>
+  <project>
+    <path>$WS_DIR$\eZ-FetHil.ewp</path>
+  </project>
+  <project>
+    <path>$WS_DIR$\FetDcdcController.ewp</path>
+  </project>
+  <project>
+    <path>$WS_DIR$\FetComChannel.ewp</path>
+  </project>
+  <project>
+    <path>$WS_DIR$\FetDCDC.ewp</path>
+  </project>
+  <project>
+    <path>$WS_DIR$\NgUifBios.ewp</path>
+  </project>
+  <project>
+    <path>$WS_DIR$\NgUifHal.ewp</path>
+  </project>
+  <batchBuild>
+    <batchDefinition>
+      <name>All</name>
+      <member>
+        <project>eZ-FetHil</project>
+        <configuration>Debug</configuration>
+      </member>
+      <member>
+        <project>FetDCDC</project>
+        <configuration>Debug</configuration>
+      </member>
+      <member>
+        <project>NgUifBios</project>
+        <configuration>Debug</configuration>
+      </member>
+      <member>
+        <project>NgUifHal</project>
+        <configuration>Debug</configuration>
+      </member>
+    </batchDefinition>
+  </batchBuild>
+</workspace>
+
+
