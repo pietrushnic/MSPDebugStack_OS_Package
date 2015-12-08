@@ -43,7 +43,7 @@
 #ifndef _UIFV1_ARCH_H_
 #define _UIFV1_ARCH_H_
 
-enum {JTAG = 0, SPYBIWIRE, SPYBIWIREJTAG, JTAGUNDEF, SPYBIWIRE_SUBMCU =5 };
+enum {JTAG = 0, SPYBIWIRE, SPYBIWIREJTAG, JTAGUNDEF, SPYBIWIRE_SUBMCU=5, SPYBIWIRE_MSP_FET=6, JTAG_432 = 7};
 
 #define RSTHIGH 0
 #define RSTLOW  1
@@ -52,8 +52,6 @@ enum {JTAG = 0, SPYBIWIRE, SPYBIWIREJTAG, JTAGUNDEF, SPYBIWIRE_SUBMCU =5 };
 #define Mask_Manufactor_IdCode 0x000000FEul
 
 #define  ExtLimit        1700            // a level higher than this means external voltage available
-#define  ConvRange       4095.0f         // 12bit conversion range both for ADC and DAC
-#define  VCCTmin         ConvRange       // 0xFFF, write this value to the DAC register to setup minimum VCCT
 
 #define  R27            250.0f           // 250kOhm
 #define  R28            250.0f           // 250kOhm
@@ -119,6 +117,7 @@ static const struct jtag _Jtag_Target =
 #define SYNC_ONGOING 0x2A
 #define INVALID_DATA 0x3A
 #define JTAG_LOCKED  0x4A
+#define SYNC_BROKEN  0x5A
 
 #define BP_HIT_MASK_J              0x0400000000000000ull
 #define LPMX5_MASK_J               0x4000000000000000ull
@@ -146,6 +145,9 @@ static const struct jtag _Jtag_Target =
 
 #define FET_TRUE                   0x1
 #define FET_FALSE                  0x0
+
+#define L092_MODE 0xA55AA55A
+#define C092_MODE 0x5AA55AA5
 
 #endif
 

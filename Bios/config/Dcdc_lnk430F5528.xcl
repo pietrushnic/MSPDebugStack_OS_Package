@@ -193,20 +193,18 @@
 //
 
 // Reserve space here for the BIOS's Interrupt vectors
--P(CODE)CODE=23E00-243FF
+-P(CODE)CODE=23000-243FF
 -Z(CODE)CODE_ID
--h(CODE)23E00-243FF
+-h(CODE)23000-243FF
 // ---------------------------
 // Constant data
 //
 
 // Reserve space here for the BIOS's Interrupt vectors
--Z(CONST)DATA20_C,DATA20_ID=23E00-243FF
+-Z(CONST)DATA20_C,DATA20_ID=23000-243FF
 
 // -------------------------------------
 // Interrupt vectors
 //
 
-
--Z(CODE)INTVEC=23E00-23E7f
 -Z(CODE)RESET=1800-1803

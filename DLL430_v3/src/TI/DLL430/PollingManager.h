@@ -1,50 +1,41 @@
 /*
- * PollingManager.h 
+ * PollingManager.h
  *
  * Manages the various polling macros and their combinations.
  *
- * Copyright (C) 2007 - 2011 Texas Instruments Incorporated - http://www.ti.com/ 
- * 
- * 
- *  Redistribution and use in source and binary forms, with or without 
- *  modification, are permitted provided that the following conditions 
+ * Copyright (C) 2007 - 2011 Texas Instruments Incorporated - http://www.ti.com/
+ *
+ *
+ *  Redistribution and use in source and binary forms, with or without
+ *  modification, are permitted provided that the following conditions
  *  are met:
  *
- *    Redistributions of source code must retain the above copyright 
+ *    Redistributions of source code must retain the above copyright
  *    notice, this list of conditions and the following disclaimer.
  *
  *    Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the 
- *    documentation and/or other materials provided with the   
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the
  *    distribution.
  *
  *    Neither the name of Texas Instruments Incorporated nor the names of
  *    its contributors may be used to endorse or promote products derived
  *    from this software without specific prior written permission.
  *
- *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS 
- *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT 
+ *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
  *  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT 
- *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, 
- *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT 
+ *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
  *  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
  *  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
- *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
- *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.                                                                                                                                                                                                                                                                                                         
+ *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#if _MSC_VER > 1000
 #pragma once
-#endif
-
-#ifndef DLL430_POLLINGMANAGER_H
-#define DLL430_POLLINGMANAGER_H
-
-#include <map>
-#include <stdint.h>
-#include <boost/shared_ptr.hpp>
 
 #include "HalExecCommand.h"
 #include "MessageData.h"
@@ -65,7 +56,7 @@
 
 			pollingManager.setBreakpointCallback(breakpointCallback);
 
-			For member functions as callbacks, use std/boost::bind
+			For member functions as callbacks, use std::bind
 			pollingManager.setBreakpointCallback( bind(&MyClass::callback, instance, _1) );
 
 		-Start polling (this will add a macro to the polling loop or modify an existing one)
@@ -87,45 +78,48 @@ namespace TI
 	namespace DLL430
 	{
 		enum EtPollingMode
-		{ 
+		{
 		  ET_POLLING_OFF,
 		  ET_POLLING_ANALOG,
 		  ET_POLLING_ANALOG_DSTATE
 		};
 
 		enum EtGatedMode
-		{ 
+		{
 		  ET_POLLING_GATED_OFF,
-		  ET_POLLING_GATED_ON 
+		  ET_POLLING_GATED_ON
 		};
 
-		class DeviceHandleV3;
+		class DeviceHandle;
 		class FetHandleV3;
 
-		class PollingManager : boost::noncopyable
+		class PollingManager
 		{
 		public:
-			typedef	boost::function1<void, MessageDataPtr> Callback;
+			typedef std::function<void (MessageDataPtr)> Callback;
 
 			explicit PollingManager(FetHandleV3* fetHandle);
 
+			PollingManager(const PollingManager&) = delete;
+			PollingManager& operator=(const PollingManager&) = delete;
+
 			void shutdown();
 
-			bool startBreakpointPolling(const DeviceHandleV3& devHandle);
-			bool startLpmPolling(const DeviceHandleV3& devHandle);
-			bool startStateStoragePolling(const DeviceHandleV3& devHandle);
+			bool startBreakpointPolling(const DeviceHandle& devHandle);
+			bool startLpmPolling(const DeviceHandle& devHandle);
+			bool startStateStoragePolling(const DeviceHandle& devHandle);
 			bool startEnergyTracePolling(EtPollingMode, EtGatedMode);
 
-			bool stopBreakpointPolling(const DeviceHandleV3& devHandle);
-			bool stopLpmPolling(const DeviceHandleV3& devHandle);
-			bool stopStateStoragePolling(const DeviceHandleV3& devHandle);
+			bool stopBreakpointPolling(const DeviceHandle& devHandle);
+			bool stopLpmPolling(const DeviceHandle& devHandle);
+			bool stopStateStoragePolling(const DeviceHandle& devHandle);
 			bool stopEnergyTracePolling();
 
 			void pausePolling(); //Pause all polling loops
-			void pauseStateStoragePolling(const DeviceHandleV3&);
-			
+			void pauseStateStoragePolling(const DeviceHandle&);
+
 			void resumePolling(); //Resume all polling loops
-			void resumeStateStoragePolling(const DeviceHandleV3&);
+			void resumeStateStoragePolling(const DeviceHandle&);
 
 			void setEnergyTraceCallback(const Callback&);
 			void setBreakpointCallback(const Callback&);
@@ -137,25 +131,25 @@ namespace TI
 		private:
 			enum POLLING_TYPE {PT_BREAKPOINT, PT_LPM, PT_STATE_STORAGE, PT_ENERGY_TRACE};
 
-			bool startPolling(POLLING_TYPE, const DeviceHandleV3&);
-			bool stopPolling(POLLING_TYPE, const DeviceHandleV3&);
+			bool startPolling(POLLING_TYPE, const DeviceHandle&);
+			bool stopPolling(POLLING_TYPE, const DeviceHandle&);
 
-			void pausePolling(POLLING_TYPE, const DeviceHandleV3&);
-			void resumePolling(POLLING_TYPE, const DeviceHandleV3&);
+			void pausePolling(POLLING_TYPE, const DeviceHandle&);
+			void resumePolling(POLLING_TYPE, const DeviceHandle&);
 
-			void runEvent(MessageDataPtr messageData);
+			void runEvent(MessageDataPtr messageData) const;
 
-			bool addMacro(uint32_t macroId);
-			bool removeMacro(uint32_t macroId);
+			bool addMacro(hal_id macroId);
+			bool removeMacro(hal_id macroId);
 
-			bool addToLoop(uint32_t macroId);
+			bool addToLoop(hal_id macroId);
 
-			uint8_t getResponseId(uint32_t baseMacroId, const DeviceHandleV3&) const;
+			uint8_t getResponseId(hal_id baseMacroId, const DeviceHandle&) const;
 
 			FetHandleV3* mFetHandle;
 
 			std::map<POLLING_TYPE, bool> mPollingActive;
-			std::map<POLLING_TYPE, uint32_t> mPollingMacro;
+			std::map<POLLING_TYPE, hal_id> mPollingMacro;
 
 			EtPollingMode mEnergyTraceMode;
 			EtGatedMode mEtGatedMode;
@@ -164,8 +158,8 @@ namespace TI
 			{
 				Macro() : count(0), cmd(new HalExecCommand) {}
 				int count;
-				//Can't be copied due to contained boost::mutex
-				boost::shared_ptr<HalExecCommand> cmd;
+				//Can't be copied due to contained std::mutex
+				std::shared_ptr<HalExecCommand> cmd;
 			};
 			typedef std::map<uint32_t, Macro> MacroTable;
 			MacroTable mActiveMacros;
@@ -174,11 +168,9 @@ namespace TI
 			CallbackTable mCallbacks;
 
 			std::map<uint32_t, bool> mKillAfterEvent;
-			std::map<EtPollingMode, uint32_t> mEtModeToMacro;
+			std::map<EtPollingMode, hal_id> mEtModeToMacro;
 
-			EventNotifier<MessageDataPtr> mEventNotifier;			
+			EventNotifier<MessageDataPtr> mEventNotifier;
 		};
 	}
 }
-
-#endif

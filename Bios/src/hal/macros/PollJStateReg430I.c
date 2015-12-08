@@ -55,24 +55,24 @@
 
 HAL_FUNCTION(_hal_PollJStateReg430I)
 {
-    decl_out
     short RetState = -1;
     unsigned short forceSendState = 0;
+    unsigned short lOut = 0;
 
     STREAM_get_word(&forceSendState);
 
     if(forceSendState)
     {
-        lOut = EDT_Instr(IR_CNTRL_SIG_CAPTURE);
+        lOut = cntrl_sig_capture();
 
         //To check if the device woke up in the meantime
         //and prevent an unwanted reset/BSL entry sequence
         if (lOut != JTAGVERSION)
         {
-            EDT_Open(RSTHIGH);
-            EDT_TapReset();
-            EDT_CheckJtagFuse();
-            lOut = EDT_Instr(IR_CNTRL_SIG_CAPTURE);
+            IHIL_Open(RSTHIGH);
+            IHIL_TapReset();
+            IHIL_CheckJtagFuse();
+            lOut = cntrl_sig_capture();
         }
 
         if(lOut == JTAGVERSION)

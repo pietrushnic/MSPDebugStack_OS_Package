@@ -49,80 +49,89 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <EnergyTraceProcessor.h>
-#include "EnergyTraceLowPassFilter.h"
-#include "EnergyTraceRunningAverageFilter.h"
+#include <pch.h>
+#include "EnergyTraceProcessor.h"
 
 using namespace TI::DLL430;
 
 //---------------------------------
-EnergyTraceProcessor::EnergyTraceProcessor()
-	: mFilter(new EnergyTraceLowPassFilter())
-	, mVoutFilter(new EnergyTraceRunningAverageFilter(50))
-	, mFilterEnable(true)
-	, oneTickinMicroWsec(0)
+EnergyTraceProcessor::EnergyTraceProcessor(uint32_t numCalibrationPoints)
+	: numCalibrationPoints(numCalibrationPoints)
 	, tickThreshold(0)
-	, sobelStepThreshold(SOBEL_STEP)
-	, deltaNThreshold(0)
+	, oneTickinMicroWsec(numCalibrationPoints)
+	, mVoutFilter(50)
+	, mFilterEnable(true)
+	, mTimeTag_us(0.0)
+	, mPrevTimeTag(0)
+	, mPrevCurrentTick(0)
+	, mCalibrationValues(numCalibrationPoints)
+	, mResistorValues(numCalibrationPoints, 0)
+	, timeBase_ns(640)
+	, mSkip(0)
 {
-	// Initialize the calibration values to default
-	mCalibrationValues[0].threshold =    1.220;
-	mCalibrationValues[1].threshold = 1030.273;
-
-	// Reference current in nA
-	mCalibrationValues[0].refCurrent = 0;
-	mCalibrationValues[1].refCurrent = 3600.0 / 2200.0 * 1000.0 * 1000.0; // 2k2 resistor pld refCurrent = 3600.0 / 6800.0 * 1000.0 * 1000.0; // 6k8 resistor
-
-	// Calculate calibration values
-	calculateCalibration(3600);
-	double lpfCalValues[2] = {/* LPF_WEIGHT */  0.6, /* THRESHOLD */2000000.0};
-	mFilter->setCalibrationValues(lpfCalValues,0);
 }
 
 //---------------------------------
 EnergyTraceProcessor::~EnergyTraceProcessor()
 {
-	delete mFilter;
-	delete mVoutFilter;
 }
 
 //---------------------------------
 void EnergyTraceProcessor::calculateCalibration(uint16_t vcc)
 {
-	double x0 = mCalibrationValues[0].refCurrent;
-	double y0 = mCalibrationValues[0].threshold;
+	for (uint32_t i = 1; i < numCalibrationPoints; ++i)
+	{
+		const double x0 = mCalibrationValues[i-1].refCurrent;
+		const double y0 = mCalibrationValues[i-1].threshold;
 
-	double x1 = mCalibrationValues[1].refCurrent;
-	double y1 = mCalibrationValues[1].threshold;
+		const double x1 = mCalibrationValues[i].refCurrent;
+		const double y1 = mCalibrationValues[i].threshold;
 
-	mCalibrationValues[0].gradient = (y1 - y0) / (x1 - x0);
-	mCalibrationValues[0].offset = (x1*y0 - x0*y1) / (x1 - x0);
+		mCalibrationValues[i-1].gradient =  (x1 - x0) / (y1 - y0);
+		mCalibrationValues[i-1].offset = y0; // Offset is tick count
 
+		// Calculate energy content in uWsec (=uJ) per 1 tick
+		// This calculation assumes that the value stored in
+		// calibrationTickArray[x] is per 1msec
+		// First we calculate the equivalent of 1 tick per 1 msec in mA current
+		// Then we simply multiply it with the actual voltage
+
+		const double oneTickPerMsecinNA = mCalibrationValues[i].refCurrent /
+										 (mCalibrationValues[i].threshold - mCalibrationValues[0].threshold);
+		oneTickinMicroWsec[i-1] = (oneTickPerMsecinNA/1000.0)*(((double)vcc)/1000.0)/1000.0;
+	}
+
+	const double y0 = mCalibrationValues[0].threshold;
 	//Added - calculate threshold for current update when current is 0 (standby)
 	tickThreshold = (unsigned int)(y0*(double)minUpdateRateInMsec); // Adaptive filter threshold
-	sobelStepThreshold = (y1 - y0)*1.5; // Adaptive edge detection threshold
-
-	// Calculate energy content in uWsec (=uJ) per 1 tick
-	// This calculation assumes that the value stored in
-	// calibrationTickArray[x] is per 1msec
-	// First we calculate the equivalent of 1 tick per 1 msec in mA current
-	// Then we simply multiply it with the actual voltage
-
-	double oneTickPerMsecinNA = mCalibrationValues[1].refCurrent/(mCalibrationValues[1].threshold-mCalibrationValues[0].threshold);
-	oneTickinMicroWsec = (oneTickPerMsecinNA/1000.0)*(((double)vcc)/1000.0)/1000.0;
 }
 
 //---------------------------------
 void EnergyTraceProcessor::setCalibrationValues(double *calibrationValues, uint16_t vcc)
 {
-
 	mCalibrationValues[0].refCurrent = 0;
-	mCalibrationValues[1].refCurrent = ((double)vcc) / 2200.0 * 1000.0 * 1000.0; // 2k2 resistor;
-
 	mCalibrationValues[0].threshold = calibrationValues[0];
-	mCalibrationValues[1].threshold = calibrationValues[3];
+
+	for (size_t i = 1; i < numCalibrationPoints; ++i)
+	{
+		mCalibrationValues[i].refCurrent = ((double)vcc) / mResistorValues[i] * 1000.0 * 1000.0;
+		mCalibrationValues[i].threshold = calibrationValues[i];
+	}
 
 	calculateCalibration(vcc);
 }
 
 //---------------------------------
+void EnergyTraceProcessor::setResistorValues(double *resistorValues)
+{
+	for (uint32_t i = 1; i < numCalibrationPoints; ++i)
+	{
+		mResistorValues[i] = resistorValues[i];
+	}
+}
+
+//---------------------------------
+void EnergyTraceProcessor::setTimerStep(uint32_t step)
+{
+	timeBase_ns = step;
+}

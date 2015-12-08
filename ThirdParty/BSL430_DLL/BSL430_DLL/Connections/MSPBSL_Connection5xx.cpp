@@ -35,6 +35,9 @@
  *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
 */
+
+#include <pch.h>
+
 #include "MSPBSL_Connection5xx.h"
 #include "MSPBSL_PhysicalInterfaceSerialUART.h"
 #include "MSPBSL_PacketHandler.h"
@@ -310,9 +313,8 @@ uint16_t MSPBSL_Connection5xx::TX_DataBlock( uint8_t* data, uint32_t startAddr, 
   uint16_t totalBytesRxed = 0;
   uint16_t bytesReceived;
   uint8_t  command[6];
-  uint8_t* rxDataBuf = NULL;
   uint16_t TimeOut = 3;
-  rxDataBuf = new uint8_t[maxPacketSize];
+  vector<uint8_t> rxDataBuf(maxPacketSize);
   
   if( numBytes > (uint32_t)0xFFFF )  // if we are requesting over a 16 byte number, we must break it up
   {
@@ -343,7 +345,7 @@ uint16_t MSPBSL_Connection5xx::TX_DataBlock( uint8_t* data, uint32_t startAddr, 
 	  TimeOut = TimeOut * numBytes; 
 	  while( totalBytesRxed < numBytes && TimeOut > 0)  // to do: recompute bytesExpected each loop!
 	  {
-		  retValue = thePacketHandler->RX_Packet(rxDataBuf, bytesExpected, &bytesReceived);
+		  retValue = thePacketHandler->RX_Packet(&rxDataBuf[0], bytesExpected, &bytesReceived);
 		  if (retValue == OPERATION_SUCCESSFUL )
 		  {
 			  if( rxDataBuf[0] == MESSAGE_RESPONSE ) // we have a message 
@@ -361,10 +363,7 @@ uint16_t MSPBSL_Connection5xx::TX_DataBlock( uint8_t* data, uint32_t startAddr, 
 		  }
 		  TimeOut--; 
 	  } // while
-
   }
-  
-  delete [] rxDataBuf;
   return retValue;
 
 }

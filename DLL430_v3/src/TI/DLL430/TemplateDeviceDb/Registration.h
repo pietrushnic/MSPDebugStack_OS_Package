@@ -1,59 +1,49 @@
 /*
  * Registration.h
  *
- * Basic device creating engine - interface mechanism to create devices and to convert them to be used by MSP430v3.dll. 
+ * Basic device creating engine - interface mechanism to create devices and to convert them to be used by MSP430v3.dll.
  *
- * Copyright (C) 2011 Texas Instruments Incorporated - http://www.ti.com/ 
- * 
- * 
- *  Redistribution and use in source and binary forms, with or without 
- *  modification, are permitted provided that the following conditions 
+ * Copyright (C) 2011 Texas Instruments Incorporated - http://www.ti.com/
+ *
+ *
+ *  Redistribution and use in source and binary forms, with or without
+ *  modification, are permitted provided that the following conditions
  *  are met:
  *
- *    Redistributions of source code must retain the above copyright 
+ *    Redistributions of source code must retain the above copyright
  *    notice, this list of conditions and the following disclaimer.
  *
  *    Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the 
- *    documentation and/or other materials provided with the   
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the
  *    distribution.
  *
  *    Neither the name of Texas Instruments Incorporated nor the names of
  *    its contributors may be used to endorse or promote products derived
  *    from this software without specific prior written permission.
  *
- *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS 
- *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT 
+ *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
  *  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT 
- *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, 
- *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT 
+ *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
  *  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
  *  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
- *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
- *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.                                                                                                                                                                                                                                                                                                         
+ *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef TEMPLATE_DEVICE_DB_REGISTRATION_H
-#define TEMPLATE_DEVICE_DB_REGISTRATION_H
-
-#if _MSC_VER > 1000
 #pragma once
+
+//Disable warning about truncated symbols from nested templates
+#if defined(_WIN32) || defined(_WIN64)
+#pragma warning (disable : 4503)
 #endif
 
-#include <string>
-#include <iostream>	
-#include <map>
-
-#include <boost/static_assert.hpp>
-#include <boost/assign/list_of.hpp>
-#include <boost/type_traits/is_empty.hpp>
-#include <boost/type_traits/is_base_of.hpp>
-#include <boost/shared_ptr.hpp>
-#include <boost/tuple/tuple.hpp>
-
 #include <hal.h>
+#include <type_traits>
 
 #include "DatabaseImplementation.h"
 
@@ -66,24 +56,25 @@
 namespace TI { namespace DLL430 { namespace TemplateDeviceDb {
 
 template<
-	const uint16_t verId, 
-	const uint16_t verSubId, 
-	const uint8_t  revisison, 
+	const uint16_t verId,
+	const uint16_t verSubId,
+	const uint8_t  revisison,
 	const uint8_t  fab,
-	const uint16_t self, 
-	const char config, 
+	const uint16_t self,
+	const char config,
 	const uint8_t fuses,
-	const uint32_t activationKey = 0
+	const uint32_t activationKey = 0,
+	const uint8_t revisisonMax = 0
 >
 struct IdCode : IdCodeImpl
 {
-	IdCode() : 
-		IdCodeImpl(verId, verSubId, revisison, fab, self, config, fuses, activationKey)
+	IdCode() :
+		IdCodeImpl(verId, verSubId, revisison, fab, self, config, fuses, activationKey, revisisonMax)
 	{}
 };
 
 template<
-	class Value, 
+	class Value,
 	class Mask
 >
 struct Match : MatchImpl
@@ -97,22 +88,22 @@ struct Match : MatchImpl
 };
 
 template<
-		const uint8_t emulation_level,	///< backwards compatible to C-API 
+		const uint8_t emulation_level,	///< backwards compatible to C-API
 		const uint8_t mem,				///< number of memory triggers
 		const uint8_t reg,				///< number of register-write triggers
 		const uint8_t combinations,		///< number of trigger combinations (trigger groups)
 		const uint8_t options,			///< number of trigger options modes
 		const uint8_t dma,				///< number of trigger dma modes
 		const uint8_t readwrite,		///< number of trigger read/write modes
-		const uint8_t regTrigOperations,///< number of register trigger operations
+		const uint8_t regTrigOperations, ///< number of register trigger operations
 		const uint8_t compLevel,		///< 0: only ==, 1: == and !=, 2: all comparators
-		const uint8_t mem_condLevel,	///< number of TRIGx bits - 2 > 0,1,2
+		const uint8_t mem_condLevel,	///< number of TRIGx bits - 2 > 0, 1, 2
 		const uint8_t mem_umaskLevel	///< 0: only combinations of 0xFF, 0x00FF( and 0xF0000), 1: all values
 >
 struct Trigger : TriggerImpl
 {
 	Trigger() :
-		TriggerImpl(emulation_level, mem, reg, combinations, 
+		TriggerImpl(emulation_level, mem, reg, combinations,
 			        options, dma, readwrite, regTrigOperations,
 					compLevel, mem_condLevel, mem_umaskLevel)
 	{}
@@ -130,13 +121,13 @@ struct Sequencer : SequencerImpl
 	Sequencer() :
 		SequencerImpl(states, start, end, reset, blocked)
 	{}
-} ;
+};
 
 template<
 	const uint8_t stateStorage,		///< depth of available state storage modul. (0 means "not present")
 	const uint8_t cycleCounter,		///< number of available cycle counters. (0 means "not present")
 	const uint8_t cycleCounterOps,
-	class Trigger, 
+	class Trigger,
 	class Sequencer
 >
 struct EemInfo  : EemInfoImpl
@@ -166,7 +157,7 @@ struct VoltageInfo  : VoltageInfoImpl
 };
 
 template<
-	const uint8_t clockControl, 
+	const uint8_t clockControl,
 	const uint16_t mclkCntrl0,
 	class EemTimer,
 	class EemClockNames
@@ -186,15 +177,15 @@ class MemoryListBase{};
 //Memory list - access elements with use of struct GetAt
 template<class List>
 struct MemoryList : MemoryListBase
-{	
+{
 	typedef List list_type;
-	
-	MemoryList() 
+
+	MemoryList()
 	{}
 };
 
 
-/** 
+/**
 \struct GetAt
 \brief Recursive getter for Types out of Tuples.
 
@@ -206,53 +197,49 @@ struct MemoryList : MemoryListBase
 template<const unsigned int lastIdx, class TupleType>
 struct GetAt
 {
-	const unsigned int idx_;
-	GetAt(const unsigned int idx) : idx_(idx)
-    {
-        assert(idx_ <= lastIdx);
-	}
-	const MemoryInfoImpl Do()
+	const MemoryInfoImpl operator()(unsigned int idx) const
 	{
-		if(idx_ == lastIdx) return typename boost::tuples::element<lastIdx, TupleType>::type();
-		else return GetAt<lastIdx-1, TupleType>(idx_).Do();
+		assert(idx <= lastIdx);
+		if (idx == lastIdx)
+		{
+			return typename std::tuple_element<lastIdx, TupleType>::type();
+		}
+		return GetAt<lastIdx - 1, TupleType>()(idx);
 	}
 
-}; 
+};
 
-/** 
+/**
 \struct GetAt<0, TupleType>
 \brief  Specialization of recursive getter for Types out of Tuples above.
-		Returns last (or in this case first) Type from the tuples - needed to break recursion.
+Returns last (or in this case first) Type from the tuples - needed to break recursion.
 \param TupleType collection of types to iterate
 
 */
 template<class TupleType>
 struct GetAt<0, TupleType>
 {
-	const unsigned int idx_;
-	GetAt(const unsigned int idx) : idx_(idx)
-    {
-        assert(idx_ == 0);
-	}
-	const MemoryInfoImpl Do()
+	const MemoryInfoImpl operator()(unsigned int idx) const
 	{
-		return typename boost::tuples::element<0, TupleType>::type();
+		assert(idx == 0);
+		return typename std::tuple_element<0, TupleType>::type();
 	}
-}; 
+};
 
 namespace Memory {
-		template<uint32_t type> 
+		template<uint32_t type>
 		struct Type : public SingleUint32<type>, TypeBase {};
 
 		typedef Type<TI::DLL430::DeviceInfo::MEMTYPE_FLASH>		FlashType;
 		typedef Type<TI::DLL430::DeviceInfo::MEMTYPE_ROM>		RomType;
 		typedef Type<TI::DLL430::DeviceInfo::MEMTYPE_RAM>		RamType;
 		typedef Type<TI::DLL430::DeviceInfo::MEMTYPE_REGISTER>  RegisterType;
-		
+
 		typedef Bits<0>		BitsDeviceDefaultType;
 		typedef Bits<8>		Bits8Type;
 		typedef Bits<16>	Bits16Type;
 		typedef Bits<20>	Bits20Type;
+		typedef Bits<32>	Bits32Type;
 
 		//types to make memory module definitions type safe!
 		template<bool mapped>
@@ -268,27 +255,26 @@ namespace Memory {
 		//default types to default file?
 		typedef IsProtectable<true> Protectable;
 		typedef IsProtectable<false> NotProtectable;
-		
+
 		template<uint32_t N>
 		struct Size : public SingleUint32<N>, SizeBase {};
 
-		
+
 		template<uint32_t N>
 		struct Offset : public SingleUint32<N>, OffsetBase {};
 
-		
+
 		template<uint32_t N>
 		struct SegmentSize : public SingleUint32<N>, SegSizebase {};
-		
-		
+
+
 		template<uint32_t N>
 		struct BankSize : public SingleUint32<N>, BankSizebase {};
 
-		
+
 		template<uint32_t N>
 		struct Banks : public SingleUint32<N>, BanksBase {};
-	
-		
+
 
 		template<const uint8_t data[], const int N>
 		struct MemoryMask : MaskBase
@@ -311,20 +297,20 @@ namespace Memory {
 		template<class MemoryType>
 		struct MemoryCreator : public TI::DLL430::MemoryCreatorBase
 		{
-			BOOST_STATIC_ASSERT((boost::is_base_of<TI::DLL430::MemoryAreaBase, MemoryType>::value));
+			static_assert(std::is_base_of<TI::DLL430::MemoryAreaBase, MemoryType>::value, "Not derived from required base class");
 
 			virtual bool isImplemented() const {return true;}
 			virtual TI::DLL430::MemoryAreaBase* operator()(
-				const std::string& name, TI::DLL430::DeviceHandleV3* devHandle,
-				uint32_t start, uint32_t end, 
-				uint32_t seg, uint32_t banks, 
+				MemoryArea::Name name, TI::DLL430::DeviceHandle* devHandle,
+				uint32_t start, uint32_t end,
+				uint32_t seg, uint32_t banks,
 				bool mapped, const bool protectable, TI::DLL430::MemoryManager* mm, uint8_t psa
-			) const 
+			) const
 			{
 				return new MemoryType(
-					name,devHandle,
-					start,end,seg,banks,
-					mapped,protectable,mm,psa
+					name, devHandle,
+					start, end, seg, banks,
+					mapped, protectable, mm, psa
 				);
 			}
 		};
@@ -335,13 +321,13 @@ namespace Memory {
 		{
 			virtual bool isImplemented() const {return false;}
 			virtual TI::DLL430::MemoryAreaBase* operator()(
-				const std::string& name, TI::DLL430::DeviceHandleV3* devHandle,
-				uint32_t start, uint32_t end, 
-				uint32_t seg, uint32_t banks, 
+				MemoryArea::Name name, TI::DLL430::DeviceHandle* devHandle,
+				uint32_t start, uint32_t end,
+				uint32_t seg, uint32_t banks,
 				bool mapped, const bool protectable, TI::DLL430::MemoryManager* mm, uint8_t psa
-			) const  
+			) const
 			{
-				return NULL;
+				return nullptr;
 			}
 		};
 
@@ -350,12 +336,12 @@ namespace Memory {
 
 
 template<
-	const char* name,
+	MemoryArea::Name name,
 	class TypeType,
 	class MappedType,
 	class ProtectableType,
 	class BitsType,
-	class SizeType, 
+	class SizeType,
 	class OffsetType,
 	class SegmentSizeType,
 	class BankSizeType,
@@ -365,30 +351,30 @@ template<
 >
 struct MemoryInfo : MemoryInfoImpl
 {
-	BOOST_STATIC_ASSERT((boost::is_base_of<Memory::TypeBase, TypeType>::value));
-	BOOST_STATIC_ASSERT((boost::is_base_of<Memory::MappedBase, MappedType>::value));
-	BOOST_STATIC_ASSERT((boost::is_base_of<Memory::ProtectableBase, ProtectableType>::value));
-	BOOST_STATIC_ASSERT((boost::is_base_of<BitsBase, BitsType>::value));
-	BOOST_STATIC_ASSERT((boost::is_base_of<Memory::SizeBase, SizeType>::value));
-	BOOST_STATIC_ASSERT((boost::is_base_of<Memory::OffsetBase, OffsetType>::value));
-	BOOST_STATIC_ASSERT((boost::is_base_of<Memory::SegSizebase, SegmentSizeType>::value));
-	BOOST_STATIC_ASSERT((boost::is_base_of<Memory::BankSizebase, BankSizeType>::value));
-	BOOST_STATIC_ASSERT((boost::is_base_of<Memory::BanksBase, BanksType>::value));
-	BOOST_STATIC_ASSERT((boost::is_base_of<Memory::MaskBase, MaskType>::value));
-	BOOST_STATIC_ASSERT((boost::is_base_of<TI::DLL430::MemoryCreatorBase, MemoryCreatorType>::value));
+	static_assert(std::is_base_of<Memory::TypeBase, TypeType>::value, "Not derived from required base class");
+	static_assert(std::is_base_of<Memory::MappedBase, MappedType>::value, "Not derived from required base class");
+	static_assert(std::is_base_of<Memory::ProtectableBase, ProtectableType>::value, "Not derived from required base class");
+	static_assert(std::is_base_of<BitsBase, BitsType>::value, "Not derived from required base class");
+	static_assert(std::is_base_of<Memory::SizeBase, SizeType>::value, "Not derived from required base class");
+	static_assert(std::is_base_of<Memory::OffsetBase, OffsetType>::value, "Not derived from required base class");
+	static_assert(std::is_base_of<Memory::SegSizebase, SegmentSizeType>::value, "Not derived from required base class");
+	static_assert(std::is_base_of<Memory::BankSizebase, BankSizeType>::value, "Not derived from required base class");
+	static_assert(std::is_base_of<Memory::BanksBase, BanksType>::value, "Not derived from required base class");
+	static_assert(std::is_base_of<Memory::MaskBase, MaskType>::value, "Not derived from required base class");
+	static_assert(std::is_base_of<TI::DLL430::MemoryCreatorBase, MemoryCreatorType>::value, "Not derived from required base class");
 
 	typedef MaskType Mask_type;
 
 	MemoryInfo() :
 		MemoryInfoImpl(
-			std::string(name), 
-			CreateFlags(TypeType().value, MappedType().value, BitsType().value), 
-			ProtectableType().value, 
-			SizeType().value, 
-			OffsetType().value, 
-			SegmentSizeType().value, 
-			BankSizeType().value, 
-			BanksType().value, 
+			name,
+			CreateFlags(TypeType().value, MappedType().value, BitsType().value),
+			ProtectableType().value,
+			SizeType().value,
+			OffsetType().value,
+			SegmentSizeType().value,
+			BankSizeType().value,
+			BanksType().value,
 			Mask_type().memoryMask_value,
 			TI::DLL430::MemoryCreatorPtr(new MemoryCreatorType)
 		)
@@ -397,27 +383,30 @@ struct MemoryInfo : MemoryInfoImpl
 
 
 /// \note device settings used for LPMx.5
-template<uint32_t powerTestRegMask, 
-		 uint32_t enableLpmx5TestReg, 
-		 uint32_t disableLpmx5TestReg, 
-		 uint16_t powerTestReg3VMask, 
-		 uint16_t enableLpmx5TestReg3V, 
+template<uint32_t powerTestRegMask,
+		 uint32_t powerTestRegDefault,
+		 uint32_t enableLpmx5TestReg,
+		 uint32_t disableLpmx5TestReg,
+		 uint16_t powerTestReg3VMask,
+		 uint16_t powerTestReg3VDefault,
+		 uint16_t enableLpmx5TestReg3V,
 		 uint16_t disableLpmx5TestReg3V>
 struct PowerSettings : PowerSettingsImpl
 {
-	PowerSettings() : PowerSettingsImpl(powerTestRegMask, enableLpmx5TestReg, disableLpmx5TestReg, powerTestReg3VMask, enableLpmx5TestReg3V, disableLpmx5TestReg3V) {}
+	PowerSettings() : PowerSettingsImpl(powerTestRegMask, powerTestRegDefault, enableLpmx5TestReg, disableLpmx5TestReg,
+										powerTestReg3VMask, powerTestReg3VDefault, enableLpmx5TestReg3V, disableLpmx5TestReg3V) {}
 };
 
-typedef PowerSettings<0, 0, 0 , 0, 0, 0> NoPowerSettings;
+typedef PowerSettings<0, 0, 0, 0, 0, 0, 0, 0> NoPowerSettings;
 
 
-template<ClockSystem clock, bool i2c, bool lcfe, bool quickMemRead, bool sflldh, bool hasFram, bool noBsl>
+template<ClockSystem clock, bool i2c, bool lcfe, bool quickMemRead, bool sflldh, bool hasFram>
 struct Features : FeaturesImpl
 {
-	Features() : FeaturesImpl(clock, i2c, lcfe, quickMemRead, sflldh, hasFram, noBsl) {}
+	Features() : FeaturesImpl(clock, i2c, lcfe, quickMemRead, sflldh, hasFram) {}
 };
 
-typedef Features<BC_2xx, false, true, true, false, false, false> DefaultFeatures;
+typedef Features<BC_2xx, false, true, true, false, false> DefaultFeatures;
 
 
 template<bool tmr, bool jtag, bool dtc, bool sync, bool instr, bool _1377, bool psach>
@@ -429,15 +418,13 @@ struct ExtendedFeatures : ExtendedFeaturesImpl
 typedef ExtendedFeatures<false, false, false, false, false, false, false> NoExtendedFeatures;
 
 
-
 template<
-	const char* description, 
-	class ObjectIdType, 
+	const char* description,
 	class DefaultBitsType,
-	const Psa flags, 
-	class MatchType, 
-	class EemInfoType, 
-	class VoltageInfoType, 
+	const Psa flags,
+	class MatchType,
+	class EemInfoType,
+	class VoltageInfoType,
 	class ClockInfoType,
 	class FunctionMappingType,
 	class FuncletMappingType,
@@ -447,23 +434,21 @@ template<
 	class PowerSettingsType = NoPowerSettings
 >
 struct Device : public DeviceImplementation
-{	
-	BOOST_STATIC_ASSERT((boost::is_base_of<ObjectIdBase, ObjectIdType>::value));
-	BOOST_STATIC_ASSERT((boost::is_base_of<DefaultBitsBase, DefaultBitsType>::value));
-	BOOST_STATIC_ASSERT((boost::is_base_of<MatchImpl, MatchType>::value));
-	BOOST_STATIC_ASSERT((boost::is_base_of<EemInfoImpl, EemInfoType>::value));
-	BOOST_STATIC_ASSERT((boost::is_base_of<VoltageInfoImpl, VoltageInfoType>::value));
-	BOOST_STATIC_ASSERT((boost::is_base_of<ClockInfoImpl, ClockInfoType>::value));
-	BOOST_STATIC_ASSERT((boost::is_base_of<FunctionMappingImpl, FunctionMappingType>::value)); //Note as functionmapping is working via dynamic polymorphie instead of templates, this is correct
-	BOOST_STATIC_ASSERT((boost::is_base_of<FuncletMappingImpl, FuncletMappingType>::value));
-	BOOST_STATIC_ASSERT((boost::is_base_of<MemoryListBase, MemoryListType>::value));
-	
+{
+	static_assert(std::is_base_of<DefaultBitsBase, DefaultBitsType>::value, "Not derived from required base class");
+	static_assert(std::is_base_of<MatchImpl, MatchType>::value, "Not derived from required base class");
+	static_assert(std::is_base_of<EemInfoImpl, EemInfoType>::value, "Not derived from required base class");
+	static_assert(std::is_base_of<VoltageInfoImpl, VoltageInfoType>::value, "Not derived from required base class");
+	static_assert(std::is_base_of<ClockInfoImpl, ClockInfoType>::value, "Not derived from required base class");
+	static_assert(std::is_base_of<FunctionMappingImpl, FunctionMappingType>::value, "Not derived from required base class");
+	static_assert(std::is_base_of<FuncletMappingImpl, FuncletMappingType>::value, "Not derived from required base class");
+	static_assert(std::is_base_of<MemoryListBase, MemoryListType>::value, "Not derived from required base class");
+
 	typedef MatchType Match_type;
-	
+
 	Device() : DeviceImplementation(
 		std::string(description),
-		ObjectIdType().value, 
-		DefaultBitsType().value, 
+		DefaultBitsType().value,
 		flags,
 		MatchType(),
 		EemInfoType(),
@@ -476,34 +461,34 @@ struct Device : public DeviceImplementation
 		PowerSettingsType()
 	)
 	{
-	
+
 	}
 	//instead of virtual function, use typedefs to get instantiations
 	virtual unsigned int DoGetMemorySize() const
 	{
 		typedef typename MemoryListType::list_type ListType;
-		return boost::tuples::length<ListType>::value;
+		return std::tuple_size<ListType>::value;
 	}
 
 	virtual const MemoryInfoImpl DoGetMemoryAt(unsigned int idx) const
 	{
 		typedef typename MemoryListType::list_type ListType;
-		const unsigned int size = boost::tuples::length<ListType>::value;
+		const unsigned int size = std::tuple_size<ListType>::value;
 		assert(idx < size);
-		return GetAt<size - 1, ListType>(idx).Do();
+		return GetAt<size - 1, ListType>()(idx);
 	}
 };
 
 struct DeviceCreatorBase
 {
-	typedef boost::shared_ptr<DeviceImplementation> DeviceTypePtr;
+	typedef std::shared_ptr<DeviceImplementation> DeviceTypePtr;
 	virtual DeviceTypePtr create() const = 0;
 };
 
 template<class DeviceType>
 struct DeviceCreator : DeviceCreatorBase
 {
-	BOOST_STATIC_ASSERT((boost::is_base_of<DeviceImplementation, DeviceType>::value));
+	static_assert(std::is_base_of<DeviceImplementation, DeviceType>::value, "Not derived from required base class");
 	virtual DeviceTypePtr create() const {return DeviceTypePtr(new DeviceType); }
 };
 
@@ -511,19 +496,16 @@ struct DeviceCreator : DeviceCreatorBase
 class Registration
 {
 public:
-	typedef boost::shared_ptr<DeviceCreatorBase> DeviceCreatorPtr;
+	typedef std::shared_ptr<DeviceCreatorBase> DeviceCreatorPtr;
 	//as registration acts on module global map, you can use it as RValue
 	Registration();
 
 	size_t FindAndPrepareDevice(const IdCodeImpl& match);
 	DeviceInfoPtr GetDeviceInfo(size_t id) const;
 	size_t GetDatabaseSize() const;
-	bool HasCurrentDeviceVpp() const;
-	const char* GetCurrentDeviceDescription() const;
 	void insertDeviceCreator(const MatchImpl& id, DeviceCreatorPtr devCreator);
 
 	void dumpDatabase() const;
-
 private:
 	//helper function to copy ClockPairs from eemTimer to CreateClockModuleNames of DeviceInfo
 	void CreateClockModuleNames(DeviceInfo::ClockMapping& clockMapping, const EemTimerImpl& eemTimer) const;
@@ -539,13 +521,11 @@ public:
 	{
 		//Just fill a vector with ids - create heap based object on request to save size
 		Registration().insertDeviceCreator(
-			typename DeviceType::Match_type(), 
+			typename DeviceType::Match_type(),
 			Registration::DeviceCreatorPtr(new DeviceCreator<DeviceType>)
 		);
 	}
-	void Register(){}
 };
 } //namespace TemplateDeviceDb
 }//namespace DLL430
 }//namespace TI
-#endif //TEMPLATE_DEVICE_DB_REGISTRATION_H

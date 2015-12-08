@@ -37,6 +37,7 @@
 */
 
 #pragma once
+
 #include "MSPBSL_Connection5xxUART.h"
 
 class MSPBSL_ConnectionFRAMFamily : public MSPBSL_Connection5xxUART

@@ -51,36 +51,34 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <EnergyTraceProcessorId7.h>
-#include "EnergyTraceLowPassFilter.h"
-#include "EnergyTraceRunningAverageFilter.h"
+#include <pch.h>
+#include <limits>
 
-#ifdef ETLOG
-#include <boost/thread.hpp>
-#include <boost/date_time/posix_time/posix_time.hpp>
-#endif
+#include "EnergyTraceProcessorId7.h"
+#include "EnergyTraceJstateParser.h"
 
 using namespace TI::DLL430;
 using namespace std;
 
-EnergyTraceProcessorId7::EnergyTraceProcessorId7(size_t dataSize)
-	:mBuffer(dataSize)
-	,mPrevCurrent(0)
-	,mEnergyMicroWsec(0)
+EnergyTraceProcessorId7::EnergyTraceProcessorId7(uint32_t calibrationPoints, size_t dataSize)
+	: EnergyTraceProcessor(calibrationPoints)
+	, mBuffer(dataSize)
+	, mPrevCurrent(0)
+	, mEnergyMicroWsec(0)
 {
 	Reset();
 
 #ifdef ETLOG
 	filePtr = fopen("etlog.csv", "w");
-	Log("Timestamp,deltaT,deltaN,CurrentTicks,Current,dStateValues");
+	Log("Timestamp, deltaT, deltaN, CurrentTicks, Current, dStateValues");
 #endif
 }
 
 EnergyTraceProcessorId7::~EnergyTraceProcessorId7()
 {
-	#ifdef ETLOG
+#ifdef ETLOG
 		if (filePtr) fclose(filePtr);
-	#endif
+#endif
 }
 
 
@@ -96,11 +94,10 @@ void EnergyTraceProcessorId7::Log(char * str)
 #endif
 
 
-void EnergyTraceProcessorId7::Reset(void)
+void EnergyTraceProcessorId7::Reset()
 {
 	mBuffer.Reset();
-	mFilter->Reset();
-	mVoutFilter->Reset();
+	mVoutFilter.Reset();
 	mAccumulatedT = 0;
 	mAccumulatedN = 0;
 	mEnergyMicroWsec = 0;
@@ -108,8 +105,7 @@ void EnergyTraceProcessorId7::Reset(void)
 	mAccumulatedNDiv = 1;
 	mCurrent = 0;
 	mCurrentValid = false;
-	mEnergyMicroWsec = 0;
-	mEnergyMicroWsecAdder = 0;
+	mPrevTimeTag = 0;
 
 	mSkip = SKIP_COUNTER;
 }
@@ -120,7 +116,8 @@ bool EnergyTraceProcessorId7::AddData(void *data, size_t size)
 
 	// Process the stream and store it in the buffer
 	EnergyTraceRecord_t *pRecord = (EnergyTraceRecord_t *)data;
-	int numEntries = size/sizeof(*pRecord);
+
+	size_t numEntries = size/sizeof(*pRecord);
 	while (numEntries--)
 	{
 		// ----------------------------------------------------
@@ -130,7 +127,7 @@ bool EnergyTraceProcessorId7::AddData(void *data, size_t size)
 			--mSkip;
 			mPrevCurrentTick = pRecord->currentTicks;
 			mPrevTimeTag = pRecord->TimeStamp;
-			mVoutFilter->Reset();
+			mVoutFilter.Reset();
 			mTimeTag_us = 0;
 			mCurrent = 0;
 			if (mSkip == 0)
@@ -143,48 +140,51 @@ bool EnergyTraceProcessorId7::AddData(void *data, size_t size)
 			mEnergyMicroWsecAdder = 0;
 			mAccumulatedNDiv = 1;
 			return false;
-        }
-	    EnergyRecord newRecord;
+		}
+		EnergyRecord newRecord;
 
 		// ----------------------------------------------------------------------------------
-        // Calculate timestamp in usec and passed time between this and last sample
-		double deltaT = (double)(pRecord->TimeStamp - mPrevTimeTag) * TIME_BASE_ns / 1000.00; // Convert to micro-seconds
+		// Calculate timestamp in usec and passed time between this and last sample
+		double deltaT = (double)(pRecord->TimeStamp - mPrevTimeTag) * timeBase_ns / 1000.00; // Convert to micro-seconds
 
 		//------- Current calculation-----------------------------------------------------------
 		uint32_t deltaN = pRecord->currentTicks - mPrevCurrentTick;
 
 #ifdef ETLOG
 		// For debug
-		int size = sprintf(logStr, "%d,%4.0f,%d,%d, %d,%llx",
-			pRecord->TimeStamp, deltaT, deltaN,pRecord->currentTicks, mCurrent, pRecord->JState);
+		sprintf(logStr, "%d, %4.0f, %d, %d, %d, %llx",
+				pRecord->TimeStamp, deltaT, deltaN, pRecord->currentTicks, mCurrent, pRecord->JState);
 
 		Log(logStr);
 #endif
 
-		if(pRecord->TimeStamp  < mPrevTimeTag)
+		const size_t uint32Max = numeric_limits<uint32_t>::max();
+		if ((pRecord->TimeStamp <= mPrevTimeTag) && (mPrevTimeTag - pRecord->TimeStamp < uint32Max / 2))
 		{
 			return false;
 		}
 
-		if(pRecord->currentTicks  < mPrevCurrentTick)
+		if (pRecord->currentTicks < mPrevCurrentTick)
 		{
 			return false;
 		}
 
-		if(!mJStateParser.AddData(pRecord->JState))
+		newRecord.dstate = pRecord->JState;
+		if (!isJstateValid(pRecord->JState))
 		{
-			pRecord->JState = (pRecord->JState & 0x3CFFFFFFFFFFFFFFull);
+			newRecord.dstate &= 0x3CFFFFFFFFFFFFFFull;
 		}
+
 
 		//------- Voltage measurement
 		uint32_t VOut = pRecord->voltage;
 
-		 // ----------------------------------------------------------------------------------
-		 // Average voltage
-		if(mFilterEnable)
+		// ----------------------------------------------------------------------------------
+		// Average voltage
+		if (mFilterEnable)
 		{
-			mVoutFilter->AddData(&VOut, sizeof(VOut));
-			newRecord.voltage = *((uint32_t *)mVoutFilter->GetReadBufferPtr());
+			mVoutFilter.AddData(&VOut, sizeof(VOut));
+			newRecord.voltage = *((uint32_t *)mVoutFilter.GetReadBufferPtr());
 		}
 		else
 		{
@@ -193,42 +193,41 @@ bool EnergyTraceProcessorId7::AddData(void *data, size_t size)
 
 		//------- Current calculation-----------------------------------------------------------
 		// Setup integrators
-		double mAccumulatedTMin = 1000;
-		double mAccumulatedNMin = (double)tickThreshold/mAccumulatedNDiv;
+		const double mAccumulatedTMin = 1000;
+		const double mAccumulatedNMin = (double)tickThreshold/mAccumulatedNDiv;
 
 		// Add up samples-------------------------------------------------------------------------------
 		mAccumulatedT += deltaT;
 		mAccumulatedN += deltaN;
 
+		uint32_t range = 0;
+
 		if (mCurrentValid || ((mAccumulatedT > mAccumulatedTMin) && (mAccumulatedN > mAccumulatedNMin))) // Calculate sample every 1000usec, need to have at least 1 tick
 		{
+			//Determine left side of range the value lies in
 			double normalizedN = (double)mAccumulatedN / mAccumulatedT * 1000.00; // Normalized ticks per 1msec
-			if (normalizedN < mCalibrationValues[0].threshold)
+
+			// Calculate current for all calibration points
+			double currents[5] = {0};
+			for (unsigned int i=0; i<numCalibrationPoints-1; i++)
 			{
-				mCurrent = 0; // Clamp negative values to 0uA -- avoid undershoot
+				currents[i] = ((normalizedN - mCalibrationValues[i].offset) * mCalibrationValues[i].gradient) + mCalibrationValues[i].refCurrent;
 			}
-			else
+
+			// Select current for the actual range
+			while ((range < numCalibrationPoints - 2) && (normalizedN > mCalibrationValues[range+1].threshold))
 			{
-				mCurrent = (uint32_t)((normalizedN - mCalibrationValues[0].offset) / mCalibrationValues[0].gradient);
+				range++;
 			}
+
+			if (currents[range] < 0) currents[range] = 0;
+			mCurrent = (unsigned int) currents[range];
+
+
 			//------- Current calculation-----------------------------------------------------------
-			if ((double)deltaN/deltaT*1000 > mCalibrationValues[1].threshold/5) // High current (larger than 1.6mA/5) -- average less
+			if (mAccumulatedNDiv > ACCUMULATED_N_DIV_MIN)
 			{
-				if (mAccumulatedNDiv < ACCUMULATED_N_DIV_MAX)
-				{
-					mAccumulatedNDiv += ACCUMULATED_N_DIV_STEP_SIZE;
-				}
-			}
-			else // Low current -- average more
-			{
-				if (mAccumulatedNDiv > ACCUMULATED_N_DIV_MIN)
-				{
-					mAccumulatedNDiv -= ACCUMULATED_N_DIV_STEP_SIZE;
-				}
-			}
-			if (mAccumulatedNMin<1)
-			{
-				mAccumulatedNMin = 1;
+				mAccumulatedNDiv -= ACCUMULATED_N_DIV_STEP_SIZE;
 			}
 
 			mAccumulatedT = 0;
@@ -250,33 +249,31 @@ bool EnergyTraceProcessorId7::AddData(void *data, size_t size)
 		mEnergyMicroWsecAdder += (double)deltaN - ((double)mCalibrationValues[0].threshold*(deltaT/1000));
 		if (mEnergyMicroWsecAdder > 0) // Only increase energy
 		{
-			mEnergyMicroWsec += mEnergyMicroWsecAdder * oneTickinMicroWsec * 10;
+			mEnergyMicroWsec += mEnergyMicroWsecAdder * oneTickinMicroWsec[range] * 10;
 			mEnergyMicroWsecAdder = 0;
 		}
 		newRecord.energy = (uint32_t)mEnergyMicroWsec;
 
 		newRecord.current = mCurrent;
-		newRecord.dstate = pRecord->JState;
-
 		retVal |= mBuffer.AddData(newRecord); // Add the current record to the double buffer
 
 		// Store the current state
 		mPrevTimeTag = pRecord->TimeStamp;
 		mPrevCurrentTick = pRecord->currentTicks;
 		pRecord++;
-    }
-    return retVal;
+	}
+	return retVal;
 }
 
 
 //---------------------------------
-void* EnergyTraceProcessorId7::GetReadBufferPtr(void)
+void* EnergyTraceProcessorId7::GetReadBufferPtr()
 {
-    return mBuffer.GetReadBufferPtr();
+	return mBuffer.GetReadBufferPtr();
 }
 
 //---------------------------------
-size_t EnergyTraceProcessorId7::GetReadBufferSize(void)
+size_t EnergyTraceProcessorId7::GetReadBufferSize()
 {
-    return mBuffer.GetBufferSize() * sizeof(*mBuffer.GetReadBufferPtr());
+	return mBuffer.GetBufferSize() * sizeof(*mBuffer.GetReadBufferPtr());
 }

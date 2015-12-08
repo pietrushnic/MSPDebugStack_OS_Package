@@ -35,8 +35,7 @@
  *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef DLL430_SOFTWARE_BREAKPOINTS_430_H
-#define DLL430_SOFTWARE_BREAKPOINTS_430_H
+#pragma once
 
 #include "ISoftwareBreakpoints.h"
 #include "../TriggerManager/TriggerManager430.h"
@@ -49,7 +48,7 @@ namespace TI { namespace DLL430 {
 class SoftwareBreakpoints430 : public ISoftwareBreakpoints
 {
 public:
-	SoftwareBreakpoints430(TriggerManager430Ptr);
+	explicit SoftwareBreakpoints430(TriggerManager430Ptr);
 
 	void enable();
 	void disable();
@@ -63,5 +62,3 @@ private:
 };
 
 }}
-
-#endif

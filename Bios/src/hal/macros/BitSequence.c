@@ -7,35 +7,35 @@
 *
 */
 /*
- * Copyright (C) 2012 Texas Instruments Incorporated - http://www.ti.com/ 
- * 
- * 
- *  Redistribution and use in source and binary forms, with or without 
- *  modification, are permitted provided that the following conditions 
+ * Copyright (C) 2012 Texas Instruments Incorporated - http://www.ti.com/
+ *
+ *
+ *  Redistribution and use in source and binary forms, with or without
+ *  modification, are permitted provided that the following conditions
  *  are met:
  *
- *    Redistributions of source code must retain the above copyright 
+ *    Redistributions of source code must retain the above copyright
  *    notice, this list of conditions and the following disclaimer.
  *
  *    Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the 
- *    documentation and/or other materials provided with the   
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the
  *    distribution.
  *
  *    Neither the name of Texas Instruments Incorporated nor the names of
  *    its contributors may be used to endorse or promote products derived
  *    from this software without specific prior written permission.
  *
- *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS 
- *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT 
+ *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
  *  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT 
- *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, 
- *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT 
+ *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
  *  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
  *  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
- *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
+ *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
@@ -78,85 +78,112 @@
           Bit 15- ------
 */
 
+#define PinTMS  0x01             //Bit0
+#define PinTDI  0x02             //Bit1
+#define PinTDO  0x04             //Bit2
+#define PinTCK  0x08             //Bit3
+#define PinTGTRST 0x040          //Bit6
+#define PinTest 0x0100           //Bit8
+
 HAL_FUNCTION(_hal_BitSequence)
 {
     unsigned char numBitSequences;
     unsigned short writeBits;
     unsigned short maskBits;
     unsigned short delay;
-    unsigned char jtagPortOutput = 0;
-//    unsigned char controlPortOutput = 0;    
-    unsigned char testPortOutput = 0;        
 
     if(STREAM_get_byte(&numBitSequences) < 0)
     {
         return HALERR_NO_NUM_BITS;
     }
-    
+
     while(numBitSequences)
     {
         if(STREAM_get_word(&writeBits) < 0)
         {
             return HALERR_ARRAY_SIZE_MISMATCH;
         }
-        
+
         if(STREAM_get_word(&maskBits) < 0)
         {
             return HALERR_ARRAY_SIZE_MISMATCH;
         }
-        
+
         if(STREAM_get_word(&delay) < 0)
         {
             return HALERR_ARRAY_SIZE_MISMATCH;
         }
-        
+
         // Set reset bit using macros - automatically handles SBW/JTAG mode
-        if(maskBits & 0x0040)
+        if(maskBits & PinTGTRST)
         {
-            if(writeBits & 0x0040)
+            if(writeBits & PinTGTRST)
             {
-                EDT_SetReset(1);
+                IHIL_SetReset(1);
             }
             else
             {
-                EDT_SetReset(0);
+                IHIL_SetReset(0);
             }
         }
 
-        // Set test bit using macros - automatically handles SBW/JTAG mode        
-        if(maskBits & 0x100)
+        // Set test bit using macros - automatically handles SBW/JTAG mode
+        if(maskBits & PinTest)
         {
-            if(writeBits & 0x100)
+            if(writeBits & PinTest)
             {
-                EDT_SetTest(1);
+                IHIL_SetTest(1);
             }
             else
             {
-                EDT_SetTest(0);                
+                IHIL_SetTest(0);
             }
         }
-        
-        // Capture current output value for TMS,TDI,TDO and TCK
-        jtagPortOutput = EDT_GetJtagBits();
-        
-        jtagPortOutput &= ~(maskBits & 0x000F); // Only lower 4 bits are relevant
-        jtagPortOutput |= (writeBits & 0x000F);
-        
-        // Decode Test control bits
-        testPortOutput = EDT_GetTestBits();
-        
-        testPortOutput &= ~((maskBits & 0x7C00) >> 8); // Only bits 10,11,12,13 vand 14 are relevant
-        testPortOutput |= ((writeBits & 0x7C00) >> 8);
-        
-        // Write the resultant values to the ports
-        EDT_SetJtagBits(jtagPortOutput);
-        EDT_SetTestBits(testPortOutput);
-        
+
+        // Set TMS bit using macros - automatically handles SBW/JTAG mode
+        if(maskBits & PinTMS)
+        {
+            if(writeBits & PinTMS)
+            {
+                IHIL_SetTMS(1);
+            }
+            else
+            {
+                IHIL_SetTMS(0);
+            }
+        }
+
+        // Set TCK bit using macros - automatically handles SBW/JTAG mode
+        if(maskBits & PinTCK)
+        {
+            if(writeBits & PinTCK)
+            {
+                IHIL_SetTCK(1);
+            }
+            else
+            {
+                IHIL_SetTCK(0);
+            }
+        }
+
+        // Set TDI bit using macros - automatically handles SBW/JTAG mode
+        if(maskBits & PinTDI)
+        {
+            if(writeBits & PinTDI)
+            {
+                IHIL_SetTDI(1);
+            }
+            else
+            {
+                IHIL_SetTDI(0);
+            }
+        }
+
+
         --numBitSequences;
-        
-        EDT_Delay_1ms(delay);
+
+        IHIL_Delay_1ms(delay);
     }
-  
     return 0;
 }
 

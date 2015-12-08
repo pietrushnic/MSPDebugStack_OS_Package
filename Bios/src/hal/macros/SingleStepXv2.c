@@ -7,35 +7,35 @@
 *
 */
 /*
- * Copyright (C) 2012 Texas Instruments Incorporated - http://www.ti.com/ 
- * 
- * 
- *  Redistribution and use in source and binary forms, with or without 
- *  modification, are permitted provided that the following conditions 
+ * Copyright (C) 2012 Texas Instruments Incorporated - http://www.ti.com/
+ *
+ *
+ *  Redistribution and use in source and binary forms, with or without
+ *  modification, are permitted provided that the following conditions
  *  are met:
  *
- *    Redistributions of source code must retain the above copyright 
+ *    Redistributions of source code must retain the above copyright
  *    notice, this list of conditions and the following disclaimer.
  *
  *    Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the 
- *    documentation and/or other materials provided with the   
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the
  *    distribution.
  *
  *    Neither the name of Texas Instruments Incorporated nor the names of
  *    its contributors may be used to endorse or promote products derived
  *    from this software without specific prior written permission.
  *
- *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS 
- *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT 
+ *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
  *  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT 
- *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, 
- *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT 
+ *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
  *  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
  *  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
- *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
+ *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
@@ -47,6 +47,7 @@
 #include "stddef.h"
 #include "error_def.h"
 #include "hw_compiler_specific.h"
+#include "JtagId.h"
 
 /**
   SingleStepXv2
@@ -55,9 +56,8 @@
 */
 HAL_FUNCTION(_hal_SingleStepXv2)
 {
-  decl_out
   short RetState = HALERR_UNDEFINED_ERROR;
-  unsigned short i = 0;  
+  unsigned short i = 0;
   StreamSafe stream_tmp;
   unsigned char MyIn[31] = {
                   /*Number of EEM Data Exchanges*/
@@ -71,37 +71,44 @@ HAL_FUNCTION(_hal_SingleStepXv2)
                   0x80,0x01,0x00, 0x00,0x00,
   };
   unsigned char MyOut[22]; // large enough to hold all EEM registers being read
-  unsigned char stream_in_tmp[24];
+  unsigned char stream_in_release[18];
+  unsigned char stream_in_sync[4];
+  unsigned short irRequest = 0;
 
-  for(i=0;i<sizeof(stream_in_tmp);i++)
+  for(i=0;i<sizeof(stream_in_release);i++)
   {
-    STREAM_get_byte(&stream_in_tmp[i]);
+    STREAM_get_byte(&stream_in_release[i]);
   }
-  if(!(stream_in_tmp[8] & CPUOFF))  // low byte of SR
+  STREAM_get_word(&irRequest);
+
+  for(i=0;i<sizeof(stream_in_sync);i++)
+  {
+    STREAM_get_byte(&stream_in_sync[i]);
+  }
+  if((!(stream_in_release[8] & CPUOFF)) || (irRequest & 0x4))
   {
     STREAM_internal_stream(MyIn, sizeof(MyIn), MyOut, sizeof(MyOut), &stream_tmp);
     HAL_EemDataExchangeXv2(MESSAGE_NEW_MSG | MESSAGE_LAST_MSG);
     STREAM_external_stream(&stream_tmp);
   }
-  STREAM_internal_stream(stream_in_tmp, sizeof(stream_in_tmp), MESSAGE_NO_OUT, 0, &stream_tmp);
+  STREAM_internal_stream(stream_in_release, sizeof(stream_in_release), MESSAGE_NO_OUT, 0, &stream_tmp);
   HAL_RestoreContext_ReleaseJtagXv2(MESSAGE_NEW_MSG | MESSAGE_LAST_MSG); // Data from DLL Stream
   STREAM_external_stream(&stream_tmp);
 
-  if(!(stream_in_tmp[8] & CPUOFF))  // low byte of SR
+  if((!(stream_in_release[8] & CPUOFF)) || (irRequest & 0x4))
   {
-    // poll for CPU stop reaction  
-    eem_read_control
+    // poll for CPU stop reaction
+    eem_read_control();
     do
     {
-      SetReg_16Bits(0x0000)
       i++;
     }
-    while(!(lOut & 0x0080) && (i < 500));
+    while(!(SetReg_16Bits(0x0000) & 0x0080) && (i < 500));
 
     if(i < 500)
     {
       // take target under JTAG control
-      STREAM_internal_stream(stream_in_tmp, sizeof(stream_in_tmp), MESSAGE_OUT_TO_DLL, 0, &stream_tmp); 
+      STREAM_internal_stream(stream_in_sync, sizeof(stream_in_sync), MESSAGE_OUT_TO_DLL, 0, &stream_tmp);
       RetState = HAL_SyncJtag_Conditional_SaveContextXv2(MESSAGE_NEW_MSG | MESSAGE_LAST_MSG); // In
       STREAM_external_stream(&stream_tmp);
       // restore EEM Trigger Block 0
@@ -131,24 +138,19 @@ HAL_FUNCTION(_hal_SingleStepXv2)
       MyIn[23] = MyOut[17];
       MyIn[24] = MyOut[18];
       MyIn[25] = MyOut[19];
-      
+
       STREAM_internal_stream(MyIn, sizeof(MyIn), MESSAGE_NO_OUT, 0, &stream_tmp);
       HAL_EemDataExchangeXv2(MESSAGE_NEW_MSG | MESSAGE_LAST_MSG);
       STREAM_external_stream(&stream_tmp);
     }
-  }  
+  }
   else
   {
       // First Check if we did not go into LPMx.5
-      lOut = EDT_Instr(IR_CNTRL_SIG_CAPTURE);
-      if((lOut == JTAGVERSION) ||
-         (lOut == JTAGVERSION8D) ||
-         (lOut == JTAGVERSION91) ||
-         (lOut == JTAGVERSION95) ||
-         (lOut == JTAGVERSION99))
+      if (jtagIdIsValid(cntrl_sig_capture()))
       {
           // take target under JTAG control
-          STREAM_internal_stream(stream_in_tmp, sizeof(stream_in_tmp), MESSAGE_OUT_TO_DLL, 0, &stream_tmp); 
+          STREAM_internal_stream(stream_in_sync, sizeof(stream_in_sync), MESSAGE_OUT_TO_DLL, 0, &stream_tmp);
           RetState = HAL_SyncJtag_Conditional_SaveContextXv2(MESSAGE_NEW_MSG | MESSAGE_LAST_MSG); // In
           STREAM_external_stream(&stream_tmp);
       }

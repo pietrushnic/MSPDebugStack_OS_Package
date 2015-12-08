@@ -51,16 +51,10 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#if _MSC_VER > 1000
 #pragma once
-#endif
-
-#ifndef ENERGY_TRACE_RUNNING_AVERAGE_FILTER_H
-#define ENERGY_TRACE_RUNNING_AVERAGE_FILTER_H
 
 #include <IDataProcessor.h>
-#include <stdint.h>
-#include <deque>
+
 
 namespace TI
 {
@@ -73,13 +67,13 @@ namespace TI
 			 * \brief Constructor creates the buffer
 			 * \param size The desired size of the buffer
 			 */
-			EnergyTraceRunningAverageFilter(size_t bufferSize);
+			explicit EnergyTraceRunningAverageFilter(size_t bufferSize);
 			~EnergyTraceRunningAverageFilter();
 
 			/**
 			 * \brief Resets the internal state of the processor
 			 */
-			void Reset(void);
+			void Reset();
 
 			/**
 			 * \brief Add data to be processed
@@ -92,13 +86,13 @@ namespace TI
 			 * \brief Get the pointer for reading data from the buffer
 			 * \return A pointer to the current read buffer
 			 */
-			void* GetReadBufferPtr(void);
+			void* GetReadBufferPtr();
 
 			/**
 			 * \brief Get the buffer size
 			 * \return the size
 			 */
-			size_t GetReadBufferSize(void);
+			size_t GetReadBufferSize();
 
 			void setCalibrationValues(double *calibrationValues, uint16_t vcc);
 
@@ -109,5 +103,3 @@ namespace TI
 		};
 	}
 }
-
-#endif // ENERGY_TRACE_RUNNING_AVERAGE_FILTER_H

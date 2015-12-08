@@ -38,11 +38,7 @@
 
 #pragma once
 
-#include <string>
-#include <boost/asio.hpp>
 #include "MSPBSL_PhysicalInterface.h"
-
-//typedef boost::numeric::ublas::vector<int> dataBuffer;
 
 #define LOW  false
 #define HIGH true
@@ -58,6 +54,8 @@ class MSPBSL_PhysicalInterfaceSerialUART : public MSPBSL_PhysicalInterface
 public:
 
 	MSPBSL_PhysicalInterfaceSerialUART(std::string initString);
+	MSPBSL_PhysicalInterfaceSerialUART(const MSPBSL_PhysicalInterfaceSerialUART&) = delete;
+	MSPBSL_PhysicalInterfaceSerialUART& operator=(const MSPBSL_PhysicalInterfaceSerialUART&) = delete;
 
 	virtual ~MSPBSL_PhysicalInterfaceSerialUART();
 

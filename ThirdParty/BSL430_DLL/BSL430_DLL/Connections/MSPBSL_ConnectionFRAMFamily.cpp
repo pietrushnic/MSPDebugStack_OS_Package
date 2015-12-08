@@ -36,6 +36,8 @@
  *
 */
 
+#include <pch.h>
+
 #include "MSPBSL_ConnectionFRAMFamily.h"
 #include "MSPBSL_PacketHandler.h"
 #include "MSPBSL_PhysicalInterface.h"

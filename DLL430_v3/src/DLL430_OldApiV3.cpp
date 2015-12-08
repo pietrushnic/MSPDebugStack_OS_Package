@@ -3,63 +3,74 @@
  *
  * Old API interface for IAR - V3 implementation.
  *
- * Copyright (C) 2007 - 2011 Texas Instruments Incorporated - http://www.ti.com/ 
- * 
- * 
- *  Redistribution and use in source and binary forms, with or without 
- *  modification, are permitted provided that the following conditions 
+ * Copyright (C) 2007 - 2011 Texas Instruments Incorporated - http://www.ti.com/
+ *
+ *
+ *  Redistribution and use in source and binary forms, with or without
+ *  modification, are permitted provided that the following conditions
  *  are met:
  *
- *    Redistributions of source code must retain the above copyright 
+ *    Redistributions of source code must retain the above copyright
  *    notice, this list of conditions and the following disclaimer.
  *
  *    Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the 
- *    documentation and/or other materials provided with the   
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the
  *    distribution.
  *
  *    Neither the name of Texas Instruments Incorporated nor the names of
  *    its contributors may be used to endorse or promote products derived
  *    from this software without specific prior written permission.
  *
- *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS 
- *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT 
+ *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
  *  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT 
- *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, 
- *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT 
+ *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
  *  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
  *  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
- *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
- *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.                                                                                                                                                                                                                                                                                                         
+ *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifdef _MSC_VER
-#ifndef _CRT_SECURE_NO_WARNINGS
-#define _CRT_SECURE_NO_WARNINGS //disabling warnings to  use secure c-function versions (e.g. strcpy_s) as not compatible none MS development
-#endif
-#endif
-
-#include <boost/foreach.hpp>
+#include <pch.h>
 
 #include "DLL430_OldApiV3.h"
 #include "DeviceDbManagerExt.h"
 #include "DeviceInfo.h"
 #include "EemMemoryAccess.h"
+#include "CpuRegisters.h"
 #include "UpdateManager.h"
 #include "HidUpdateManager.h"
-#include "DeviceHandleV3.h"
+#include "DeviceHandle.h"
 #include "../version.h"
+#include "FetHandleManagerImpl.h"
 
 #include "EM/EmulationManager/IEmulationManager.h"
 #include "EM/Trace/ITrace.h"
 #include "EM/VariableWatch/IVariableWatch.h"
 #include "EM/Sequencer/ISequencer.h"
+#include "EM/CycleCounter/ICycleCounter.h"
 #include "EM/SoftwareBreakpoints/ISoftwareBreakpoints.h"
 #include "EM/Exceptions/Exceptions.h"
+#include "../../Bios/include/error_def.h"
+
+#include "JtagId.h"
+#include "JtagShifts.h"
+#include "MemoryContent.h"
+#include "FileReader.h"
+#include "FileWriter.h"
+
+#ifdef UNIX
+#include <boost/filesystem.hpp>
+using namespace boost::filesystem;
+#endif
 
 using namespace TI::DLL430;
+using namespace std;
+using namespace std::placeholders;
 
 #define OLD_API_USB_TYPE "CDC"
 
@@ -68,26 +79,25 @@ const char* const errorStrings[] = { ERROR_DEFINITIONS };
 #undef ERROR_DEF
 
 
-
 DLL430_OldApiV3::DLL430_OldApiV3 ()
 	: varWatch_state(VW_DISABLE)
-	, manager(FetHandleManager::instance())
+	, manager(new FetHandleManagerImpl)
 	, handle(0)
 	, errNum(0)
-	, v2initCalled(false)
 	, singleDevice(0)
-	, selectedJtagMode(ConfigManager::JTAG_MODE_UNDEF)
+	, selectedJtagMode(ConfigManager::JTAG_MODE_AUTOMATIC)
 	, devInfoFilled(false)
+	, devInfo()
 	, devCode(0)
 	, notifyCallback(0)
+	, clientHandle(0)
 	, mPollingManager(0)
 	, mEnergyTraceManager(0)
 {
 	varWatch_state = VW_DISABLE;
 
-    mPdCallbacks.pContext = 0;
-    mPdCallbacks.pPushDataFn = 0;
-    mPdCallbacks.pErrorOccurredFn = 0;
+	memset(&mPdSetup, 0, sizeof(mPdSetup));
+	memset(&mPdCallbacks, 0, sizeof(mPdCallbacks));
 
 	trace_storage.trAction=TR_FETCH;
 	trace_storage.trControl=TR_DISABLE;
@@ -96,9 +106,9 @@ DLL430_OldApiV3::DLL430_OldApiV3 ()
 	this->debug.state = STOPPED;
 	this->debug.jtagReleased = true;
 	this->debug.cb.func = 0;
-    this->debug.EnergyTraceEnabled = false;
-    this->debug.EnergyTraceActive = false;
-	Logger::instance()->registerLogTarget(this);
+
+	const uint16_t DEFAULT_CLKCNTRL = 0x0026;
+	const uint16_t DEVICE_DEFAULT_MCLKCNTRL0 = 0x2407;
 
 	clock_control.ccControl		= CC_DISABLE;
 	clock_control.ccGeneralCLK	= DEFAULT_CLKCNTRL;
@@ -109,45 +119,40 @@ DLL430_OldApiV3::DLL430_OldApiV3 ()
 	memset(&sequencer_control, 0, sizeof(sequencer_control));
 }
 
-DLL430_OldApiV3::~DLL430_OldApiV3 () 
+DLL430_OldApiV3::~DLL430_OldApiV3 ()
 {
-	Close(0);
-
-	if (singleDevice && handle)
-	{
-		DeviceHandleManager* dhm = handle->getDeviceHandleManager();	
-		dhm->destroyDeviceHandle(singleDevice);
-		singleDevice = NULL;
-	}
-
-	Logger::instance()->deregisterLogTarget(this);
-
-	if (this->handle)
-		this->manager->destroyFetHandle(this->handle);
-
-	if (this->manager)
-		delete this->manager;
+	//This is called from the detach handler, be VERY careful with what you do here
+	//Do NOT try to use mutexes or join threads. Do as much as possible in Close(), not here.
 }
 
-void DLL430_OldApiV3::event(DebugEventTarget::EventType e,  uint32_t lParam, uint16_t wParam) 
+void DLL430_OldApiV3::event(DebugEventTarget::EventType e,  uint32_t lParam, uint16_t wParam)
 {
-	switch (e) 
+	std::lock_guard<std::recursive_mutex> lock(apiMutex);
+
+	switch (e)
 	{
 	case DebugEventTarget::EnergyTraceData:
-		if(mPdCallbacks.pPushDataFn)
+		if (mPdCallbacks.pPushDataFn)
 		{
-            // Push the data to the IDE
-            mPdCallbacks.pPushDataFn(mPdCallbacks.pContext, (const BYTE *)mEnergyTraceManager->getEnergyTraceBuffer(), mEnergyTraceManager->getEnergyTraceBufferSize());
+			const void* buffer = mEnergyTraceManager->getEnergyTraceBuffer();
+			const size_t size = mEnergyTraceManager->getEnergyTraceBufferSize();
+
+			// Push the data to the IDE
+			if (buffer)
+			{
+				mPdCallbacks.pPushDataFn(mPdCallbacks.pContext, (const uint8_t*)buffer, static_cast<uint32_t>(size));
+			}
 		}
 		break;
+
 	case DebugEventTarget::Lpm5Sleep:
 		execNotifyCallback(DEVICE_IN_LPM5_MODE);
 		debug.state = LPMX5_MODE;
 		break;
 
 	case DebugEventTarget::Lpm5Wakeup:
-		try	
-		{ 
+		try
+		{
 			resetEM();
 		}
 		catch (const EM_Exception&) {}
@@ -155,8 +160,9 @@ void DLL430_OldApiV3::event(DebugEventTarget::EventType e,  uint32_t lParam, uin
 		if ( DebugManager* db_man = singleDevice->getDebugManager() )
 		{
 			db_man->syncDeviceAfterLPMx5();
-			long dummy = 0;
-			State(&dummy,1,&dummy);
+			int32_t dummyState = 0;
+			int32_t dummyCycles = 0;
+			State(&dummyState, 1, &dummyCycles);
 		}
 
 		execNotifyCallback(DEVICE_WAKEUP_LPM5_MODE);
@@ -164,7 +170,7 @@ void DLL430_OldApiV3::event(DebugEventTarget::EventType e,  uint32_t lParam, uin
 		break;
 
 	case DebugEventTarget::BreakpointHit:
-		if(debug.state == LPMX5_MODE)
+		if (debug.state == LPMX5_MODE)
 		{
 			break;
 		}
@@ -173,13 +179,13 @@ void DLL430_OldApiV3::event(DebugEventTarget::EventType e,  uint32_t lParam, uin
 			//With trace/variable watch enabled, give storage events on same trigger time to be reported
 			if (trace_storage.trControl == TR_ENABLE)
 			{
-				boost::this_thread::sleep(boost::get_system_time() + boost::posix_time::milliseconds(100));
+				this_thread::sleep_for(chrono::milliseconds(100));
 			}
 			db_man->pausePolling();
 		}
 		this->debug.state = BREAKPOINT_HIT;
 
-		if (this->debug.cb.func) 
+		if (this->debug.cb.func)
 		{
 			(*this->debug.cb.func)(
 
@@ -192,7 +198,7 @@ void DLL430_OldApiV3::event(DebugEventTarget::EventType e,  uint32_t lParam, uin
 		break;
 
 	case DebugEventTarget::Storage:
-		if (this->debug.cb.func) 
+		if (this->debug.cb.func)
 		{
 			(*this->debug.cb.func)(
 				this->debug.cb.ids.uiMsgIdStorage,
@@ -207,7 +213,7 @@ void DLL430_OldApiV3::event(DebugEventTarget::EventType e,  uint32_t lParam, uin
 		watchedVariablesMutex.lock();
 		for (map<uint16_t, WatchedVariablePtr>::const_iterator it = watchedVariables.begin(); it != watchedVariables.end(); ++it)
 		{
-			if (it->second->isValid() && this->debug.cb.func) 
+			if (it->second->isValid() && this->debug.cb.func)
 			{
 				(*this->debug.cb.func)(
 					this->debug.cb.ids.uiMsgIdStorage,
@@ -225,7 +231,8 @@ void DLL430_OldApiV3::event(DebugEventTarget::EventType e,  uint32_t lParam, uin
 
 void DLL430_OldApiV3::log(TI::DLL430::LogTarget::Severity sev, unsigned int id, const char* message)
 {
-	switch (sev) {
+	switch (sev)
+	{
 	case LogTarget::ERR:
 	case LogTarget::FATAL:
 		this->errNum = id;
@@ -234,133 +241,122 @@ void DLL430_OldApiV3::log(TI::DLL430::LogTarget::Severity sev, unsigned int id, 
 	default:
 		break;
 	}
+	Logger::instance()->log(sev, id, message);
 }
 
-bool DLL430_OldApiV3::GetNumberOfUsbIfs(long* Number)
+bool DLL430_OldApiV3::GetNumberOfUsbIfs(int32_t* Number)
 {
 	assert(this->manager);
 
 	//Make sure there is no active communication when we clear the port list
 	this->Close(0);
 
-	if (HidUpdateManager::countHidDevices(MSPBSL_EZ_FET_USB_PID) > 0)
-	{
-		*Number = 1;
-		return true;
-	}
-
 	// API does not support different USB types here
 	// using default
 	this->manager->createPortList(OLD_API_USB_TYPE, true, false);
-	if(NULL != Number)
+	if (nullptr != Number)
 	{
-		*Number = static_cast<long>(this->manager->getPortNumber());
+		*Number = static_cast<int32_t>(this->manager->getPortNumber());
 		return true;
-	} 
-	else 
-	{
-		log(LogTarget::ERR, PARAMETER_ERR, "");
-		return false;
 	}
+
+	log(LogTarget::ERR, PARAMETER_ERR, "");
+	return false;
 }
 
-bool DLL430_OldApiV3::GetNameOfUsbIf(long Idx, char** Name, long* Status)
+bool DLL430_OldApiV3::GetNameOfUsbIf(int32_t Idx, char** Name, int32_t* Status)
 {
-	if (HidUpdateManager::countHidDevices(MSPBSL_EZ_FET_USB_PID) > 0)
-	{
-		*Name = "HID_FET";
-		*Status  = 0;
-		return true;
-	}
-
-	PortInfo *portinfo = this->manager->getPortElement(Idx);
-	if(NULL != portinfo)
+	if (PortInfo *portinfo = this->manager->getPortElement(Idx))
 	{
 		// Copy string to persistent buffer that won't become invalid after init
-		port_names.resize( max((long)port_names.size(), Idx+1) );
+		port_names.resize( max((int32_t)port_names.size(), Idx+1) );
 		strncpy(port_names[Idx].name, portinfo->name.c_str(), sizeof(port_names[Idx].name)-1);
 
 		*Name = port_names[Idx].name;
 		*Status = portinfo->status;
 		return true;
-	} 
-	else 
+	}
+
+	log(LogTarget::ERR, USB_FET_NOT_FOUND_ERR, "");
+	return false;
+}
+
+bool DLL430_OldApiV3::Initialize(const char* port, int32_t* version)
+{
+	// if ports are still open, exec a cleanup here
+	this->Close(0);
+
+	PortInfo *portInfo = this->manager->getPortElement(std::string(port));
+
+	if (!portInfo)
+	{
+		manager->createPortList(OLD_API_USB_TYPE, true, false);
+		portInfo = this->manager->getPortElement(std::string(port));
+	}
+
+#ifdef UNIX
+	if (!portInfo)
+	{
+		try
+		{
+			portInfo = this->manager->getPortElement(boost::filesystem::canonical(port).filename().string());
+		}
+		catch (...) {}
+	}
+#endif
+
+	if (nullptr == portInfo)
 	{
 		log(LogTarget::ERR, USB_FET_NOT_FOUND_ERR, "");
 		return false;
 	}
-}
-
-bool DLL430_OldApiV3::Initialize(char* port, long* version)
-{
-	// if ports are still open, exec a cleanup here
-	this->Close(0);
-	if(!strncmp(port,"HID_FET",7))
+	else if (portInfo->status == PortInfo::inUseByAnotherInstance)
 	{
-		*version=(-2);
+		log(LogTarget::ERR, USB_FET_BUSY_ERR, "");
+		return false;
 	}
-	else
+
+	if (portInfo->type == PortInfo::BSL)
 	{
-		PortInfo *portInfo = this->manager->getPortElement(std::string(port));
+		*version = -2;
+		return true;
+	}
 
-		if (!portInfo)
-		{
-			manager->createPortList(OLD_API_USB_TYPE, true, false);
-			portInfo = this->manager->getPortElement(std::string(port));
-		}
+	this->handle = this->manager->createFetHandle(*portInfo);
+	if (!this->handle)
+	{
+		log(LogTarget::ERR, COMM_ERR, "");
+		this->Close(0);
+		return false;
+	}
 
-#ifdef UNIX
-		if (!portInfo)
-		{
-			manager->createPortList(port, true, false);
-			portInfo = this->manager->getPortElement(std::string(port));
-		}
-#endif
+	// Everything was OK so create an instance of the EnergyTraceManager
+	mPollingManager =  new PollingManager(dynamic_cast<FetHandleV3*>(handle));
+	mEnergyTraceManager = new EnergyTraceManager(dynamic_cast<FetHandleV3*>(handle), mPollingManager);
+	this->handle->getConfigManager()->setEnergyTraceManager(mEnergyTraceManager);
 
-		if (NULL == portInfo)
-		{
-			log(LogTarget::ERR, USB_FET_NOT_FOUND_ERR, "");
-			return false;
-		}
-		else if (portInfo->status == PortInfo::inUseByAnotherInstance)
-		{
-			log(LogTarget::ERR, USB_FET_BUSY_ERR, "");
-			return false;
-		}
-	
-		this->handle = this->manager->createFetHandle(*portInfo);
-		if (!this->handle)
-		{
-			log(LogTarget::ERR, COMM_ERR, "");
-			this->Close(0);
-			return false;
-		}
+	if (notifyCallback!=nullptr)
+	{
+		handle->addSystemNotifyCallback( bind(&DLL430_OldApiV3::iNotifyCallback, this, _1) );
+	}
 
-		// Everything was OK so create an instance of the EnergyTraceManager
-		mPollingManager =  new PollingManager(dynamic_cast<FetHandleV3*>(handle));
-		mEnergyTraceManager = new EnergyTraceManager(dynamic_cast<FetHandleV3*>(handle), mPollingManager);
-		this->handle->getConfigManager()->setEnergyTraceManager(mEnergyTraceManager);
-	
-		if(notifyCallback!=NULL)
+	if (version)		// pointer not 0
+	{
+		if (this->handle->getConfigManager()->isUpdateRequired())
 		{
-			handle->addSystemNotifyCallback( boost::bind(&DLL430_OldApiV3::iNotifyCallback, this, _1, _2, _3, _4) );
+			*version = -1;
 		}
-	
-		if (version)		// pointer not 0
+		else
 		{
-			if(this->handle->getConfigManager()->isUpdateRequired())
-			{
-				*version=(-1);
-			}
-			else
-			{
-				*version = VERSION_MAJOR * 10000000 + 
-	                       VERSION_MINOR * 100000 +
-	                       VERSION_PATCH * 1000 +
-	                       VERSION_BUILD;
-			}
+			*version = VERSION_MAJOR * 10000000 +
+						VERSION_MINOR * 100000 +
+						VERSION_PATCH * 1000 +
+						VERSION_BUILD;
+
+			handle->resetState();
 		}
 	}
+
 	errNum = NO_ERR;
 	return true;
 }
@@ -368,61 +364,67 @@ bool DLL430_OldApiV3::Initialize(char* port, long* version)
 bool DLL430_OldApiV3::SetSystemNotfyCallback(SYSTEM_NOTIFY_CALLBACK parSystemNotifyCallback)
 {
 	notifyCallback=parSystemNotifyCallback;
-	
-	if(handle)
+
+	if (handle)
 	{
-		handle->addSystemNotifyCallback( boost::bind(&DLL430_OldApiV3::iNotifyCallback, this, _1, _2, _3, _4) );
+		handle->addSystemNotifyCallback( bind(&DLL430_OldApiV3::iNotifyCallback, this, _1) );
 	}
 
 	return true;
 }
 
-bool DLL430_OldApiV3::OpenDevice(char* Device, char* Password, long PwLength, long DeviceCode, long setId)
+bool DLL430_OldApiV3::OpenDevice(const char* Device, const char* Password, int32_t PwLength, int32_t DeviceCode, int32_t setId)
 {
 	string tmpName(Device);
-	if (tmpName == "MSP430C091" || tmpName == "MSP430C092" ||
-	    DeviceCode == 0xA55AA55A || DeviceCode == 0x5AA55AA5)
+	if (tmpName.find("MSP430C09") == 0)
 	{
-		this->Configure(INTERFACE_MODE, JTAG_IF);
-		if(DeviceCode != 0xA55AA55A && DeviceCode != 0x5AA55AA5)
-		{
-			DeviceCode = 0xDEADBABE;//c092 ROM device
-			devCode = 0xDEADBABE; // just for reset function 
-		}
-		if(DeviceCode == 0xA55AA55A )//L092
-		{
-			devCode = 0xA55AA55A;
-		}
-		if(DeviceCode == 0x5AA55AA5 )//C092EMU
-		{
-			devCode = 0x5AA55AA5;
-		}
+		DeviceCode = 0xDEADBABE;
 	}
+
 	if (tmpName.find("MSP430I") == 0 && DeviceCode == 0)
 	{
 		DeviceCode = 0x20404020;
 	}
 
-	if(this->Identify((char*)&devInfo,sizeof(DEVICE_T), setId, Password, PwLength, DeviceCode) == true)
+	if (tmpName.find("MSP430L09") == 0 || tmpName.find("MSP430C09") == 0)
 	{
-		devInfoFilled=true;
+		this->Configure(INTERFACE_MODE, JTAG_IF);
+		devCode = DeviceCode;
+	}
+	if (tmpName.find("MSP432") == 0 && DeviceCode == 0)
+	{
+		this->Configure(INTERFACE_MODE, JTAG_MSP432);
+		DeviceCode = 0x432;
+		devCode = 0x432;;
+	}
+	if (this->Identify(devInfo.buffer, sizeof(DEVICE_T), setId, Password, PwLength, DeviceCode))
+	{
+		devInfoFilled = true;
 		debug.jtagReleased = false;
 		return true;
 	}
 	return false;
 }
 
-bool DLL430_OldApiV3::GetFoundDevice(char* FoundDevice, long count)
+bool DLL430_OldApiV3::GetFoundDevice(uint8_t* FoundDevice, int32_t count)
 {
-	count = min((long)sizeof(DEVICE_T), count);
+	count = min((int32_t)sizeof(DEVICE_T), count);
 	memcpy(FoundDevice, &devInfo, count);
 	return true;
 }
 
-bool DLL430_OldApiV3::Close(long vccOff)
+bool DLL430_OldApiV3::Close(int32_t vccOff)
 {
 	if (!this->handle)
 		return true;
+
+	if (singleDevice)
+	{
+		if (DebugManager* db_man = singleDevice->getDebugManager())
+		{
+			db_man->pausePolling();
+		}
+	}
 
 	//Stop polling and wait for potentially active callbacks to return
 	if (mPollingManager)
@@ -432,56 +434,63 @@ bool DLL430_OldApiV3::Close(long vccOff)
 
 	bool success = disableSoftwareBreakpointsOnClose();
 
-	if (singleDevice != NULL && config_settings[DEBUG_LPM_X])
+	if (singleDevice != nullptr)
 	{
-		STATE_MODES previousState = debug.state;
+		const bool wasRunning = deviceIsRunning();
 
-		long state = 0, cpuCycles = 0;
+		int32_t state = 0, cpuCycles = 0;
 		State(&state, true, &cpuCycles);
 
 		singleDevice->disableHaltOnWakeup();
 
-		if (previousState == RUNNING || previousState == LPMX5_MODE)
-		{	
-			Run(FREE_RUN, true);
+		if (wasRunning)
+		{
+			// just start device execution, JTAG test register will be set to default values by Stop JTAG.
+			Run(FREE_RUN, false);
 		}
 	}
 
 	if ( ConfigManager* cm = this->handle->getConfigManager() )
 	{
+		cm->stop();
+
 		if (vccOff)
 		{
-			ConfigManager* cm = this->handle->getConfigManager();
 			if (!cm->setDeviceVcc(0))
 			{
 				log(LogTarget::ERR, VCC_ERR, "");
 				success = false;
 			}
 		}
-		cm->stop();
 	}
 
 	this->handle->shutdown();
 
-	if(singleDevice!=NULL)
+	traceTriggers.clear();
+	breakpoints.clear();
+	triggerCombinations.clear();
+	watchedVariables.clear();
+	varWatch_state = VW_DISABLE;
+
+	if (singleDevice!=nullptr)
 	{
-		DeviceHandleManager* dhm = handle->getDeviceHandleManager();	
+		DeviceHandleManager* dhm = handle->getDeviceHandleManager();
 		dhm->destroyDeviceHandle(singleDevice);
-		singleDevice=NULL;
+		singleDevice=nullptr;
 	}
 
 	delete mEnergyTraceManager;
-	mEnergyTraceManager = NULL;
+	mEnergyTraceManager = nullptr;
 
 	delete mPollingManager;
-	mPollingManager = NULL;
-	
-	if(manager != NULL)
+	mPollingManager = nullptr;
+
+	if (manager != nullptr)
 	{
 		this->manager->destroyFetHandle(this->handle);
 		this->handle = 0;
 
-		selectedJtagMode=ConfigManager::JTAG_MODE_UNDEF;
+		selectedJtagMode=ConfigManager::JTAG_MODE_AUTOMATIC;
 		manager->clearPortList();
 
 		config_settings.clear();
@@ -505,7 +514,7 @@ bool DLL430_OldApiV3::disableSoftwareBreakpointsOnClose()
 				const STATE_MODES previousState = debug.state;
 				const bool jtagReleased = debug.jtagReleased;
 
-				long state = 0, cpuCycles = 0;
+				int32_t state = 0, cpuCycles = 0;
 				State(&state, true, &cpuCycles);
 
 				if (!Configure(SOFTWARE_BREAKPOINTS, DISABLE))
@@ -519,15 +528,18 @@ bool DLL430_OldApiV3::disableSoftwareBreakpointsOnClose()
 				}
 			}
 		}
-		catch (const EM_Exception&) {/*ignore*/}
+		catch (const EM_Exception&)
+		{
+			log(LogTarget::ERR, REMOVE_SOFTWARE_BREAKPOINT_ERR, "");
+		}
 	}
 	return success;
 }
 
 
-bool DLL430_OldApiV3::Configure(enum CONFIG_MODE mode, long value)
+bool DLL430_OldApiV3::Configure(enum CONFIG_MODE mode, int32_t value)
 {
-	if(handle == NULL)
+	if (handle == nullptr)
 	{
 		log(LogTarget::ERR, INTERFACE_SUPPORT_ERR, "");
 		return false;
@@ -539,7 +551,7 @@ bool DLL430_OldApiV3::Configure(enum CONFIG_MODE mode, long value)
 		config_settings[mode] = value;
 	}
 
-	switch (mode) 
+	switch (mode)
 	{
 	case INTERFACE_MODE:
 		{
@@ -550,7 +562,7 @@ bool DLL430_OldApiV3::Configure(enum CONFIG_MODE mode, long value)
 			return false;
 		}
 		enum INTERFACE_TYPE type = (enum INTERFACE_TYPE)value;
-		switch (type) 
+		switch (type)
 		{
 			case JTAG_IF:
 				selectedJtagMode=ConfigManager::JTAG_MODE_4WIRE;
@@ -564,6 +576,10 @@ bool DLL430_OldApiV3::Configure(enum CONFIG_MODE mode, long value)
 				selectedJtagMode=ConfigManager::JTAG_MODE_4AFTER2;
 				cm->setJtagMode(ConfigManager::JTAG_MODE_4AFTER2);
 				break;
+			case SPYBIWIRE_MSP_FET_IF:
+				selectedJtagMode=ConfigManager::JTAG_MODE_SPYBIWIRE_MSP_FET;
+				cm->setJtagMode(ConfigManager::JTAG_MODE_SPYBIWIRE_MSP_FET);
+				break;
 			case AUTOMATIC_IF:
 				selectedJtagMode=ConfigManager::JTAG_MODE_AUTOMATIC;
 				break;
@@ -575,7 +591,7 @@ bool DLL430_OldApiV3::Configure(enum CONFIG_MODE mode, long value)
 		break;
 
 	case SET_MDB_BEFORE_RUN:
-		if(singleDevice == NULL)
+		if (singleDevice == nullptr)
 		{
 			log(LogTarget::ERR, INTERNAL_ERR, "");
 			return false;
@@ -604,56 +620,42 @@ bool DLL430_OldApiV3::Configure(enum CONFIG_MODE mode, long value)
 	case WRITE_EXTERNAL_MEMORY:
 		if (value != 0)
 		{
-			if(!writeToExternalMemory())
+			try
 			{
-				log(LogTarget::ERR, WRITE_MEMORY_ERR, "");
-				return  false;
+				map<uint16_t, BpParameter_t> breakpointsBackup = bp_storage;
+				clearSoftwareTriggers();
+
+				if (!writeToExternalMemory())
+				{
+					log(LogTarget::ERR, WRITE_MEMORY_ERR, "");
+					return false;
+				}
+
+				resetEM();
+				restoreSoftwareTriggers(breakpointsBackup);
 			}
+			catch (const EM_Exception& e)
+			{
+				log(LogTarget::ERR, e.errorCode(), e.what());
+				return false;
+			}
+
 		}
 		break;
 
 	case TOTAL_ERASE_DEVICE:
-		{
-			ConfigManager* cm = this->handle->getConfigManager();
-			if (!cm)
-			{
-				log(LogTarget::ERR, INTERNAL_ERR, "");
-				return false;
-			}
+		return Erase(ERASE_TOTAL, 0, 0);
 
-			long prevJtagMode = selectedJtagMode;
-
-			// execute total erase in SBW2 Mode
-			Configure(INTERFACE_MODE, ConfigManager::JTAG_MODE_SPYBIWIRE);	
-			cm->totalErase();
-
-			// execute total erase in SBW4 Mode
-			Configure(INTERFACE_MODE, ConfigManager::JTAG_MODE_4AFTER2);	
-			cm->totalErase();
-
-			Configure(INTERFACE_MODE, prevJtagMode);
-
-			if (singleDevice)
-			{
-				try
-				{
-					singleDevice->getEmulationManager()->rewriteConfiguration();
-				}
-				catch (const EM_Exception&) {/*Nothing to do*/}
-			}
-		}
+	case UNLOCK_BSL_MODE:
+		lockMemory(MemoryArea::BSL, value != ENABLE);
 		break;
 
-	case UNLOCK_BSL_MODE: 
-		lockMemory("boot", value != ENABLE);
+	case LOCKED_FLASH_ACCESS:
+		lockMemory(MemoryArea::INFO, value != ENABLE);
 		break;
-
-	case LOCKED_FLASH_ACCESS: 
-		lockMemory("information", value != ENABLE);
-		break;		
 
 	case RAM_PRESERVE_MODE:
-		if ( singleDevice ) 
+		if ( singleDevice )
 		{
 			if ( MemoryManager* mm = singleDevice->getMemoryManager() ){
 				mm->setRamPreserveMode( value == ENABLE );
@@ -662,7 +664,7 @@ bool DLL430_OldApiV3::Configure(enum CONFIG_MODE mode, long value)
 		break;
 
 	case DEBUG_LPM_X:
-		if ( singleDevice )	
+		if (singleDevice)
 		{
 			ConfigManager* cm = this->handle->getConfigManager();
 			if (!cm)
@@ -670,67 +672,66 @@ bool DLL430_OldApiV3::Configure(enum CONFIG_MODE mode, long value)
 				log(LogTarget::ERR, INTERNAL_ERR, "");
 				return false;
 			}
-			if ( DebugManager* dbgManager = singleDevice->getDebugManager() ) 
+			if (DebugManager* dbgManager = singleDevice->getDebugManager())
 			{
-				dbgManager->setLpmDebugging( value == ENABLE );
+				dbgManager->setLpmDebugging(value == ENABLE);
 				cm->setUlpDebug(value == ENABLE);
 			}
 		}
 		break;
 
 	case SET_INTERFACE_SPEED:
+		if (ConfigManager* cm = this->handle->getConfigManager())
 		{
-			ConfigManager* cm = this->handle->getConfigManager();
-			if (!cm)
-			{
-				log(LogTarget::ERR, INTERNAL_ERR, "");
-				return false;
-			}
-			if(!cm->configureJtagSpeed(value))
+			if (!cm->configureJtagSpeed(value))
 			{
 				log(LogTarget::ERR, SPEED_CONFIG_ERR, "");
-				return  false;
-			}
-			break;		
-		}
-	case ET_CURRENTDRIVE_FINE:
-		{
-			ConfigManager* cm = this->handle->getConfigManager();
-			if (!cm)
-			{
-				log(LogTarget::ERR, INTERNAL_ERR, "");
-				return false;
-			}
-			cm->setCurrentDrive(value);	
-			break;		
-		}
-	case SOFTWARE_BREAKPOINTS:
-		if (singleDevice)
-		{
-			try
-			{
-				SoftwareBreakpointsPtr swbp = singleDevice->getEmulationManager()->getSoftwareBreakpoints();
-				if (value == ENABLE)
-				{
-					swbp->enable();
-				}
-				else
-				{
-					swbp->disable();
-					clearSoftwareTriggers();
-				}
-
-				singleDevice->getEmulationManager()->writeConfiguration();
-			}
-			catch (const EM_Exception& e)
-			{
-				log(LogTarget::ERR, e.errorCode(), e.what());
 				return false;
 			}
 		}
 		else
 		{
 			log(LogTarget::ERR, INTERNAL_ERR, "");
+			return false;
+		}
+		break;
+
+	case ET_CURRENTDRIVE_FINE:
+		if (ConfigManager* cm = this->handle->getConfigManager())
+		{
+			cm->setCurrentDrive(value);
+		}
+		else
+		{
+			log(LogTarget::ERR, INTERNAL_ERR, "");
+			return false;
+		}
+		break;
+
+	case SOFTWARE_BREAKPOINTS:
+		if (!singleDevice)
+		{
+			log(LogTarget::ERR, INTERNAL_ERR, "");
+			return false;
+		}
+		try
+		{
+			SoftwareBreakpointsPtr swbp = singleDevice->getEmulationManager()->getSoftwareBreakpoints();
+			if (value == ENABLE)
+			{
+				swbp->enable();
+			}
+			else
+			{
+				swbp->disable();
+				clearSoftwareTriggers();
+			}
+
+			singleDevice->getEmulationManager()->writeConfiguration();
+		}
+		catch (const EM_Exception& e)
+		{
+			log(LogTarget::ERR, e.errorCode(), e.what());
 			return false;
 		}
 		break;
@@ -742,14 +743,14 @@ bool DLL430_OldApiV3::Configure(enum CONFIG_MODE mode, long value)
 	return true;
 }
 
-bool DLL430_OldApiV3::lockMemory(const string& memoryName, bool lock)
+bool DLL430_OldApiV3::lockMemory(MemoryArea::Name memoryName, bool lock)
 {
-	if (singleDevice != NULL)
+	if (singleDevice != nullptr)
 	{
 		MemoryManager* mm = singleDevice->getMemoryManager();
-		if (mm != NULL)
+		if (mm != nullptr)
 		{
-			const bool success = mm->lock(memoryName.c_str(), lock);
+			const bool success = mm->lock(memoryName, lock);
 			if (!success)
 			{
 				log(LogTarget::ERR, UNLOCK_BSL_ERR, "");
@@ -761,15 +762,15 @@ bool DLL430_OldApiV3::lockMemory(const string& memoryName, bool lock)
 	return false;
 }
 
-long DLL430_OldApiV3::Error_Number(void)
+int32_t DLL430_OldApiV3::Error_Number(void)
 {
-	long ret = this->errNum;
+	int32_t ret = this->errNum;
 
 	this->errNum = 0;
 	return ret;
 }
 
-const char* DLL430_OldApiV3::Error_String(long errorNumber)
+const char* DLL430_OldApiV3::Error_String(int32_t errorNumber)
 {
 	if ((errorNumber < 0) || (errorNumber >= INVALID_ERR))
 	{
@@ -779,30 +780,16 @@ const char* DLL430_OldApiV3::Error_String(long errorNumber)
 	return (errorStrings[errorNumber]);
 }
 
-bool DLL430_OldApiV3::GetJtagID(long* JtagId)
+bool DLL430_OldApiV3::GetJtagID(int32_t* JtagId)
 {
-	ConfigManager* cm = this->handle->getConfigManager();
-	if (!cm)
-	{
-		log(LogTarget::ERR, INTERNAL_ERR, "");
-		return false;
-	}
-	uint16_t id = cm->start();
-	if (id == 0)
-	{
-		log(LogTarget::ERR, NO_DEVICE_ERR, "");
-		return false;
-	}
-	if (JtagId)
-		*JtagId = id;
-
-	return true;
+	log(LogTarget::ERR, INTERFACE_SUPPORT_ERR, "");
+	return false;
 }
 
-bool DLL430_OldApiV3::Identify(char* buffer, long count, long setId, char* Password, long PwLength, long code)
+bool DLL430_OldApiV3::Identify(uint8_t* buffer, int32_t count, int32_t setId, const char* Password, int32_t PwLength, int32_t code)
 {
 	errNum=0;
-	if (setId < 0 || !this->handle || setId > (long)manager->getDeviceDbManager()->getMaxId())
+	if (setId < 0 || !this->handle || setId > (int32_t)TemplateDeviceDbManagerExt().getMaxId())
 	{
 		log(LogTarget::ERR, PARAMETER_ERR, "");
 		return false;
@@ -813,122 +800,122 @@ bool DLL430_OldApiV3::Identify(char* buffer, long count, long setId, char* Passw
 		log(LogTarget::ERR, INTERNAL_ERR, "");
 		return false;
 	}
+	//--disable overcurrent detection for device init------
+	cm->configureOverCurrent(false);
+
+	std::shared_ptr<void> restoreOverCurrent(static_cast<void*>(0),
+							bind(&ConfigManager::configureOverCurrent, cm, true));
+
 	//---------------------find Interface-------------------
-	ConfigManager::jtagMode ifMode = ConfigManager::JTAG_MODE_UNDEF;
-	if((selectedJtagMode==ConfigManager::JTAG_MODE_UNDEF)||(selectedJtagMode==ConfigManager::JTAG_MODE_AUTOMATIC))
+	if (code == 0x432)
 	{
-		ifMode = cm->getInterfaceMode();	
-		if(ifMode == ConfigManager::JTAG_MODE_UNDEF)
+		cm->setJtagMode(ConfigManager::JTAG_MODE_4WIRE_432);
+	}
+	else if (selectedJtagMode == ConfigManager::JTAG_MODE_AUTOMATIC)
+	{
+		ConfigManager::jtagMode ifMode = cm->getInterfaceMode();
+		if (ifMode == ConfigManager::JTAG_MODE_UNDEF)
 		{
-			// Assume 4-wire with JTAG-bits locked. This will cause the MagicPattern to be sent later
+			//Assume 4-wire with JTAG-bits locked. This will cause the MagicPattern to be sent later
 			ifMode = ConfigManager::JTAG_MODE_4AFTER2;
 		}
-		Configure(INTERFACE_MODE, ifMode);
+		cm->setJtagMode(ifMode);
 	}
+
 	//------------------end find Interface-------------------
-	// start JTAG 
+	// start JTAG
 	cm->setDeviceCode(code);
 	//Leading "0x" is cut off here
 	const int strLen = (Password && PwLength > 0) ? PwLength * 4 : 0;
 	const string pwd = (strLen > 0) ? string(Password + 2, strLen) : "";
 	cm->setPassword(pwd);
 
-	uint16_t num = cm->start();
-	if((short)num == -2)
+	int16_t num = cm->start();
+	if (num < 0)
 	{
-		log(LogTarget::ERR, WRONG_PASSWORD, "");
-		return(false);
+		if (num == -2)
+		{
+			log(LogTarget::ERR, WRONG_PASSWORD, "");
+		}
+		else
+		{
+			log(LogTarget::ERR, INTERNAL_ERR, "");
+		}
+		return false;
 	}
 
 	DeviceHandleManager* dhm = handle->getDeviceHandleManager();
-	DeviceChainInfoList* dcil = dhm->getDeviceChainInfo();
-	
-	// test, whether target is attached
-	if(dcil->size()<1)
+
+	if (singleDevice!=nullptr)
 	{
-		// return error, if no target is attached
-		cm->stop();
-		log(LogTarget::ERR, NO_DEVICE_ERR, "");
-		return(false);
-	}
-	// the first device is the only one
-	DeviceChainInfoList::iterator itsdcil = dcil->begin();
-	
-	if(singleDevice!=NULL)
-	{	
 		dhm->destroyDeviceHandle(singleDevice);
-		itsdcil->setInUse(false);
 	}
 	// save the device handle to work with
-	singleDevice = dhm->createDeviceHandle(itsdcil,(uint32_t)code);
+	singleDevice = dhm->createDeviceHandle((uint32_t)code);
 	// sanity check
-	if(singleDevice==NULL)
+	if (singleDevice==nullptr)
 	{
 		cm->stop();
 		log(LogTarget::ERR, NO_DEVICE_ERR, "");
-		return(false);
+		return false;
 	}
 	//attach to running target
-	if(setId != 0x0)
+	if (setId != 0x0)
 	{
-		if(0 == singleDevice->getJtagId())// if no jtag id was found the device is locked or lpmx.5
+		if (0 == singleDevice->getJtagId())// if no jtag id was found the device is locked or lpmx.5
 		{
 			setId = DEVICE_UNKNOWN;
 		}
 	}
 
-	if (setId == DEVICE_UNKNOWN) 
+	if (setId == DEVICE_UNKNOWN)
 	{
-		setId = singleDevice->identifyDevice(code);	
+		setId = singleDevice->identifyDevice(code, false);
 		if (setId < 0)
 		{
+			bool isFuseBlown = singleDevice->isJtagFuseBlown();
 			// this handles the rst of an MSP430i family device
-			long jtagProtocol = (code == 0x20404020) ? cm->MSP430I_MagicPattern() : -1;
+			long errorCode = (code == 0x20404020) ? cm->MSP430I_MagicPattern((uint16_t)selectedJtagMode) : -1;
 
-			if (jtagProtocol == -1)
+			if ((errorCode == -1) && (selectedJtagMode != ConfigManager::JTAG_MODE_4WIRE)&& (singleDevice->getJtagId() != 0x89))
 			{
-				jtagProtocol = singleDevice->magicPatternSend();
+				errorCode = singleDevice->magicPatternSend((uint16_t)selectedJtagMode);
 			}
+
 			// call magic pattern to get device under control
-			switch(jtagProtocol)
+			switch (errorCode)
 			{
-			case 0: // JTAG Mode
-				ifMode = ConfigManager::JTAG_MODE_4WIRE;
+			case 0: // no error
 				break;
-			case 1: // SBW2 Mode
-				ifMode = ConfigManager::JTAG_MODE_SPYBIWIRE;
-				break;
-			case 2: // SBW4 Mode
-				ifMode = ConfigManager::JTAG_MODE_4AFTER2;
-				break;
-			case 0xC3: // if device CRC is wrong
+			case HALERR_MAGIC_PATTERN_BOOT_DATA_CRC_WRONG:
 				log(LogTarget::ERR, DEVICE_CRC_WRONG, "");
 				return false;
-				break;
-			case -1:
-				log(LogTarget::ERR, DEVICE_UNKNOWN_ERR, "");
-				return false;
 			default:
-				ifMode = ConfigManager::JTAG_MODE_UNDEF;
-				break;
+				if (isFuseBlown)
+				{
+					log(LogTarget::ERR, FUSE_BLOWN_ERR, "");
+				}
+				else
+				{
+					log(LogTarget::ERR, DEVICE_UNKNOWN_ERR, "");
+				}
+				return false;
 			}
-			Configure(INTERFACE_MODE, ifMode);
 
 			// If the device is locked by a password, unlock it
-			if(!pwd.empty())
+			if (!pwd.empty())
 			{
 				cm->start();
 			}
 
 			// Re-initialize the device handle
-			itsdcil->setInUse(false);
 			dhm->destroyDeviceHandle(singleDevice);
-			singleDevice = dhm->createDeviceHandle(itsdcil,(uint32_t)code);
+			singleDevice = dhm->createDeviceHandle((uint32_t)code);
 
 			// try to identify the device again
-			setId = singleDevice->identifyDevice(code);
+			setId = singleDevice->identifyDevice(code, true);
 		}
-		if(setId == -5555)
+		if (singleDevice->isJtagFuseBlown())
 		{
 			log(LogTarget::ERR, FUSE_BLOWN_ERR, "");
 			return false;
@@ -939,36 +926,39 @@ bool DLL430_OldApiV3::Identify(char* buffer, long count, long setId, char* Passw
 			return false;
 		}
 		this->debug.state = STOPPED;
-	} 
+	}
 	else // this is Attach to running target
 	{
 		singleDevice->setDeviceId(setId);
-	}	
-
-	if(DebugManager* db_man = singleDevice->getDebugManager())
-	{
-		db_man->setPollingManager(this->mPollingManager);
+		this->debug.state=RUNNING;
 	}
 
-	clock_control.ccModule=singleDevice->getDebugManager()->getClockModuleSetting();
-	clock_control.ccGeneralCLK=singleDevice->getDebugManager()->getClockControlSetting();
+	if (singleDevice->getDescription() == "Legacy")
+	{
+		log(LogTarget::ERR, LEGACY_DEVICE_ERR, "");
+		return false;
+	}
+
+	if (DebugManager* db_man = singleDevice->getDebugManager())
+	{
+		db_man->setPollingManager(this->mPollingManager);
+
+		clock_control.ccModule = db_man->getClockModuleSetting();
+		clock_control.ccGeneralCLK = db_man->getClockControlSetting();
+	}
 
 	// Apply all configuration parameters
-	std::map<enum CONFIG_MODE, long>::const_iterator it = config_settings.begin();
-	for( ; it != config_settings.end(); ++it)
+	std::map<enum CONFIG_MODE, int32_t>::const_iterator it = config_settings.begin();
+	for ( ; it != config_settings.end(); ++it)
 	{
-		this->Configure(it->first,it->second);
+		this->Configure(it->first, it->second);
 	}
 
 	return this->Device(setId, buffer, count);
-}	
-
-bool DLL430_OldApiV3::Identify(char* buffer, long count, long setId)
-{
-	return this->Identify(buffer, count, setId, NULL, 0, 0);
 }
 
-bool DLL430_OldApiV3::Device(long localDeviceId, char* buffer, long count)
+
+bool DLL430_OldApiV3::Device(int32_t localDeviceId, uint8_t* buffer, int32_t count)
 {
 	if (buffer == 0)
 	{
@@ -977,7 +967,7 @@ bool DLL430_OldApiV3::Device(long localDeviceId, char* buffer, long count)
 	}
 
 	//use smaller value as limit for memcpy
-	count = min((long)sizeof(DEVICE_T), count);
+	count = min((int32_t)sizeof(DEVICE_T), count);
 
 	DEVICE_T data;
 	::memset(&data, 0, sizeof(data));
@@ -994,62 +984,60 @@ bool DLL430_OldApiV3::Device(long localDeviceId, char* buffer, long count)
 	const DeviceInfoPtr info = TemplateDeviceDbManagerExt().queryDb(localDeviceId);
 
 	::strncpy((char*)data.string, info->getDescription(), sizeof(data.string) - 1);
-	
+
 	const DeviceInfo::memoryInfo_list_type& memoryInfo = info->getMemoryInfo();
-	
+
 	int bits = 16;
-	WORD usbRamStart = 0;
-	WORD usbRamEnd = 0;
+	uint16_t usbRamStart = 0;
+	uint16_t usbRamEnd = 0;
 	int ramAreaCounter = 0;
-	
-	DeviceInfo::memoryInfo_list_type::const_iterator it = memoryInfo.begin();
-	const DeviceInfo::memoryInfo_list_type::const_iterator listEnd = memoryInfo.end();
-	for (; it != listEnd; ++it)
+
+	for (const auto& it : memoryInfo)
 	{
 		const unsigned start = it->offset;
 		const unsigned end = it->offset + it->size - 1;
 
-		if (it->name == "CPU")
+		if (it->name == MemoryArea::CPU)
 		{
 			bits = it->bits;
 		}
-		else if (it->name == "main")
+		else if (it->name == MemoryArea::MAIN)
 		{
-			data.mainStart = static_cast<WORD>(start);
+			data.mainStart = static_cast<uint16_t>(start);
 			data.mainEnd = end;
 			data.mainSegmentSize = it->seg_size;
 		}
-		else if (it->name == "information")
+		else if (it->name == MemoryArea::INFO)
 		{
-			data.infoStart = static_cast<WORD>(start);
-			data.infoEnd = static_cast<WORD>(end);
+			data.infoStart = static_cast<uint16_t>(start);
+			data.infoEnd = static_cast<uint16_t>(end);
 		}
-		else if (it->name == "boot")
+		else if (it->name == MemoryArea::BSL)
 		{
-			data.bslStart = static_cast<WORD>(start);
-			data.bslEnd = static_cast<WORD>(end);
+			data.bslStart = static_cast<uint16_t>(start);
+			data.bslEnd = static_cast<uint16_t>(end);
 		}
-		else if (it->name == "lcd")
+		else if (it->name == MemoryArea::LCD)
 		{
-			data.lcdStart = static_cast<WORD>(start);
-			data.lcdEnd = static_cast<WORD>(end);
+			data.lcdStart = static_cast<uint16_t>(start);
+			data.lcdEnd = static_cast<uint16_t>(end);
 		}
-		else if (it->name == "system" && ramAreaCounter == 0)
+		else if (it->name == MemoryArea::RAM && ramAreaCounter == 0)
 		{
-			data.ramStart = static_cast<WORD>(start);
-			data.ramEnd = static_cast<WORD>(end);
+			data.ramStart = static_cast<uint16_t>(start);
+			data.ramEnd = static_cast<uint16_t>(end);
 			++ramAreaCounter;
 		}
-		else if (it->name == "system" && ramAreaCounter == 1)
+		else if (it->name == MemoryArea::RAM && ramAreaCounter == 1)
 		{
-			data.ram2Start = static_cast<WORD>(start);
-			data.ram2End = static_cast<WORD>(end);
+			data.ram2Start = static_cast<uint16_t>(start);
+			data.ram2End = static_cast<uint16_t>(end);
 			++ramAreaCounter;
 		}
-		else if (it->name == "usbram")
+		else if (it->name == MemoryArea::USB_RAM)
 		{
-			usbRamStart = static_cast<WORD>(start);
-			usbRamEnd = static_cast<WORD>(end);
+			usbRamStart = static_cast<uint16_t>(start);
+			usbRamEnd = static_cast<uint16_t>(end);
 		}
 	}
 	if ( usbRamStart > 0 && usbRamStart < data.ramStart )
@@ -1074,7 +1062,7 @@ bool DLL430_OldApiV3::Device(long localDeviceId, char* buffer, long count)
 	data.nCombinations = info->getPossibleTrigger(2);
 	data.nBreakpointsOptions = info->getTriggerOptionsModes();
 	data.nBreakpointsDma = info->getTriggerDmaModes();
-	data.nBreakpointsReadWrite = info->getTriggerReadWriteModes();	
+	data.nBreakpointsReadWrite = info->getTriggerReadWriteModes();
 	data.nRegTriggerOperations = info->getRegTriggerOperations();
 	data.TrigerMask = info->getTriggerMask();
 	data.vccMinOp = info->minVcc();
@@ -1087,38 +1075,36 @@ bool DLL430_OldApiV3::Device(long localDeviceId, char* buffer, long count)
 		data.jtagId=singleDevice->getJtagId();
 		data.deviceIdPtr=singleDevice->getDeviceIdPtr();
 		data.eemVersion=singleDevice->getEemVersion();
-		
-		switch(data.jtagId)
+
+		if (data.jtagId == 0x95)
 		{
-		case 0x91:
-		case 0x99:
-			data.cpuArch = CPU_ARCH_XV2;
-			break;
-
-		case 0x95:	// L092 special handling
 			data.cpuArch = CPU_ARCH_ORIGINAL;
-			break;
-
-		default:
-			if ( bits == 20 )
-				data.cpuArch = CPU_ARCH_X;
-			else
-				data.cpuArch = CPU_ARCH_ORIGINAL;			
-			break;
+		}
+		else if (jtagIdIsXv2(data.jtagId))
+		{
+			data.cpuArch = CPU_ARCH_XV2;
+		}
+		else if (data.jtagId == 0x77)
+		{
+			data.cpuArch = CPU_ARCH_ARM;
+		}
+		else
+		{
+			data.cpuArch = (bits == 20) ? CPU_ARCH_X : CPU_ARCH_ORIGINAL;
 		}
 	}
-	::memcpy(buffer, data.buffer, count);	
+	::memcpy(buffer, data.buffer, count);
 	return true;
 }
 
-bool DLL430_OldApiV3::VCC(long voltage)
+bool DLL430_OldApiV3::VCC(int32_t voltage)
 {
 	if (voltage > 0xFFFF)
 	{
 		log(LogTarget::ERR, PARAMETER_ERR, "");
 		return false;
 	}
-	
+
 	if (!this->handle)
 	{
 		log(LogTarget::ERR, INTERNAL_ERR, "");
@@ -1144,11 +1130,11 @@ bool DLL430_OldApiV3::VCC(long voltage)
 	{
 		log(LogTarget::ERR, PARAMETER_ERR, "");
 		return false;
-	}	
+	}
 	return true;
 }
 
-bool DLL430_OldApiV3::GetCurVCCT(long* voltage)
+bool DLL430_OldApiV3::GetCurVCCT(int32_t* voltage)
 {
 	if (!this->handle)
 	{
@@ -1163,11 +1149,11 @@ bool DLL430_OldApiV3::GetCurVCCT(long* voltage)
 		return false;
 	}
 	if (voltage)
-		*voltage = static_cast<long>(cm->getDeviceVcc());
-	return true;	
+		*voltage = static_cast<int32_t>(cm->getDeviceVcc());
+	return true;
 }
 
-bool DLL430_OldApiV3::GetExtVoltage(long* voltage, long* state)
+bool DLL430_OldApiV3::GetExtVoltage(int32_t* voltage, int32_t* state)
 {
 	if (!this->handle)
 	{
@@ -1181,37 +1167,87 @@ bool DLL430_OldApiV3::GetExtVoltage(long* voltage, long* state)
 		log(LogTarget::ERR, VCC_ERR, "");
 		return false;
 	}
-	
+
 	const uint16_t extVoltage = cm->getExternalVcc();
-	
+
 	if (voltage)
-		*voltage = static_cast<long>(cm->getExternalVcc());
-	
-	if (state) 	
+		*voltage = static_cast<int32_t>(cm->getExternalVcc());
+
+	if (state)
 	{
-		if (extVoltage < 1000) 
+		if (extVoltage < 1000)
 		{ //1V
 			*state = NO_EX_POWER;
-		} 
-		else if (extVoltage < 1700) 
+		}
+		else if (extVoltage < 1700)
 		{ //1.7V
 			*state = LOW_EX_POWER;
-		} 
-		else if (extVoltage < 5600) 
+		}
+		else if (extVoltage < 5600)
 		{ //5.6V
 			*state = EX_POWER_OK;
-		} 
-		else 
+		}
+		else
 		{
 			*state = HIGH_EX_POWER;
 		}
 	}
-	return true;	
+	return true;
 }
 
-bool DLL430_OldApiV3::Erase(long type, long address, long length)
+bool DLL430_OldApiV3::Erase(int32_t type, int32_t address, int32_t length)
 {
-	if(singleDevice==NULL)
+	ConfigManager* cm = this->handle ? this->handle->getConfigManager() : nullptr;
+	if (!cm)
+	{
+		log(LogTarget::ERR, INTERNAL_ERR, "");
+		return false;
+	}
+	// If an FRAM Device is password protected the Mailbox erase is not functional.
+	// Make sure that password and reset vector are erase before BootCode execution.
+	if (type == ERASE_ALL || type == ERASE_MAIN || type == ERASE_TOTAL)
+	{
+		if (singleDevice && singleDevice->hasFram())
+		{
+			MemoryManager* mm = singleDevice->getMemoryManager();
+			if (!mm->erase(0xFF80, 0xFF80 + 0x80 - 1))
+			{
+				log(LogTarget::ERR, ERASE_ERR, "");
+				return false;
+			}
+			cm->setPassword("");
+		}
+	}
+
+	if (type == ERASE_TOTAL || type == ERASE_USER_CODE)
+	{
+		const uint16_t eraseKey = (type == ERASE_TOTAL) ? MASS_ERASE_MODE : MAIN_ERASE_MODE;
+
+		// execute total erase in SBW2 Mode
+		Configure(INTERFACE_MODE, ConfigManager::JTAG_MODE_SPYBIWIRE);
+		if (!cm->jtagErase(eraseKey))
+		{
+			// execute total erase in SBW4 Mode
+			Configure(INTERFACE_MODE, ConfigManager::JTAG_MODE_4AFTER2);
+			if (!cm->jtagErase(eraseKey))
+			{
+				log(LogTarget::ERR, ERASE_ERR, "");
+				return false;
+			}
+		}
+		if (singleDevice)
+		{
+			try
+			{
+				singleDevice->getEmulationManager()->rewriteConfiguration();
+				singleDevice->reset();
+			}
+			catch (const EM_Exception&) {/*Nothing to do*/}
+		}
+		return true;
+	}
+
+	if (singleDevice==nullptr)
 	{
 		log(LogTarget::ERR, NO_DEVICE_ERR, "");
 		return false;
@@ -1222,7 +1258,8 @@ bool DLL430_OldApiV3::Erase(long type, long address, long length)
 	try
 	{
 		MemoryManager* mm = singleDevice->getMemoryManager();
-		switch (type) {
+		switch (type)
+		{
 		case ERASE_SEGMENT:
 			if (!mm->erase(address, address+length-1))
 			{
@@ -1241,7 +1278,7 @@ bool DLL430_OldApiV3::Erase(long type, long address, long length)
 
 		case ERASE_MAIN:
 			{
-				MemoryArea* area = mm->getMemoryArea("main");
+				MemoryArea* area = mm->getMemoryArea(MemoryArea::MAIN);
 				if (!area || !area->erase())
 				{
 					log(LogTarget::ERR, ERASE_ERR, "");
@@ -1253,7 +1290,7 @@ bool DLL430_OldApiV3::Erase(long type, long address, long length)
 
 		success = true;
 	}
-	catch(const EM_Exception& e)
+	catch (const EM_Exception& e)
 	{
 		log(LogTarget::ERR, e.errorCode(), e.what());
 	}
@@ -1261,11 +1298,11 @@ bool DLL430_OldApiV3::Erase(long type, long address, long length)
 	return success;
 }
 
-bool DLL430_OldApiV3::Memory(long address, uint8_t* buf, long count, long rw)
+bool DLL430_OldApiV3::Memory(int32_t address, uint8_t* buf, int32_t count, int32_t rw)
 {
 	bool status = true;
 
-	if(singleDevice==NULL)
+	if (singleDevice==nullptr)
 	{
 		log(LogTarget::ERR, NO_DEVICE_ERR, "");
 		return false;
@@ -1273,43 +1310,45 @@ bool DLL430_OldApiV3::Memory(long address, uint8_t* buf, long count, long rw)
 
 	MemoryManager* mm = singleDevice->getMemoryManager();
 
-	try
+	if (rw == WRITE)
 	{
-		SoftwareBreakpointManagerPtr swbpMan = singleDevice->getEmulationManager()->getSoftwareBreakpoints()->getSwbpManager();
-
-		if (rw == WRITE)
+		try
 		{
+			SoftwareBreakpointManagerPtr swbpMan = singleDevice->getEmulationManager()->getSoftwareBreakpoints()->getSwbpManager();
 			swbpMan->patchMemoryWrite(address, buf, count);
-
-			vector<uint32_t> tmp(buf, buf + count);
-			status = mm->write(address, &tmp[0], count) && mm->sync();
 		}
-		else
+		catch (const EM_Exception&)
 		{
-			v_tmp.resize(count);
+			// ignore
+		}
 
-			//Prefill buffer with pattern for vacant memory
-			bool oddAddress = ((address % 2) != 0);
-			for (int byte = 0; byte < count; ++byte)
-			{
-				v_tmp[byte] = oddAddress ? 0x3f : 0xff;
-				oddAddress = !oddAddress;
-			}
+		status = mm->write(address, buf, count) && mm->sync();
+	}
+	else
+	{
+		//Prefill buffer with pattern for vacant memory
+		bool oddAddress = ((address % 2) != 0);
+		for (int byte = 0; byte < count; ++byte)
+		{
+			buf[byte] = oddAddress ? 0x3f : 0xff;
+			oddAddress = !oddAddress;
+		}
 
-			status = mm->read(address, &v_tmp[0], count) && mm->sync();
+		status = mm->read(address, buf, count) && mm->sync();
 
-			for (long i = 0; i < count; ++i)
-				buf[i] = static_cast<uint8_t>(v_tmp[i] & 0xFF);
-
+		try
+		{
+			SoftwareBreakpointManagerPtr swbpMan = singleDevice->getEmulationManager()->getSoftwareBreakpoints()->getSwbpManager();
 			swbpMan->patchMemoryRead(address, buf, count);
 		}
-	}
-	catch (const EM_Exception&)
-	{
-		//ignore
+		catch (const EM_Exception&)
+		{
+			//ignore
+		}
+
 	}
 
-	if(status==false)
+	if (status==false)
 	{
 		switch (mm->getLastError())
 		{
@@ -1318,16 +1357,16 @@ bool DLL430_OldApiV3::Memory(long address, uint8_t* buf, long count, long rw)
 		case MEMORY_LOCKED_ERROR: log(LogTarget::ERR, BSL_MEMORY_LOCKED_ERR, ""); break;
 		case MEMORY_UNLOCK_ERROR: log(LogTarget::ERR, UNLOCK_BSL_ERR, ""); break;
 		default:
-			if(rw == WRITE)
+			if (rw == WRITE)
 				log(LogTarget::ERR, WRITE_MEMORY_ERR, "");
 			else
 				log(LogTarget::ERR, READ_MEMORY_ERR, "");
-		}		
+		}
 	}
 	return status;
 }
 
-bool DLL430_OldApiV3::Secure(void)
+bool DLL430_OldApiV3::Secure()
 {
 	bool success = false;
 	try
@@ -1338,23 +1377,23 @@ bool DLL430_OldApiV3::Secure(void)
 			log(LogTarget::ERR, BLOW_FUSE_ERR, "");
 		}
 	}
-	catch (ERROR_CODE error)
+	catch (const ERROR_CODE& error)
 	{
 		log(LogTarget::ERR, error, "");
 	}
 	return success;
 }
 
-bool DLL430_OldApiV3::ReadOutFile(long wStart, long wLength, char* lpszFileName, long iFileType)
+bool DLL430_OldApiV3::ReadOutFile(int32_t address, int32_t length, const char* filename, int32_t fileType)
 {
 	// parameter check
-	if((wStart<0)||(wLength<1)||(lpszFileName==NULL))
+	if ((address < 0) || (length < 1) || (filename == nullptr))
 	{
 		log(LogTarget::ERR, PARAMETER_ERR, "");
 		return false;
 	}
 
-	if(singleDevice==NULL)
+	if (singleDevice==nullptr)
 	{
 		log(LogTarget::ERR, NO_DEVICE_ERR, "");
 		return false;
@@ -1368,174 +1407,105 @@ bool DLL430_OldApiV3::ReadOutFile(long wStart, long wLength, char* lpszFileName,
 		return false;
 	}
 
-	std::vector<uint32_t> buffer(wLength);
+	std::vector<uint8_t> buffer(length);
 
-	if( !m_man->read(wStart,&buffer[0],wLength) || !m_man->sync())
+	if (!Memory(address, &buffer[0], length, READ))
 	{
 		log(LogTarget::ERR, READ_MEMORY_ERR, "");
 		return false;
 	}
 
-	const fileType type = (iFileType == 2) ? INTEL_HEX : TI_TXT;
-	
-	FileFunc* file = singleDevice->getFileRef(); //Creates filemanager if necessary
-	
-	const bool success = file->printSeg(lpszFileName, &buffer[0], wStart, wLength, type);
-	if (!success)
-		log(LogTarget::ERR, FILE_IO_ERR, "");
-	
-	return success;
+	const FileType type = (fileType == 2) ? INTEL_HEX : TI_TXT;
+
+	try
+	{
+		const MemoryContent data((uint32_t)address, &buffer[0], buffer.size());
+		FileWriter::create(filename, type)->write(data);
+	}
+	catch (const DLL430_Exception& e)
+	{
+		log(LogTarget::ERR, e.errorCode(), e.what());
+		return false;
+	}
+
+	return true;
 }
 
-bool DLL430_OldApiV3::ProgramFile(char* File, long eraseType, long verifyMem)
+bool DLL430_OldApiV3::ProgramFile(const char* filename, int32_t eraseType, int32_t verifyMem)
 {
-	if(singleDevice==NULL)
+	try
 	{
-		log(LogTarget::ERR, NO_DEVICE_ERR, "");
-		return false;
-	}
+		if (singleDevice == nullptr)
+			throw DLL430_Exception(NO_DEVICE_ERR);
 
-	FileFunc * ff=singleDevice->getFileRef();
+		MemoryManager* mm = singleDevice->getMemoryManager();
+		if (mm == nullptr)
+			throw DLL430_Exception(NO_DEVICE_ERR);
 
-	int file_ret=ff->readOpen(File,UNKNOWN);
-	switch(file_ret)
-	{
-	case 0:
-		break;
+		MemoryContent ff;
+		FileReader::create(filename)->read(&ff);
 
-	case -1:
-		log(LogTarget::ERR, FILE_OPEN_ERR, "");
-		return false;
-
-	case -2:
-		log(LogTarget::ERR, FILE_DETECT_ERR, "");
-		return false;
-
-	case -3:
-		log(LogTarget::ERR, FILE_DATA_ERR, "");
-		return false;
-
-	case -4:
-		log(LogTarget::ERR, FILE_END_ERR, "");
-		return false;
-
-	default:
-		log(LogTarget::ERR, INVALID_ERR, "");
-		return false;
-	}
-
-	if(ff->getFileType()==FILE_ERROR)
-	{
-		log(LogTarget::ERR, FILE_DETECT_ERR, "");
-		return false;
-	}
-
-	MemoryManager* mm = singleDevice->getMemoryManager();
-	if(mm==NULL)
-	{
-		log(LogTarget::ERR, NO_DEVICE_ERR, "");
-		return false;
-	}
-
-	if((eraseType==ERASE_ALL)||(eraseType==ERASE_MAIN))
-	{
-		if (!this->Erase(eraseType,0,0))
+		if ((eraseType == ERASE_ALL) || (eraseType == ERASE_MAIN))
 		{
-			log(LogTarget::ERR, ERASE_ERR, "");
-			return false;
+			if (!this->Erase(eraseType, 0, 0))
+				throw DLL430_Exception(ERASE_ERR);
+		}
+
+		for (DataSegment& segment : ff.segments)
+		{
+			if (!Memory(segment.startAddress, &segment.data[0], segment.data.size(), WRITE))
+				throw DLL430_Exception(WRITE_MEMORY_ERR);
+
+			if (verifyMem)
+			{
+				if (!VerifyMem(segment.startAddress, segment.data.size(), &segment.data[0]))
+					throw DLL430_Exception(VERIFY_ERR);
+			}
 		}
 	}
-
-	if (!singleDevice->writeSegments())
+	catch (const DLL430_Exception& e)
 	{
-		ff->close();
-		log(LogTarget::ERR, FILE_IO_ERR, "");
+		log(LogTarget::ERR, e.errorCode(), e.what());
 		return false;
 	}
-	// checksum verify
-	if (verifyMem)
+	return true;
+}
+
+bool DLL430_OldApiV3::VerifyFile(const char* filename)
+{
+	try
 	{
-		if(!singleDevice->verifySegments())
+		if (singleDevice == nullptr)
+			throw DLL430_Exception(NO_DEVICE_ERR);
+
+		MemoryContent ff;
+		FileReader::create(filename)->read(&ff);
+
+		for (DataSegment& segment : ff.segments)
 		{
-			ff->close();
-			log(LogTarget::ERR, VERIFY_ERR, "");
-			return false;
+			if (!VerifyMem(segment.startAddress, segment.data.size(), &segment.data[0]))
+				throw DLL430_Exception(VERIFY_ERR);
 		}
 	}
-	ff->close();
-
-	if (!mm->flushAll())
+	catch (const DLL430_Exception& e)
 	{
-		log(LogTarget::ERR, WRITE_MEMORY_ERR, "");
+		log(LogTarget::ERR, e.errorCode(), e.what());
 		return false;
 	}
-	return(true);
+	return true;
 }
 
-bool DLL430_OldApiV3::VerifyFile(char* File)
-{
-	if(singleDevice==NULL)
-	{
-		log(LogTarget::ERR, NO_DEVICE_ERR, "");
-		return false;
-	}
-
-	FileFunc * ff=singleDevice->getFileRef();
-
-	// read to buffer
-	int file_ret=ff->readOpen(File,UNKNOWN);
-	switch(file_ret)
-	{
-	case 0:
-		break;
-
-	case -1:
-		log(LogTarget::ERR, FILE_OPEN_ERR, "");
-		return false;
-
-	case -2:
-		log(LogTarget::ERR, FILE_DETECT_ERR, "");
-		return false;
-
-	default:
-		log(LogTarget::ERR, INVALID_ERR, "");
-		return false;
-	}
-
-	// file ok, data loaded?
-	if(ff->getFileType()==FILE_ERROR)
-	{
-		log(LogTarget::ERR, FILE_DETECT_ERR, "");
-		return false;
-	}
-	// compare memory segments with file data
-	if(singleDevice->verifySegments()==false)
-	{
-		ff->close();
-		log(LogTarget::ERR, VERIFY_ERR, "");
-		return false;
-	}
-	ff->close();
-	return(true);
-}
-
-bool DLL430_OldApiV3::VerifyMem(long StartAddr, long Length, uint8_t* DataArray)
+bool DLL430_OldApiV3::VerifyMem(int32_t StartAddr, int32_t Length, const uint8_t* DataArray)
 {
 	bool status = true;
-	uint32_t addr = static_cast<uint32_t>(StartAddr);
-	size_t len = static_cast<size_t>(Length);
-	vector<uint32_t> data(len);
 
-	if(singleDevice==NULL)
+	if (singleDevice==nullptr)
 	{
 		log(LogTarget::ERR, NO_DEVICE_ERR, "");
 		return false;
 	}
 
-	for (size_t i = 0; i < len; ++i) {
-		data[i] = static_cast<uint32_t>(DataArray[i]);
-	}
-	if (!singleDevice->getMemoryManager()->verify(addr, &data[0], len))
+	if (!singleDevice->getMemoryManager()->verify(StartAddr, DataArray, Length))
 	{
 		log(LogTarget::ERR, VERIFY_ERR, "");
 		status = false;
@@ -1543,18 +1513,23 @@ bool DLL430_OldApiV3::VerifyMem(long StartAddr, long Length, uint8_t* DataArray)
 	return status;
 }
 
-bool DLL430_OldApiV3::EraseCheck(long StartAddr, long Length)
+bool DLL430_OldApiV3::EraseCheck(int32_t StartAddr, int32_t Length)
 {
 	uint32_t addr = static_cast<uint32_t>(StartAddr);
 	size_t len = static_cast<size_t>(Length);
 
-	if(singleDevice==NULL)
+	if (singleDevice==nullptr)
 	{
 		log(LogTarget::ERR, NO_DEVICE_ERR, "");
 		return false;
 	}
-
-	if (!singleDevice->getMemoryManager()->verify(addr, 0, len))
+	MemoryManager* mm = singleDevice->getMemoryManager();
+	if (!mm)
+	{
+		log(LogTarget::ERR, INTERNAL_ERR, "");
+		return false;
+	}
+	if (!mm->verify(addr, 0, len))
 	{
 		log(LogTarget::ERR, VERIFY_ERR, "");
 		return false;
@@ -1562,93 +1537,96 @@ bool DLL430_OldApiV3::EraseCheck(long StartAddr, long Length)
 	return true;
 }
 
-bool DLL430_OldApiV3::Reset(long method, long execute, long releaseJTAG)
-{	
+bool DLL430_OldApiV3::Reset(int32_t method, int32_t execute, int32_t releaseJTAG)
+{
 	if (!method)
 	{
 		log(LogTarget::ERR, PARAMETER_ERR, "");
-		return(false);
+		return false;
 	}
 
-	if(singleDevice==NULL)
+	if (singleDevice==nullptr)
 	{
 		log(LogTarget::ERR, NO_DEVICE_ERR, "");
-		return(false);
+		return false;
 	}
-	
+
 	DebugManager* db_man = singleDevice->getDebugManager();
-	if(!db_man)
+	if (!db_man)
 	{
 		log(LogTarget::ERR, RESET_ERR, "");
-		return(false);
+		return false;
 	}
-	
+
+	// Make sure the device is stopped (ie. under our control) before doing a reset
+	this->State(0, 1, 0);
+
 	db_man->pausePolling();
-	
+
 	if (this->debug.jtagReleased)
 	{
 		this->debug.jtagReleased = !db_man->reconnectJTAG();
 	}
 
 	bool resetSuccessful = false;
-	bool restartJtag = false;
-
 	try
 	{
+		bool restartJtag = false;
+
 		ConfigManager* cm = handle ? handle->getConfigManager() : 0;
 
 		/*-----------------------------------------------------------------------------*/
-		if (!(method & FORCE_RESET) || (method & PUC_RESET)) 
-		{	
+		if (!(method & FORCE_RESET) || (method & PUC_RESET))
+		{
 			resetSuccessful = singleDevice->reset();
 		}
-		/*-----------------------------------------------------------------------------*/	
-		if (!resetSuccessful && (method & RST_RESET))
-		{
-			resetSuccessful = cm && cm->reset(false, 10, this->singleDevice->getJtagId());
-			restartJtag = true;
-		}
 
-		/*-----------------------------------------------------------------------------*/	
-		if (!resetSuccessful && (method & VCC_RESET))
+		if (!resetSuccessful && ((method & RST_RESET) || (method & VCC_RESET)))
 		{
-			resetSuccessful = cm && cm->reset(true, 0,this->singleDevice->getJtagId());
-			restartJtag = true;
+			if (devCode == 0x432)
+			{
+				resetSuccessful = singleDevice->reset(true);
+			}
+			else
+			{
+				resetSuccessful = cm && cm->reset(false, true, this->singleDevice->getJtagId(), this->singleDevice->checkHalId(ID_ResetXv2));
+				restartJtag = true;
+			}
 		}
 
 		/*-----------------get control over the device after RST--------------------*/
 		if (restartJtag)
 		{
 			if (!cm || cm->start()!= 0x1)
-			{	
+			{
 				log(LogTarget::ERR, RESET_ERR, "");
 				return false;
 			}
 
 			resetEM();
 
-			if(!singleDevice->reset())
-			{	
+			if (!singleDevice->reset())
+			{
 				log(LogTarget::ERR, RESET_ERR, "");
 				return false;
 			}
 		}
 
 		// if no reset was executed, raise error
-		if(!resetSuccessful)
+		if (!resetSuccessful)
 		{
 			log(LogTarget::ERR, RESET_ERR, "");
 			return false;
 		}
 
-		long state;
-		long pCPUCycles;
+		int32_t state;
+		int32_t pCPUCycles;
 
 		db_man->resumePolling();
-		boost::this_thread::sleep(boost::get_system_time() + boost::posix_time::milliseconds(500));
+		this_thread::sleep_for(chrono::milliseconds(500));
 		db_man->pausePolling();
 
-		if(!State(&state, true, &pCPUCycles))
+		if (!State(&state, true, &pCPUCycles))
 		{
 			log(LogTarget::ERR, RESET_ERR, "");
 			return false;
@@ -1656,28 +1634,16 @@ bool DLL430_OldApiV3::Reset(long method, long execute, long releaseJTAG)
 
 		db_man->resetCycleCounterValue();
 
-		if (devCode == 0x5AA55AA5 || devCode == 0xDEADBABE) // set Programm counter to the correct location for C092 EMU an C092
+		if (devCode == 0x5AA55AA5 || devCode == 0xDEADBABE || singleDevice->getJtagId() == 0x99 || devCode == 0xA55AA55A)
 		{
-			long program_start;
-			unsigned char word[2];
-		
-			this->Memory(0xFFFE,word,2,READ);   // read address of program start
-		
-			program_start = 0x00000000 + (word[1] << 8)+ word[0];
-			this->Register(&program_start, PC, WRITE);
-		}
-		if (devCode == 0xA55AA55A ) // set programm counter to the correct location for L092
-		{
-			long program_start;
-			unsigned char word[2];
-		
-			this->Memory(0x1C7E,word,2,READ );   // read address of program start
-		
-			program_start = 0x00000000 + (word[1] << 8)+ word[0];
+			int32_t program_start = 0;
+			const int32_t address = (devCode == 0xA55AA55A) ? 0x1C7E : 0xFFFE;
+
+			this->Memory(address, (uint8_t*)&program_start, 2, READ);   // read address of program start
 			this->Register(&program_start, PC, WRITE);
 		}
 
-		if (execute) 
+		if (execute)
 		{
 			this->debug.state = RUNNING;
 
@@ -1686,90 +1652,51 @@ bool DLL430_OldApiV3::Reset(long method, long execute, long releaseJTAG)
 				log(LogTarget::ERR, RUN_ERR, "");
 				return false;
 			}
-			
+
 			if ( releaseJTAG != 0 )
 			{
 				//If we get here, run was successfully releasing JTAG
 				debug.jtagReleased = true;
 			}
 		}
-		else if(!execute && releaseJTAG != 0 ) 
+		else if (cm && releaseJTAG != 0 )
 		{
 			this->debug.state = RUNNING;
 			debug.jtagReleased = true;
-			cm->stop();	
+			cm->stop();
 		}
 	}
-	catch(const EM_Exception& e)
+	catch (const EM_Exception& e)
 	{
 		log(LogTarget::ERR, e.errorCode(), e.what());
 		resetSuccessful = false;
 	}
-	
+
 	return resetSuccessful;
 }
 
 
-bool DLL430_OldApiV3::ExtRegisters(long address, uint8_t * buffer,long count, long rw)
+bool DLL430_OldApiV3::ExtRegisters(int32_t address, uint8_t* buffer, int32_t count, int32_t rw)
 {
-	if(singleDevice==NULL)
-	{
-		log(LogTarget::ERR, NO_DEVICE_ERR, "");
-		return false;
-	}
-
-	MemoryArea* extended = singleDevice->getMemoryManager()->getMemoryArea("extended");
-
-	if(extended==NULL)
-	{
-		log(LogTarget::ERR, INTERNAL_ERR, "");
-		return false;
-	}
-
-	if (rw == WRITE) 
-	{
-		if (!extended->write(address,(uint32_t*) buffer ,count) || !extended->sync())
-		{
-			log(LogTarget::ERR, WRITE_REGISTER_ERR, "");
-			return false;
-		}
-	} 
-	else 
-	{
-		std::vector<uint32_t> v_buffer(count);
-		if (!extended->read(address, &v_buffer[0], count) || !extended->sync())
-		{
-			log(LogTarget::ERR, READ_REGISTER_ERR, "");
-			return false;
-		}
-		if(v_buffer.size()!=count)
-		{
-			log(LogTarget::ERR, READ_REGISTER_ERR, "");
-			return false;
-		}
-		for(int i=0;i<count;i++)
-			buffer[i]=v_buffer[i];
-	}
-
-	return true;
+	return false;
 }
 
-bool DLL430_OldApiV3::Registers(long* registers, long mask, long rw)
+bool DLL430_OldApiV3::Registers(int32_t* registers, int32_t mask, int32_t rw)
 {
-	if(singleDevice==NULL)
+	if (singleDevice==nullptr)
 	{
 		log(LogTarget::ERR, NO_DEVICE_ERR, "");
 		return false;
 	}
 
 	MemoryManager * mm=singleDevice->getMemoryManager();
-	if(mm==NULL)
+	if (mm==nullptr)
 	{
 		log(LogTarget::ERR, INTERNAL_ERR, "");
 		return false;
 	}
 
-	MemoryArea* cpu = mm->getMemoryArea("CPU");
+	CpuRegisters* cpu = mm->getCpuRegisters();
 	if (!cpu)
 	{
 		log(LogTarget::ERR, INTERNAL_ERR, "");
@@ -1780,29 +1707,29 @@ bool DLL430_OldApiV3::Registers(long* registers, long mask, long rw)
 	{
 		if ((mask & (1 << i)) != 0)
 		{
-			DLL430_OldApiV3::Register(&registers[i] , i, rw);
+			DLL430_OldApiV3::Register(&registers[i], i, rw);
 		}
 	}
 
 	return true;
 }
 
-bool DLL430_OldApiV3::Register(long* reg, long regNb, long rw)
+bool DLL430_OldApiV3::Register(int32_t* reg, int32_t regNb, int32_t rw)
 {
-	if(singleDevice==NULL)
+	if (singleDevice==nullptr)
 	{
 		log(LogTarget::ERR, NO_DEVICE_ERR, "");
-		return(false);
+		return false;
 	}
 
-	MemoryArea* cpu = singleDevice->getMemoryManager()->getMemoryArea("CPU");
+	CpuRegisters* cpu = singleDevice->getMemoryManager()->getCpuRegisters();
 	if (!cpu)
 	{
 		log(LogTarget::ERR, INTERNAL_ERR, "");
 		return false;
 	}
 
-	if (rw == WRITE) 
+	if (rw == WRITE)
 	{
 		uint32_t tmp = (uint32_t)(*reg);
 		if (!cpu->write(regNb, tmp))
@@ -1810,30 +1737,30 @@ bool DLL430_OldApiV3::Register(long* reg, long regNb, long rw)
 			log(LogTarget::ERR, WRITE_REGISTER_ERR, "");
 			return false;
 		}
-	} 
-	else 
+	}
+	else
 	{
 		uint32_t value;
-		if (!cpu->read(regNb, &value, 1))
+		if (!cpu->read(regNb, &value))
 		{
 			log(LogTarget::ERR, READ_REGISTER_ERR, "");
 			return false;
 		}
-		*reg = (long)value;
+		*reg = (int32_t)value;
 	}
 
 	return true;
 }
 
 
-bool DLL430_OldApiV3::Run(long mode, long releaseJTAG)
+bool DLL430_OldApiV3::Run(int32_t mode, int32_t releaseJTAG)
 {
-	if(this->debug.state == RUNNING)
+	if (this->debug.state == RUNNING)
 	{
 		log(LogTarget::ERR, THREAD_ACTIVE_ERR, "");
 		return false;
 	}
-	if(singleDevice==NULL)
+	if (singleDevice==nullptr)
 	{
 		log(LogTarget::ERR, NO_DEVICE_ERR, "");
 		return false;
@@ -1844,43 +1771,36 @@ bool DLL430_OldApiV3::Run(long mode, long releaseJTAG)
 		log(LogTarget::ERR, INTERNAL_ERR, "");
 		return false;
 	}
-	MemoryManager * m_man=singleDevice->getMemoryManager();
-	if (!m_man)
-	{
-		log(LogTarget::ERR, INTERNAL_ERR, "");
-		return false;
-	}
 
 	try
 	{
 		const uint32_t activeSwbps = singleDevice->getEmulationManager()->getSoftwareBreakpoints()->getSwbpManager()->numberOfActiveSoftwareTriggers();
-		if (activeSwbps && mode == RUN_TO_BREAKPOINT && releaseJTAG)
+		if (activeSwbps && (mode == FREE_RUN || releaseJTAG))
 		{
 			log (LogTarget::ERR, PARAMETER_ERR, "");
 			return false;
 		}
 	}
-	catch(const EM_Exception&) {}
+	catch (const EM_Exception&) {}
 
 	uint16_t controlType = FreeRun;
-	uint8_t modes=0x00;
 
-	if(mode==RUN_TO_BREAKPOINT)
+	if (mode==RUN_TO_BREAKPOINT)
 	{
 		controlType|=Stopped;
 	}
 
-	if ( singleDevice->hasLPMx5() && db_man->getLpmDebugging() && notifyCallback != 0 && !releaseJTAG) 
+	if ( singleDevice->hasLPMx5() && db_man->getLpmDebugging() && notifyCallback != 0 && !releaseJTAG)
 	{
 		db_man->activateJStatePolling(this);
 	}
 
-	if(mEnergyTraceManager && this->debug.state != LPMX5_WAKEUP)
-    {
+	if (mEnergyTraceManager && this->debug.state != LPMX5_WAKEUP)
+	{
 		mEnergyTraceManager->ResetEnergyTrace();
 	}
 
-	switch (mode) 
+	switch (mode)
 	{
 	case FREE_RUN:
 	case RUN_TO_BREAKPOINT:
@@ -1898,38 +1818,33 @@ bool DLL430_OldApiV3::Run(long mode, long releaseJTAG)
 			//If we get here, run was successfully releasing JTAG
 			debug.jtagReleased = true;
 		}
-	
+
 		break;
 
 	case SINGLE_STEP:
 		{
-			uint32_t cycles = 0;
-			bool inLpmX5 = db_man->queryLpm5State();
-		
 			// Query LPMx.5 state: if the processor is in LPMx.5 don't even attempt to singleStep
-			if(!inLpmX5)
-			{
-				if (!db_man->singleStep(&cycles))
-				{
-					log(LogTarget::ERR, STEP_ERR, "");
-					return false;
-				}
-			}
-			else
+			if (db_man->queryIsInLpm5State())
 			{
 				return true;
 			}
-		
+
+			uint32_t cycles = 0;
+			if (!db_man->singleStep(&cycles))
+			{
+				log(LogTarget::ERR, STEP_ERR, "");
+				return false;
+			}
+
 			// Query LPMx.5 state again: if the processor stepped into LPMx.5, do not send the callback
-			inLpmX5 = db_man->queryLpm5State();
-			if(inLpmX5)
+			if (db_man->queryIsInLpm5State())
 			{
 				db_man->resumePolling();
 			}
 			else
 			{
 				this->debug.state = SINGLE_STEP_COMPLETE;
-				if (this->debug.cb.func) 
+				if (this->debug.cb.func)
 				{
 					(*this->debug.cb.func)(
 						this->debug.cb.ids.uiMsgIdSingleStep,
@@ -1945,15 +1860,15 @@ bool DLL430_OldApiV3::Run(long mode, long releaseJTAG)
 	return true;
 }
 
-bool DLL430_OldApiV3::State(long* state, long stop, long* pCPUCycles)
+bool DLL430_OldApiV3::State(int32_t* state, int32_t stop, int32_t* pCPUCycles)
 {
-	if (stop == FALSE)
+	if (!stop)
 	{
 		log(LogTarget::ERR, PARAMETER_ERR, "");
 		return false;
 	}
 
-	if (handle == NULL)
+	if (handle == nullptr)
 	{
 		log(LogTarget::ERR, INTERNAL_ERR, "");
 		return false;
@@ -1970,9 +1885,9 @@ bool DLL430_OldApiV3::State(long* state, long stop, long* pCPUCycles)
 		jtagWasReleased = true;
 	}
 
-	if (state) 
+	if (state)
 	{
-		if(this->debug.state >= LPMX5_MODE)
+		if (this->debug.state >= LPMX5_MODE)
 		{
 			*state = STOPPED;
 		}
@@ -1982,10 +1897,10 @@ bool DLL430_OldApiV3::State(long* state, long stop, long* pCPUCycles)
 		}
 	}
 
-	if(singleDevice==NULL)
+	if (singleDevice==nullptr)
 	{
 		log(LogTarget::ERR, NO_DEVICE_ERR, "");
-		return(false);
+		return false;
 	}
 
 
@@ -1996,7 +1911,7 @@ bool DLL430_OldApiV3::State(long* state, long stop, long* pCPUCycles)
 		return false;
 	}
 
-	if (stop == TRUE) 
+	if (stop)
 	{
 		mPollingManager->pausePolling();
 
@@ -2012,12 +1927,12 @@ bool DLL430_OldApiV3::State(long* state, long stop, long* pCPUCycles)
 	}
 
 	if (pCPUCycles)
-		*pCPUCycles = (long)db_man->getCycleCounterValue();
+		*pCPUCycles = (int32_t)db_man->getCycleCounterValue();
 
 	// find condition to avoid stop while stopped
-	if (state) 
+	if (state)
 	{
-		if(this->debug.state >= LPMX5_MODE)
+		if (this->debug.state >= LPMX5_MODE)
 		{
 			*state = RUNNING;
 		}
@@ -2030,9 +1945,9 @@ bool DLL430_OldApiV3::State(long* state, long stop, long* pCPUCycles)
 }
 
 
-bool DLL430_OldApiV3::CcGetClockNames(long localDeviceId, EemGclkCtrl_t** CcClockNames)
+bool DLL430_OldApiV3::CcGetClockNames(int32_t localDeviceId, EemGclkCtrl_t** CcClockNames)
 {
-	if(singleDevice==NULL)
+	if (singleDevice==nullptr)
 	{
 		log(LogTarget::ERR, NO_DEVICE_ERR, "");
 		return false;
@@ -2043,7 +1958,7 @@ bool DLL430_OldApiV3::CcGetClockNames(long localDeviceId, EemGclkCtrl_t** CcCloc
 	uint32_t size;
 	char ** list = dm->getClockStrings(&size);
 
-	if( (list == NULL) || (size != 16) )
+	if ((list == nullptr) || (size != 16))
 	{
 		log(LogTarget::ERR, INTERNAL_ERR, "");
 		return false;
@@ -2054,9 +1969,9 @@ bool DLL430_OldApiV3::CcGetClockNames(long localDeviceId, EemGclkCtrl_t** CcCloc
 	return true;
 }
 
-bool DLL430_OldApiV3::CcGetModuleNames(long localDeviceId, EemMclkCtrl_t** CcModuleNames)
+bool DLL430_OldApiV3::CcGetModuleNames(int32_t localDeviceId, EemMclkCtrl_t** CcModuleNames)
 {
-	if(singleDevice==NULL)
+	if (singleDevice==nullptr)
 	{
 		log(LogTarget::ERR, NO_DEVICE_ERR, "");
 		return false;
@@ -2067,7 +1982,7 @@ bool DLL430_OldApiV3::CcGetModuleNames(long localDeviceId, EemMclkCtrl_t** CcMod
 	uint32_t size;
 	char ** list = dm->getModuleStrings(&size);
 
-	if( (list == NULL) || (size != 32) )
+	if ( (list == nullptr) || (size != 32) )
 	{
 		log(LogTarget::ERR, INTERNAL_ERR, "");
 		return false;
@@ -2081,11 +1996,11 @@ bool DLL430_OldApiV3::CcGetModuleNames(long localDeviceId, EemMclkCtrl_t** CcMod
 
 bool DLL430_OldApiV3::EEM_Init(
 	MSP430_EVENTNOTIFY_FUNC callback,
-	long clientHandle,
-	MessageID_t* pMsgIdBuffer
+	int32_t clientHandle,
+	const MessageID_t* pMsgIdBuffer
 )
 {
-	if(singleDevice==NULL)
+	if (singleDevice==nullptr)
 	{
 		log(LogTarget::ERR, NO_DEVICE_ERR, "");
 		return false;
@@ -2109,12 +2024,10 @@ bool DLL430_OldApiV3::EEM_Init(
 		singleDevice->getEmulationManager()->writeConfiguration();
 
 		dm->initEemRegister();
-		
-		v2initCalled = true;
 
 		success = true;
 	}
-	catch(const EM_Exception& e)
+	catch (const EM_Exception& e)
 	{
 		log(LogTarget::ERR, e.errorCode(), e.what());
 	}
@@ -2125,14 +2038,13 @@ bool DLL430_OldApiV3::EEM_Init(
 
 bool DLL430_OldApiV3::softwareTriggerInRangeExists(uint32_t start, uint32_t end, BpRangeAction_t inOut) const
 {
-	map<uint16_t,BpParameter_t>::const_iterator it = bp_storage.begin();
-	for (; it != bp_storage.end(); ++it)
+	for (const auto& params : bp_storage)
 	{
-		const uint32_t address = (uint32_t)it->second.lAddrVal;
+		const uint32_t address = (uint32_t)params.second.lAddrVal;
 		const bool isInside = (address >= start && address <= end);
 		const bool isOutside = (address <= start || address >= end);
 
-		if (it->second.bpMode == BP_SOFTWARE && ((inOut == BP_INSIDE && isInside) || (inOut == BP_OUTSIDE && isOutside)))
+		if (params.second.bpMode == BP_SOFTWARE && ((inOut == BP_INSIDE && isInside) || (inOut == BP_OUTSIDE && isOutside)))
 			return true;
 	}
 	return false;
@@ -2140,10 +2052,9 @@ bool DLL430_OldApiV3::softwareTriggerInRangeExists(uint32_t start, uint32_t end,
 
 bool DLL430_OldApiV3::rangeTriggerIncludingAddressExists(uint32_t address) const
 {
-	map<uint16_t,BpParameter_t>::const_iterator it = bp_storage.begin();
-	for (; it != bp_storage.end(); ++it)
+	for (const auto& params : bp_storage)
 	{
-		const BpParameter_t& bp = it->second;
+		const BpParameter_t& bp = params.second;
 		const uint32_t start = (uint32_t)bp.lAddrVal;
 		const uint32_t end = (uint32_t)bp.lRangeEndAdVa;
 		const bool isInside = (address >= start && address <= end);
@@ -2157,11 +2068,10 @@ bool DLL430_OldApiV3::rangeTriggerIncludingAddressExists(uint32_t address) const
 
 bool DLL430_OldApiV3::hardwareTriggerAtAddressExists(uint32_t address) const
 {
-	map<uint16_t,BpParameter_t>::const_iterator it = bp_storage.begin();
-	for (; it != bp_storage.end(); ++it)
+	for (const auto& params : bp_storage)
 	{
-		const BpParameter_t& bp = it->second;
-		if (bp.bpAction == BP_BRK && bp.bpType != BP_SOFTWARE)
+		const BpParameter_t& bp = params.second;
+		if (bp.bpAction == BP_BRK && bp.bpMode != BP_SOFTWARE)
 		{
 			if ((bp.bpType == BP_MAB || bp.bpMode == BP_CODE) && bp.lAddrVal == address)
 				return true;
@@ -2175,17 +2085,16 @@ bool DLL430_OldApiV3::hardwareTriggerAtAddressExists(uint32_t address) const
 
 bool DLL430_OldApiV3::softwareTriggerAtAddressExists(uint32_t address) const
 {
-	map<uint16_t,BpParameter_t>::const_iterator it = bp_storage.begin();
-	for (; it != bp_storage.end(); ++it)
+	for (const auto& params : bp_storage)
 	{
-		const BpParameter_t& bp = it->second;
+		const BpParameter_t& bp = params.second;
 		if (bp.bpMode == BP_SOFTWARE && bp.lAddrVal == address)
 			return true;
 	}
 	return false;
 }
 
-bool DLL430_OldApiV3::triggerConflictsWithExistingTrigger(BpParameter_t* bpBuffer) const
+bool DLL430_OldApiV3::triggerConflictsWithExistingTrigger(const BpParameter_t* bpBuffer) const
 {
 	const bool breakWithSwbpAtOrPreceding = bpBuffer->bpAction == BP_BRK &&
 											(softwareTriggerAtAddressExists(bpBuffer->lAddrVal) ||
@@ -2193,7 +2102,7 @@ bool DLL430_OldApiV3::triggerConflictsWithExistingTrigger(BpParameter_t* bpBuffe
 
 	if (bpBuffer->bpMode == BP_SOFTWARE)
 	{
-		return  softwareTriggerAtAddressExists(bpBuffer->lAddrVal) ||
+		return softwareTriggerAtAddressExists(bpBuffer->lAddrVal) ||
 				hardwareTriggerAtAddressExists(bpBuffer->lAddrVal) ||
 				hardwareTriggerAtAddressExists(bpBuffer->lAddrVal+2) ||
 				rangeTriggerIncludingAddressExists(bpBuffer->lAddrVal);
@@ -2214,7 +2123,18 @@ bool DLL430_OldApiV3::triggerConflictsWithExistingTrigger(BpParameter_t* bpBuffe
 	return false;
 }
 
-TriggerConditionPtr DLL430_OldApiV3::triggerConditionFromBpParameter(EmulationManagerPtr emuManager, BpParameter_t* bpBuffer)
+bool DLL430_OldApiV3::criticalRrcmInstructionAt(uint32_t address)
+{
+	uint8_t buffer[2] = {0};
+	Memory(address, buffer, 2, READ);
+
+	const uint16_t value = ((uint16_t)buffer[1] << 8) | buffer[0];
+
+	//pattern is 0x0?40 or 0x0?50
+	return (value & 0xf0ef) == 0x40;
+}
+
+TriggerConditionPtr DLL430_OldApiV3::triggerConditionFromBpParameter(EmulationManagerPtr emuManager, const BpParameter_t* bpBuffer)
 {
 	TriggerConditionManagerPtr tcManager = emuManager->getTriggerConditionManager();
 
@@ -2229,7 +2149,7 @@ TriggerConditionPtr DLL430_OldApiV3::triggerConditionFromBpParameter(EmulationMa
 	case BP_RANGE:
 		if (bpBuffer->lAddrVal > bpBuffer->lRangeEndAdVa || bpBuffer->bpType == BP_REGISTER)
 			throw EM_TriggerParameterException();
-		
+
 		if (bpBuffer->bpType == BP_MDB)
 		{
 			triggerCondition = tcManager->createDataRangeCondition(bpBuffer->lAddrVal, bpBuffer->lRangeEndAdVa,
@@ -2246,10 +2166,10 @@ TriggerConditionPtr DLL430_OldApiV3::triggerConditionFromBpParameter(EmulationMa
 		}
 		break;
 
-	case BP_COMPLEX:	
+	case BP_COMPLEX:
 		if (bpBuffer->bpType == BP_REGISTER)
 		{
-			triggerCondition = tcManager->createRegisterCondition((uint8_t)bpBuffer->lReg, bpBuffer->lAddrVal, 
+			triggerCondition = tcManager->createRegisterCondition((uint8_t)bpBuffer->lReg, bpBuffer->lAddrVal,
 																	bpBuffer->lMask, (ComparisonOperation)bpBuffer->bpOperat);
 		}
 		else
@@ -2278,6 +2198,9 @@ TriggerConditionPtr DLL430_OldApiV3::triggerConditionFromBpParameter(EmulationMa
 		break;
 
 	case BP_SOFTWARE:
+		if (jtagIdIsXv2(singleDevice->getJtagId()) && criticalRrcmInstructionAt(bpBuffer->lAddrVal+2))
+			throw EM_SwbpCriticalInstruction();
+
 		triggerCondition = tcManager->createSoftwareTriggerCondition(bpBuffer->lAddrVal);
 		break;
 
@@ -2304,7 +2227,20 @@ void DLL430_OldApiV3::clearSoftwareTriggers()
 }
 
 
-void DLL430_OldApiV3::addBreakpointsAndStorage(EmulationManagerPtr emuManager, TriggerConditionPtr triggerCondition, 
+void DLL430_OldApiV3::restoreSoftwareTriggers(map<uint16_t, BpParameter_t>& bpStorage)
+{
+	for (auto& bp : bpStorage)
+	{
+		if (bp.second.bpMode == BP_SOFTWARE)
+		{
+			uint16_t handle = bp.first;
+			EEM_SetBreakpoint(&handle, &bp.second);
+		}
+	}
+}
+
+
+void DLL430_OldApiV3::addBreakpointsAndStorage(EmulationManagerPtr emuManager, TriggerConditionPtr triggerCondition,
 								BpAction_t reactions, uint16_t handle)
 {
 	if (triggerCondition)
@@ -2321,24 +2257,45 @@ void DLL430_OldApiV3::addBreakpointsAndStorage(EmulationManagerPtr emuManager, T
 		{
 			traceTriggers[handle].set(triggerCondition);
 		}
+
+		if (reactions & BP_CC)
+		{
+			counterTriggers[handle].set(triggerCondition);
+		}
 	}
 }
 
 
-void DLL430_OldApiV3::updateStorageConfiguration(EmulationManagerPtr emuManager)
+void DLL430_OldApiV3::updateStorageReactions(EmulationManagerPtr emuManager)
 {
 	if (emuManager->hasTrace())
 	{
-		typedef pair<long, TableEntry<TriggerConditionPtr> > MapEntry;
-
 		TracePtr trace = emuManager->getTrace();
-	
 		trace->clearTriggerConditions();
-		BOOST_FOREACH(const MapEntry& entry, traceTriggers)
+
+		for (const auto& entry : traceTriggers)
 		{
 			if (entry.second.inUse())
 			{
 				trace->addTriggerCondition(entry.second.value());
+			}
+		}
+	}
+}
+
+
+void DLL430_OldApiV3::updateCounterReactions(EmulationManagerPtr emuManager)
+{
+	if (emuManager->hasCycleCounter())
+	{
+		CycleCounterPtr counter = emuManager->getCycleCounter();
+		counter->clearTriggerConditions();
+
+		for (const auto& entry : counterTriggers)
+		{
+			if (entry.second.inUse())
+			{
+				counter->addTriggerCondition(entry.second.value());
 			}
 		}
 	}
@@ -2358,22 +2315,22 @@ void DLL430_OldApiV3::resetEM()
 		singleDevice->getEmulationManager()->getSoftwareBreakpoints()->getSwbpManager()->importInstructionTable(*oldSwbpMan.get());
 
 		//Reenable software breakpoints if previously active
-		if (singleDevice && config_settings[SOFTWARE_BREAKPOINTS] == ENABLE)
+		if (config_settings[SOFTWARE_BREAKPOINTS] == ENABLE)
 		{
 			try
 			{
 				singleDevice->getEmulationManager()->getSoftwareBreakpoints()->enable();
 				singleDevice->getEmulationManager()->writeConfiguration();
 			}
-			catch(const EM_Exception&) {} //ignore
+			catch (const EM_Exception&) {} //ignore
 		}
 	}
 
 	//We keep the software triggers
-	map<uint16_t,BpParameter_t>::iterator it = bp_storage.begin();
+	map<uint16_t, BpParameter_t>::iterator it = bp_storage.begin();
 	while (it != bp_storage.end())
 	{
-		map<uint16_t,BpParameter_t>::iterator tmp = it++;
+		map<uint16_t, BpParameter_t>::iterator tmp = it++;
 		if (tmp->second.bpMode != BP_SOFTWARE)
 		{
 			triggers.erase(tmp->first);
@@ -2382,22 +2339,23 @@ void DLL430_OldApiV3::resetEM()
 	}
 
 	traceTriggers.clear();
+	counterTriggers.clear();
 	breakpoints.clear();
 	triggerCombinations.clear();
 	watchedVariables.clear();
-	VwEnable_t varWatch_state = VW_DISABLE;
+	varWatch_state = VW_DISABLE;
 }
 
 
-bool DLL430_OldApiV3::EEM_SetBreakpoint(uint16_t* bpHandle, BpParameter_t* bpBuffer)
+bool DLL430_OldApiV3::EEM_SetBreakpoint(uint16_t* bpHandle, const BpParameter_t* bpBuffer)
 {
-	if (singleDevice==NULL)
+	if (singleDevice==nullptr)
 	{
 		log(LogTarget::ERR, NO_DEVICE_ERR, "");
 		return false;
 	}
 
-	if ( bpHandle == NULL || bpBuffer == NULL ||
+	if ( bpHandle == nullptr || bpBuffer == nullptr ||
 		(bpBuffer->bpMode == BP_CLEAR && *bpHandle == 0) ||
 		(bpBuffer->bpMode == BP_SOFTWARE && bpBuffer->bpAction != BP_BRK))
 	{
@@ -2405,11 +2363,10 @@ bool DLL430_OldApiV3::EEM_SetBreakpoint(uint16_t* bpHandle, BpParameter_t* bpBuf
 		return false;
 	}
 
-	const bool isRunning = !(debug.state == STOPPED || debug.state == BREAKPOINT_HIT || debug.state == LPMX5_WAKEUP);
 	const bool modifyingSwbp = (*bpHandle != 0) && (bp_storage[*bpHandle].bpMode == BP_SOFTWARE);
 	const bool settingSwbp = (bpBuffer->bpMode == BP_SOFTWARE);
 
-	if (isRunning && (modifyingSwbp || settingSwbp))
+	if (deviceIsRunning() && (modifyingSwbp || settingSwbp))
 	{
 		log(LogTarget::ERR, TARGET_RUNNING_ERR, "");
 		return false;
@@ -2434,25 +2391,24 @@ bool DLL430_OldApiV3::EEM_SetBreakpoint(uint16_t* bpHandle, BpParameter_t* bpBuf
 		else
 		{
 			//Special case handling if trigger is part of a combination
-			map<uint16_t, vector<uint16_t> >::iterator it;
-			for (it = triggerCombinations.begin(); it != triggerCombinations.end(); ++it)
+			for (auto& combination : triggerCombinations)
 			{
-				vector<uint16_t> combinedHandles = it->second;
-				if (find(it->second.begin(), it->second.end(), handle) != it->second.end())
+				vector<uint16_t> combinedHandles = combination.second;
+				if (find(combination.second.begin(), combination.second.end(), handle) != combination.second.end())
 				{
-					uint16_t combinationHandle = it->first;
-					
+					uint16_t combinationHandle = combination.first;
+
 					//If part of a combination is removed, simply break up the combination
 					if (bpBuffer->bpMode == BP_CLEAR)
 					{
-						EEM_SetCombineBreakpoint(CB_CLEAR, combinedHandles.size(), &combinationHandle, &combinedHandles[0]);
+						EEM_SetCombineBreakpoint(CB_CLEAR, static_cast<uint16_t>(combinedHandles.size()), &combinationHandle, &combinedHandles[0]);
 					}
 					//If the breakpoint is changed, trigger a reconstruction of the combination with new parameters
 					else
 					{
-						it->second.clear();
+						combination.second.clear();
 						bp_storage[handle] = *bpBuffer;
-						return EEM_SetCombineBreakpoint(CB_SET, combinedHandles.size(), &combinationHandle, &combinedHandles[0]);						
+						return EEM_SetCombineBreakpoint(CB_SET, static_cast<uint16_t>(combinedHandles.size()), &combinationHandle, &combinedHandles[0]);
 					}
 				}
 			}
@@ -2460,6 +2416,7 @@ bool DLL430_OldApiV3::EEM_SetBreakpoint(uint16_t* bpHandle, BpParameter_t* bpBuf
 			triggers[handle].clear();
 			breakpoints[handle].clear();
 			traceTriggers[handle].clear();
+			counterTriggers[handle].clear();
 			bp_storage.erase(handle);
 		}
 
@@ -2478,13 +2435,14 @@ bool DLL430_OldApiV3::EEM_SetBreakpoint(uint16_t* bpHandle, BpParameter_t* bpBuf
 			{
 				triggers[handle].set(triggerCondition);
 			}
-	
+
 			bp_storage[handle] = *bpBuffer;
 			*bpHandle = handle;
 		}
 
 		//Reconfigure all trace triggers
-		updateStorageConfiguration(emuManager);
+		updateStorageReactions(emuManager);
+		updateCounterReactions(emuManager);
 
 		emuManager->writeConfiguration();
 
@@ -2501,15 +2459,15 @@ bool DLL430_OldApiV3::EEM_SetBreakpoint(uint16_t* bpHandle, BpParameter_t* bpBuf
 
 bool DLL430_OldApiV3::EEM_GetBreakpoint(uint16_t wBpHandle, BpParameter_t* pBpDestBuffer)
 {
-	if(pBpDestBuffer==NULL)
+	if (pBpDestBuffer==nullptr)
 	{
 		log(LogTarget::ERR, PARAMETER_ERR, "");
 		return false;
 	}
 
-	map<uint16_t,BpParameter_t>::iterator it = bp_storage.find(wBpHandle);
+	map<uint16_t, BpParameter_t>::iterator it = bp_storage.find(wBpHandle);
 
-	if( it == bp_storage.end() )
+	if ( it == bp_storage.end() )
 	{
 		log(LogTarget::ERR, PARAMETER_ERR, "");
 		return false;
@@ -2521,20 +2479,19 @@ bool DLL430_OldApiV3::EEM_GetBreakpoint(uint16_t wBpHandle, BpParameter_t* pBpDe
 }
 
 
-
-bool DLL430_OldApiV3::EEM_SetCombineBreakpoint(CbControl_t control, uint16_t count, uint16_t* cbHandle, uint16_t* bpHandle)
+bool DLL430_OldApiV3::EEM_SetCombineBreakpoint(CbControl_t control, uint16_t count, uint16_t* cbHandle, const uint16_t* bpHandle)
 {
-	if (singleDevice == NULL)
+	if (singleDevice == nullptr)
 	{
 		log(LogTarget::ERR, NO_DEVICE_ERR, "");
 		return false;
 	}
 
-	if (bpHandle == NULL || cbHandle == NULL ||	(control == CB_SET && count < 2))
-    {
+	if (bpHandle == nullptr || cbHandle == nullptr || (control == CB_SET && count < 2))
+	{
 		log(LogTarget::ERR, PARAMETER_ERR, "");
 		return false;
-    }
+	}
 
 	bool success = false;
 
@@ -2542,7 +2499,7 @@ bool DLL430_OldApiV3::EEM_SetCombineBreakpoint(CbControl_t control, uint16_t cou
 	{
 		prepareEemAccess();
 		EmulationManagerPtr emuManager = singleDevice->getEmulationManager();
-		
+
 		if (control == CB_SET)
 		{
 			//Check that no combined trigger is a software breakpoint
@@ -2566,6 +2523,7 @@ bool DLL430_OldApiV3::EEM_SetCombineBreakpoint(CbControl_t control, uint16_t cou
 				triggers[ bpHandle[i] ].reserveSlot();
 				breakpoints[ bpHandle[i] ].reserveSlot();
 				traceTriggers[ bpHandle[i] ].reserveSlot();
+				counterTriggers[bpHandle[i]].reserveSlot();
 			}
 
 			TriggerConditionPtr triggerCondition = triggerConditionFromBpParameter(emuManager, &bp_storage[bpHandle[0]]);
@@ -2586,20 +2544,22 @@ bool DLL430_OldApiV3::EEM_SetCombineBreakpoint(CbControl_t control, uint16_t cou
 			vector<uint16_t> combinedHandles = triggerCombinations[*cbHandle];
 			triggerCombinations[*cbHandle].clear();
 
-			BOOST_FOREACH(uint16_t handle, combinedHandles)
+			for (uint16_t handle : combinedHandles)
 			{
-				EEM_SetBreakpoint(&handle, &bp_storage[handle]);
+				BpParameter_t* param = &bp_storage[handle];
+				EEM_SetBreakpoint(&handle, param);
 			}
 		}
 
-		//Reconfigure all storage triggers
-		updateStorageConfiguration(emuManager);
+		//Reconfigure all storage/counter triggers
+		updateStorageReactions(emuManager);
+		updateCounterReactions(emuManager);
 
 		emuManager->writeConfiguration();
 
 		success = true;
 	}
-	catch(const EM_Exception& e)
+	catch (const EM_Exception& e)
 	{
 		log(LogTarget::ERR, e.errorCode(), e.what());
 	}
@@ -2609,13 +2569,13 @@ bool DLL430_OldApiV3::EEM_SetCombineBreakpoint(CbControl_t control, uint16_t cou
 
 bool DLL430_OldApiV3::EEM_GetCombineBreakpoint(uint16_t cbHandle, uint16_t* count, uint16_t* bpHandle)
 {
-	if (singleDevice == NULL)
+	if (singleDevice == nullptr)
 	{
 		log(LogTarget::ERR, NO_DEVICE_ERR, "");
 		return false;
 	}
 
-	if ((count == NULL) || (bpHandle == NULL))
+	if ((count == nullptr) || (bpHandle == nullptr))
 	{
 		log(LogTarget::ERR, PARAMETER_ERR, "");
 		return false;
@@ -2623,7 +2583,7 @@ bool DLL430_OldApiV3::EEM_GetCombineBreakpoint(uint16_t cbHandle, uint16_t* coun
 
 	*count = 0;
 
-	BOOST_FOREACH(long id, triggerCombinations[cbHandle])
+	for (int32_t id : triggerCombinations[cbHandle])
 	{
 		bpHandle[(*count)++] = (uint16_t)id;
 	}
@@ -2631,9 +2591,9 @@ bool DLL430_OldApiV3::EEM_GetCombineBreakpoint(uint16_t cbHandle, uint16_t* coun
 	return true;
 }
 
-bool DLL430_OldApiV3::EEM_SetTrace(TrParameter_t* trBuffer)
+bool DLL430_OldApiV3::EEM_SetTrace(const TrParameter_t* trBuffer)
 {
-	if(singleDevice==NULL)
+	if (singleDevice==nullptr)
 	{
 		log(LogTarget::ERR, NO_DEVICE_ERR, "");
 		return false;
@@ -2651,9 +2611,9 @@ bool DLL430_OldApiV3::EEM_SetTrace(TrParameter_t* trBuffer)
 		trace_storage.trControl = trBuffer->trControl;
 		trace_storage.trMode = trBuffer->trMode;
 
-		switch(trBuffer->trAction)
+		switch (trBuffer->trAction)
 		{
-		case TR_FETCH: 
+		case TR_FETCH:
 			trace->setStoreOnInstructionFetch();
 			break;
 
@@ -2665,7 +2625,7 @@ bool DLL430_OldApiV3::EEM_SetTrace(TrParameter_t* trBuffer)
 		}
 
 
-		switch(trBuffer->trMode)
+		switch (trBuffer->trMode)
 		{
 		case TR_HISTORY:
 			trace->setStartOnTrigger(false);
@@ -2673,7 +2633,7 @@ bool DLL430_OldApiV3::EEM_SetTrace(TrParameter_t* trBuffer)
 			trace->setStoreContinuously();
 			break;
 
-		case TR_FUTURE:		
+		case TR_FUTURE:
 			trace->setStartOnTrigger(true);
 			trace->setStopOnTrigger(false);
 			trace->setStoreUntilFull();
@@ -2696,14 +2656,14 @@ bool DLL430_OldApiV3::EEM_SetTrace(TrParameter_t* trBuffer)
 		}
 
 
-		switch(trBuffer->trControl)
+		switch (trBuffer->trControl)
 		{
-		case TR_ENABLE:	
+		case TR_ENABLE:
 			trace->enable();
 			singleDevice->getDebugManager()->startStoragePolling();
 			break;
 
-		case TR_DISABLE: 
+		case TR_DISABLE:
 			trace->disable();
 			singleDevice->getDebugManager()->stopStoragePolling();
 			break;
@@ -2718,7 +2678,7 @@ bool DLL430_OldApiV3::EEM_SetTrace(TrParameter_t* trBuffer)
 
 		success = true;
 	}
-	catch(const EM_Exception& e)
+	catch (const EM_Exception& e)
 	{
 		log(LogTarget::ERR, e.errorCode(), e.what());
 	}
@@ -2736,19 +2696,19 @@ bool DLL430_OldApiV3::EEM_GetTrace(TrParameter_t* trDestBuffer)
 
 bool DLL430_OldApiV3::EEM_ReadTraceBuffer(TraceBuffer_t* destTraceBuffer)
 {
-	unsigned long count = 8;
+	uint32_t count = 8;
 	return EEM_ReadTraceData(destTraceBuffer, &count);
 }
 
-bool DLL430_OldApiV3::EEM_ReadTraceData(TraceBuffer_t* destTraceBuffer, unsigned long *count)
+bool DLL430_OldApiV3::EEM_ReadTraceData(TraceBuffer_t* destTraceBuffer, uint32_t *count)
 {
-	if (destTraceBuffer == NULL || count == NULL)
+	if (destTraceBuffer == nullptr || count == nullptr)
 	{
 		log(LogTarget::ERR, PARAMETER_ERR, "");
 		return false;
 	}
 
-	if(singleDevice==NULL)
+	if (singleDevice==nullptr)
 	{
 		log(LogTarget::ERR, NO_DEVICE_ERR, "");
 		return false;
@@ -2759,11 +2719,11 @@ bool DLL430_OldApiV3::EEM_ReadTraceData(TraceBuffer_t* destTraceBuffer, unsigned
 	try
 	{
 		const TraceBuffer& traceBuffer = singleDevice->getEmulationManager()->getTrace()->getTraceData();
-		
-		TraceBuffer::const_reverse_iterator it = traceBuffer.rbegin();
-		*count = min(*count, (unsigned long)traceBuffer.size());
 
-		for (size_t i = 0; i < *count; ++i, ++it)
+		TraceBuffer::const_reverse_iterator it = traceBuffer.rbegin();
+		*count = min(*count, (uint32_t)traceBuffer.size());
+
+		for (size_t i = 0; (i < *count) && (it != traceBuffer.rend()); ++i, ++it)
 		{
 			destTraceBuffer[i].lTrBufMAB = it->mab;
 			destTraceBuffer[i].lTrBufMDB = it->mdb;
@@ -2782,7 +2742,7 @@ bool DLL430_OldApiV3::EEM_ReadTraceData(TraceBuffer_t* destTraceBuffer, unsigned
 
 bool DLL430_OldApiV3::EEM_RefreshTraceBuffer(void)
 {
-	if(singleDevice==NULL)
+	if (singleDevice==nullptr)
 	{
 		log(LogTarget::ERR, NO_DEVICE_ERR, "");
 		return false;
@@ -2795,12 +2755,12 @@ bool DLL430_OldApiV3::EEM_RefreshTraceBuffer(void)
 		prepareEemAccess();
 		EmulationManagerPtr emuManager = singleDevice->getEmulationManager();
 		emuManager->getTrace()->reset();
-	
+
 		emuManager->writeConfiguration();
 
 		success = true;
 	}
-	catch(const EM_Exception& e)
+	catch (const EM_Exception& e)
 	{
 		log(LogTarget::ERR, e.errorCode(), e.what());
 	}
@@ -2810,7 +2770,7 @@ bool DLL430_OldApiV3::EEM_RefreshTraceBuffer(void)
 
 bool DLL430_OldApiV3::EEM_SetVariableWatch(VwEnable_t vwEnable)
 {
-	if(singleDevice==NULL)
+	if (singleDevice==nullptr)
 	{
 		log(LogTarget::ERR, NO_DEVICE_ERR, "");
 		return false;
@@ -2834,6 +2794,8 @@ bool DLL430_OldApiV3::EEM_SetVariableWatch(VwEnable_t vwEnable)
 		{
 			varWatch->disable();
 			singleDevice->getDebugManager()->stopStoragePolling();
+			watchedVariables.clear();
+			vw_storage.clear();
 		}
 		varWatch_state = vwEnable;
 
@@ -2852,29 +2814,32 @@ bool DLL430_OldApiV3::EEM_SetVariableWatch(VwEnable_t vwEnable)
 
 bool DLL430_OldApiV3::EEM_GetVariableWatch(VwEnable_t* vwEnable, VwResources_t* vwDestBuffer)
 {
+	memset(vwDestBuffer, 0, 8*sizeof(*vwDestBuffer));
+
 	*vwEnable = varWatch_state;
 
-	for(int i = 0; i < 8; ++i)
+	std::map<uint16_t, VwResources_t>::const_iterator it = vw_storage.begin();
+	for (int i = 0; i < 8 && it != vw_storage.end(); ++i, ++it)
 	{
-		vwDestBuffer[i].vwHandle = vw_storage[i].vwHandle;
-		vwDestBuffer[i].lAddr = vw_storage[i].lAddr;
-		vwDestBuffer[i].vwDataType = vw_storage[i].vwDataType;
+		vwDestBuffer[i].vwHandle = it->second.vwHandle;
+		vwDestBuffer[i].lAddr = it->second.lAddr;
+		vwDestBuffer[i].vwDataType = it->second.vwDataType;
 	}
-	
+
 	return true;
 }
 
 
-bool DLL430_OldApiV3::EEM_SetVariable(uint16_t* vwHandle, VwParameter_t* vwBuffer)
+bool DLL430_OldApiV3::EEM_SetVariable(uint16_t* vwHandle, const VwParameter_t* vwBuffer)
 {
 	// Check provided parameter
-	if (vwHandle == NULL || vwBuffer == NULL)
+	if (vwHandle == nullptr || vwBuffer == nullptr)
 	{
 		log(LogTarget::ERR, PARAMETER_ERR, "");
 		return false;
 	}
 
-	if(singleDevice==NULL)
+	if (singleDevice==nullptr)
 	{
 		log(LogTarget::ERR, NO_DEVICE_ERR, "");
 		return false;
@@ -2891,16 +2856,17 @@ bool DLL430_OldApiV3::EEM_SetVariable(uint16_t* vwHandle, VwParameter_t* vwBuffe
 
 		if (vwBuffer->vwControl == VW_CLEAR)
 		{
-			boost::mutex::scoped_lock lock(watchedVariablesMutex);
+			std::lock_guard<std::mutex> lock(watchedVariablesMutex);
 			watchedVariables.erase(*vwHandle);
 			vw_storage.erase(*vwHandle);
 		}
 
 		if (vwBuffer->vwControl == VW_SET)
 		{
-			boost::mutex::scoped_lock lock(watchedVariablesMutex);
+			std::lock_guard<std::mutex> lock(watchedVariablesMutex);
 
-			*vwHandle = 0;
+			//Start at 0x10, so VW events are easily distinguished from Trace events
+			*vwHandle = 0x10;
 			while (watchedVariables[*vwHandle])
 				++(*vwHandle);
 
@@ -2930,14 +2896,14 @@ bool DLL430_OldApiV3::EEM_SetVariable(uint16_t* vwHandle, VwParameter_t* vwBuffe
 	return success;
 }
 
-bool DLL430_OldApiV3::EEM_SetClockControl(CcParameter_t* pCcBuffer)
+bool DLL430_OldApiV3::EEM_SetClockControl(const CcParameter_t* pCcBuffer)
 {
-	if(pCcBuffer==NULL)
+	if (pCcBuffer==nullptr)
 	{
 		log(LogTarget::ERR, PARAMETER_ERR, "");
 		return false;
 	}
-	if(singleDevice==NULL)
+	if (singleDevice==nullptr)
 	{
 		log(LogTarget::ERR, NO_DEVICE_ERR, "");
 		return false;
@@ -2955,10 +2921,10 @@ bool DLL430_OldApiV3::EEM_SetClockControl(CcParameter_t* pCcBuffer)
 	{
 		prepareEemAccess();
 
-		uint16_t cmp_general = DEFAULT_CLKCNTRL;
+		uint16_t cmp_general = singleDevice->getDebugManager()->getGeneralClockDefaultSetting();
 		uint16_t cmp_module = singleDevice->getDebugManager()->getClockModuleDefaultSetting();
 
-		if(pCcBuffer->ccControl == CC_ENABLE)
+		if (pCcBuffer->ccControl == CC_ENABLE)
 		{
 			cmp_general = pCcBuffer->ccGeneralCLK;
 			cmp_module = pCcBuffer->ccModule;
@@ -2968,7 +2934,7 @@ bool DLL430_OldApiV3::EEM_SetClockControl(CcParameter_t* pCcBuffer)
 		bool needReset = false;
 
 		//Only applies to Cpu/CpuX devices
-		if ( (clock_control.ccGeneralCLK != cmp_general) && (singleDevice->getJtagId() == 0x89))
+		if ( (clock_control.ccGeneralCLK != cmp_general) && !jtagIdIsXv2(singleDevice->getJtagId()))
 		{
 			singleDevice->getEmulationManager()->writeRegister(GENCLKCTRL, cmp_general);
 			clock_control.ccGeneralCLK = cmp_general;
@@ -3003,21 +2969,21 @@ bool DLL430_OldApiV3::EEM_SetClockControl(CcParameter_t* pCcBuffer)
 
 bool DLL430_OldApiV3::EEM_GetClockControl(CcParameter_t* pCcDestBuffer)
 {
-	if(pCcDestBuffer==NULL)
+	if (pCcDestBuffer==nullptr)
 	{
 		log(LogTarget::ERR, PARAMETER_ERR, "");
 		return false;
 	}
 
-	memcpy(pCcDestBuffer,&clock_control,sizeof(CcParameter_t));
+	memcpy(pCcDestBuffer, &clock_control, sizeof(CcParameter_t));
 
 	return true;
 }
 
 
-bool DLL430_OldApiV3::EEM_SetSequencer(SeqParameter_t* seqBuffer)
+bool DLL430_OldApiV3::EEM_SetSequencer(const SeqParameter_t* seqBuffer)
 {
-	if(singleDevice==NULL)
+	if (singleDevice==nullptr)
 	{
 		log(LogTarget::ERR, NO_DEVICE_ERR, "");
 		return false;
@@ -3066,7 +3032,7 @@ bool DLL430_OldApiV3::EEM_SetSequencer(SeqParameter_t* seqBuffer)
 		{
 			sequencer->setResetTrigger(triggers[seqBuffer->wHandleRstTrig].value());
 		}
-		
+
 		//Set sequencer actions on reaching final state
 		if (seqBuffer->bpAction & BP_BRK)
 		{
@@ -3092,7 +3058,7 @@ bool DLL430_OldApiV3::EEM_SetSequencer(SeqParameter_t* seqBuffer)
 
 bool DLL430_OldApiV3::EEM_GetSequencer(SeqParameter_t* seqDestBuffer)
 {
-	if (seqDestBuffer == NULL)
+	if (seqDestBuffer == nullptr)
 	{
 		log(LogTarget::ERR, PARAMETER_ERR, "");
 		return false;
@@ -3104,7 +3070,7 @@ bool DLL430_OldApiV3::EEM_GetSequencer(SeqParameter_t* seqDestBuffer)
 
 bool DLL430_OldApiV3::EEM_ReadSequencerState(SeqState_t* pSeqState)
 {
-	if (singleDevice == NULL)
+	if (singleDevice == nullptr)
 	{
 		log(LogTarget::ERR, NO_DEVICE_ERR, "");
 		return false;
@@ -3133,14 +3099,179 @@ bool DLL430_OldApiV3::EEM_ReadSequencerState(SeqState_t* pSeqState)
 	return success;
 }
 
-bool DLL430_OldApiV3::FET_SelfTest(long count, uint8_t* buffer)
+bool DLL430_OldApiV3::EEM_SetCycleCounterMode(CycleCounterMode_t mode)
+{
+	if (singleDevice == nullptr)
+	{
+		log(LogTarget::ERR, NO_DEVICE_ERR, "");
+		return false;
+	}
+
+	bool success = false;
+
+	try {
+		if (mode == CYC_MODE_ADVANCED && !singleDevice->getEmulationManager()->hasCycleCounter())
+		{
+			throw EM_Exception(FEATURE_NOT_SUPPORTED, "Target has no hardware cycle counter");
+		}
+
+		if (DebugManager* dbgMan = singleDevice->getDebugManager())
+		{
+			dbgMan->enableLegacyCycleCounter(mode == CYC_MODE_BASIC);
+
+			singleDevice->getEmulationManager()->writeConfiguration();
+		}
+
+		success = true;
+	}
+	catch (const EM_Exception& e)
+	{
+		log(LogTarget::ERR, e.errorCode(), e.what());
+	}
+
+	return success;
+}
+
+void DLL430_OldApiV3::checkCycleCounterConflict(uint32_t wCounter) const
+{
+	const DebugManager* dbgMan = singleDevice->getDebugManager();
+	if (dbgMan && dbgMan->legacyCycleCounterEnabled() && wCounter == 0)
+	{
+		throw EM_Exception(CYCLE_COUNTER_CONFLICT, "");
+	}
+}
+
+bool DLL430_OldApiV3::EEM_ConfigureCycleCounter(uint32_t wCounter, CycleCounterConfig_t pCycConfig)
+{
+	if (singleDevice == nullptr)
+	{
+		log(LogTarget::ERR, NO_DEVICE_ERR, "");
+		return false;
+	}
+
+	bool success = false;
+
+	try
+	{
+		checkCycleCounterConflict(wCounter);
+		prepareEemAccess();
+
+		CycleCounterPtr cc = singleDevice->getEmulationManager()->getCycleCounter();
+		cc->setCountMode(wCounter, (CounterCountMode)pCycConfig.countMode);
+		cc->setStartMode(wCounter, (CounterStartMode)pCycConfig.startMode);
+		cc->setStopMode(wCounter, (CounterStopMode)pCycConfig.stopMode);
+		cc->setClearMode(wCounter, (CounterClearMode)pCycConfig.clearMode);
+
+		singleDevice->getEmulationManager()->writeConfiguration();
+
+		success = true;
+	}
+	catch (const EM_Exception& e)
+	{
+		log(LogTarget::ERR, e.errorCode(), e.what());
+	}
+
+	return success;
+}
+
+bool DLL430_OldApiV3::EEM_ReadCycleCounterValue(uint32_t wCounter, uint64_t* value)
+{
+	if (singleDevice == nullptr)
+	{
+		log(LogTarget::ERR, NO_DEVICE_ERR, "");
+		return false;
+	}
+
+	if (value == nullptr)
+	{
+		log(LogTarget::ERR, PARAMETER_ERR, "");
+		return false;
+	}
+
+	bool success = false;
+
+	try
+	{
+		checkCycleCounterConflict(wCounter);
+
+		CycleCounterPtr cc = singleDevice->getEmulationManager()->getCycleCounter();
+		prepareEemAccess();
+		cc->readCounter(wCounter);
+		*value = cc->getCounterValue(wCounter);
+
+		success = true;
+	}
+	catch (const EM_Exception& e)
+	{
+		log(LogTarget::ERR, e.errorCode(), e.what());
+	}
+
+	return success;
+}
+
+bool DLL430_OldApiV3::EEM_WriteCycleCounterValue(uint32_t wCounter, uint64_t value)
+{
+	if (singleDevice == nullptr)
+	{
+		log(LogTarget::ERR, NO_DEVICE_ERR, "");
+		return false;
+	}
+
+	bool success = false;
+
+	try
+	{
+		checkCycleCounterConflict(wCounter);
+		prepareEemAccess();
+		singleDevice->getEmulationManager()->getCycleCounter()->setCounterValue(wCounter, value);
+		singleDevice->getEmulationManager()->writeConfiguration();
+
+		success = true;
+	}
+	catch (const EM_Exception& e)
+	{
+		log(LogTarget::ERR, e.errorCode(), e.what());
+	}
+
+	return success;
+}
+
+bool DLL430_OldApiV3::EEM_ResetCycleCounter(uint32_t wCounter)
+{
+	if (singleDevice == nullptr)
+	{
+		log(LogTarget::ERR, NO_DEVICE_ERR, "");
+		return false;
+	}
+
+	bool success = false;
+
+	try
+	{
+		checkCycleCounterConflict(wCounter);
+		prepareEemAccess();
+
+		singleDevice->getEmulationManager()->getCycleCounter()->resetCounter(wCounter);
+		singleDevice->getEmulationManager()->writeConfiguration();
+
+		success = true;
+	}
+	catch (const EM_Exception& e)
+	{
+		log(LogTarget::ERR, e.errorCode(), e.what());
+	}
+
+	return success;
+}
+
+bool DLL430_OldApiV3::FET_SelfTest(int32_t count, uint8_t* buffer)
 {
 	return true;
 }
 
-bool DLL430_OldApiV3::FET_SetSignals(long SigMask, long SigState)
+bool DLL430_OldApiV3::FET_SetSignals(int32_t SigMask, int32_t SigState)
 {
-	log(LogTarget::ERR, INTERFACE_SUPPORT_ERR, "");	
+	log(LogTarget::ERR, INTERFACE_SUPPORT_ERR, "");
 	return false;
 }
 
@@ -3150,7 +3281,7 @@ bool DLL430_OldApiV3::FET_Reset(void)
 	return false;
 }
 
-bool DLL430_OldApiV3::FET_I2C(long address, uint8_t* buffer, long count, long rw)
+bool DLL430_OldApiV3::FET_I2C(int32_t address, uint8_t* buffer, int32_t count, int32_t rw)
 {
 	log(LogTarget::ERR, INTERFACE_SUPPORT_ERR, "");
 	return false;
@@ -3168,9 +3299,9 @@ bool DLL430_OldApiV3::FET_ExitBootloader(void)
 	return false;
 }
 
-bool DLL430_OldApiV3::FET_GetFwVersion(long* version)
+bool DLL430_OldApiV3::FET_GetFwVersion(int32_t* version)
 {
-	if(handle==NULL)
+	if (handle==nullptr)
 	{
 		log(LogTarget::ERR, INTERNAL_ERR, "");
 		return false;
@@ -3184,45 +3315,46 @@ bool DLL430_OldApiV3::FET_GetFwVersion(long* version)
 }
 
 
-bool DLL430_OldApiV3::FET_GetHwVersion(uint8_t** version, long* count)
+bool DLL430_OldApiV3::FET_GetHwVersion(uint8_t** version, int32_t* count)
 {
-	if(handle==NULL)
+	if (handle==nullptr)
 	{
 		log(LogTarget::ERR, INTERNAL_ERR, "");
 		return false;
 	}
 
-	std::vector<uint8_t> * hwId=this->handle->getHwVersion();
-
-	static uint8_t v[4] = {0,0,0,0};
-
-	if((version==NULL)||(count==NULL))
+	if ((version==nullptr)||(count==nullptr))
 	{
 		log(LogTarget::ERR, PARAMETER_ERR, "");
 		return false;
 	}
 
-	if( hwId->size() < 4 )
-	{
-		*version = (uint8_t*)v;
-		*count = 4;
-		log(LogTarget::ERR, INTERNAL_ERR, "");
-		return false;
-	}
-	v[0]=hwId->at(0);
-	v[1]=hwId->at(1);
-	v[2]=hwId->at(2);
-	v[3]=hwId->at(3);
+	const std::vector<uint8_t>* hwId = this->handle->getHwVersion();
 
-	*version = (uint8_t*)v;
+	static uint8_t v[4] = {0, 0, 0, 0};
+
+	const bool valid = (hwId->size() >= 4);
+	if (!valid)
+	{
+		log(LogTarget::ERR, INTERNAL_ERR, "");
+	}
+	else
+	{
+		v[0]=hwId->at(0);
+		v[1]=hwId->at(1);
+		v[2]=hwId->at(2);
+		v[3]=hwId->at(3);
+	}
+	*version = v;
 	*count = 4;
-	return true;
+
+	return valid;
 }
 
 bool DLL430_OldApiV3::FET_FwUpdate(
-	char* lpszFileName,
+	const char* lpszFileName,
 	DLL430_FET_NOTIFY_FUNC callback,
-	long clientHandle)
+	int32_t clientHandle)
 {
 	this->errNum = 0;
 	this->clientHandle=clientHandle;
@@ -3230,53 +3362,53 @@ bool DLL430_OldApiV3::FET_FwUpdate(
 	try
 	{
 		UpdateNotifyCallback cbFunction;
-		if (callback != NULL)
+		if (callback != nullptr)
 		{
-			cbFunction = boost::bind(callback, _1, _2, _3, clientHandle);
+			cbFunction = bind(callback, _1, _2, _3, clientHandle);
 		}
 
-		const uint32_t countHidDevices = HidUpdateManager::countHidDevices(MSPBSL_EZ_FET_USB_PID);
+		const uint32_t countHidDevices =( HidUpdateManager::countHidDevices(MSPBSL_EZ_FET_USB_PID) + HidUpdateManager::countHidDevices(MSPBSL_MSP_FET_USB_PID));
 		// HID FET recovery handling -------------------------------------------------------------------------------
 		if (countHidDevices == 1)
 		{	// just one HID FET was detected
 			bool returnValue = HidUpdateManager().hid_firmWareUpdate(lpszFileName, cbFunction);
-			if(!returnValue)
+			if (!returnValue)
 			{
 				log(LogTarget::ERR, RECOVERY_FAILED, "");
 				return false;
 			}
-			return true;		
+			return true;
 		}
 
-		if(countHidDevices > 1)
+		if (countHidDevices > 1)
 		{
-			// do not start if more than one FET need recovery 
+			// do not start if more than one FET need recovery
 			log(LogTarget::ERR, RECOVERY_MULTIPLE_UIF, "");
 			return false;
 		}
 		// HID FET recovery handling  END ---------------------------------------------------------------------
 
-		if(handle==NULL)
+		if (handle==nullptr)
 		{
 			log(LogTarget::ERR, INTERNAL_ERR, "");
 			return false;
 		}
 		ConfigManager* config = handle->getConfigManager();
 
-		long version = -1;
+		int32_t version = -1;
 		const string portName = this->handle->getCurrentPortName();
 		vector<char> port(portName.begin(), portName.end());
 		port.push_back(0);
 
 		bool coreUpdate = false;
 		bool updateSuccess = config->firmWareUpdate(lpszFileName, cbFunction, &coreUpdate);
-	
+
 		//Perform up to two retries if not core update
 		for (int retries = 2; retries > 0 && !updateSuccess && !coreUpdate; --retries)
 		{
 			//Initialize will invalidate config manager
 			Initialize(&port[0], &version);
-			config = handle ? handle->getConfigManager() : NULL;
+			config = handle ? handle->getConfigManager() : nullptr;
 			updateSuccess = config && config->firmWareUpdate(lpszFileName, cbFunction, &coreUpdate);
 		}
 
@@ -3294,39 +3426,39 @@ bool DLL430_OldApiV3::FET_FwUpdate(
 				return false;
 			}
 		}
-		// if core update was successful, run module updates after it.(just eZ-FET).
+		// if core update was successful, run module updates after it.(just eZ-FET & MSP-FET).
 		if (coreUpdate)
 		{
 			this->Initialize(&port[0], &version);
-			
-			if(!handle)
+
+			if (!handle)
 			{
-				boost::this_thread::sleep(boost::get_system_time() + boost::posix_time::seconds(3));
+				this_thread::sleep_for(chrono::seconds(3));
 				this->Initialize(&port[0], &version);
 			}
 
-			if(handle)
+			if (handle)
 			{
 				config = handle->getConfigManager();
-		
-				if(!config->firmWareUpdate(lpszFileName, cbFunction, &coreUpdate))
+
+				if (!config->firmWareUpdate(lpszFileName, cbFunction, &coreUpdate))
 				{
-					// if module update was not successful 
+					// if module update was not successful
 					log(LogTarget::ERR, UPDATE_MODULE_ERR, "");
 					return false;
 				}
 			}
 			else
 			{
-				// if module update was not successful 
+				// if module update was not successful
 				log(LogTarget::ERR, INTERFACE_SUPPORT_ERR, "");
 				return false;
 			}
 		}
 	}
-	catch(const std::runtime_error& e)
-	{		
-		if(string("DUMMY_FW_MANAGER_UPDATE") == e.what())
+	catch (const std::runtime_error& e)
+	{
+		if (string("DUMMY_FW_MANAGER_UPDATE") == e.what())
 		{
 			log(LogTarget::ERR, HARDWARE_STATE_UNKNOWN, "");
 			return false;
@@ -3343,9 +3475,9 @@ void DLL430_OldApiV3::HIL_ResetJtagTap()
 	}
 }
 
-bool DLL430_OldApiV3::HIL_Configure(enum CONFIG_MODE mode, long value)
+bool DLL430_OldApiV3::HIL_Configure(enum CONFIG_MODE mode, int32_t value)
 {
-	if(handle == NULL)
+	if (handle == nullptr)
 	{
 		log(LogTarget::ERR, INTERFACE_SUPPORT_ERR, "");
 		return false;
@@ -3353,12 +3485,12 @@ bool DLL430_OldApiV3::HIL_Configure(enum CONFIG_MODE mode, long value)
 
 	bool retValue = false;
 
-	switch (mode) 
+	switch (mode)
 	{
 		case INTERFACE_MODE:
 		{
 			enum INTERFACE_TYPE type = (enum INTERFACE_TYPE)value;
-			switch (type) 
+			switch (type)
 			{
 				case JTAG_IF:
 					retValue = handle->sendHilCommand(HIL_CMD_CONFIGURE, ConfigManager::JTAG_MODE_4WIRE);
@@ -3369,6 +3501,10 @@ bool DLL430_OldApiV3::HIL_Configure(enum CONFIG_MODE mode, long value)
 				case SPYBIWIREJTAG_IF:
 					retValue = handle->sendHilCommand(HIL_CMD_CONFIGURE, ConfigManager::JTAG_MODE_4AFTER2);
 					break;
+				case JTAG_MSP432:
+					retValue = handle->sendHilCommand(HIL_CMD_CONFIGURE, ConfigManager::JTAG_MODE_4WIRE_432);
+					break;
+				default: break;
 			}
 		}
 		break;
@@ -3407,7 +3543,7 @@ bool DLL430_OldApiV3::HIL_Bsl()
 	return success;
 }
 
-bool DLL430_OldApiV3::HIL_Connect_Entry_State(long value)
+bool DLL430_OldApiV3::HIL_Connect_Entry_State(int32_t value)
 {
 	const bool success = handle && handle->sendHilCommand(HIL_CMD_CONNECT, (uint32_t)value);
 	if (!success)
@@ -3415,6 +3551,15 @@ bool DLL430_OldApiV3::HIL_Connect_Entry_State(long value)
 
 	return success;
 }
+
+void DLL430_OldApiV3::HIL_FuseCheck()
+{
+	if (handle)
+	{
+		handle->sendHilCommand(HIL_CMD_FUSE_CHECK, 0);
+	}
+}
+
 
 bool DLL430_OldApiV3::HIL_Connect()
 {
@@ -3425,16 +3570,16 @@ bool DLL430_OldApiV3::HIL_Connect()
 	return success;
 }
 
-bool DLL430_OldApiV3::HIL_Close(long vccOff)
+bool DLL430_OldApiV3::HIL_Close(int32_t vccOff)
 {
 	const bool success = handle && handle->sendHilCommand(HIL_CMD_CLOSE, vccOff);
 	if (!success)
 		log(LogTarget::ERR, INTERNAL_ERR, "");
-	
+
 	return success;
 }
 
-bool DLL430_OldApiV3::HIL_TCK(long state)
+bool DLL430_OldApiV3::HIL_TCK(int32_t state)
 {
 	const bool success = handle && handle->setJtagPin(JTAG_PIN_TCK, state != 0);
 	if (!success)
@@ -3443,7 +3588,7 @@ bool DLL430_OldApiV3::HIL_TCK(long state)
 	return success;
 }
 
-bool DLL430_OldApiV3::HIL_TMS(long state)
+bool DLL430_OldApiV3::HIL_TMS(int32_t state)
 {
 	const bool success = handle && handle->setJtagPin(JTAG_PIN_TMS, state != 0);
 	if (!success)
@@ -3452,7 +3597,7 @@ bool DLL430_OldApiV3::HIL_TMS(long state)
 	return success;
 }
 
-bool DLL430_OldApiV3::HIL_TDI(long state)
+bool DLL430_OldApiV3::HIL_TDI(int32_t state)
 {
 	const bool success = handle && handle->setJtagPin(JTAG_PIN_TDI, state != 0);
 	if (!success)
@@ -3461,7 +3606,7 @@ bool DLL430_OldApiV3::HIL_TDI(long state)
 	return success;
 }
 
-bool DLL430_OldApiV3::HIL_RST(long state)
+bool DLL430_OldApiV3::HIL_RST(int32_t state)
 {
 	const bool success = handle && handle->setJtagPin(JTAG_PIN_RST, state != 0);
 	if (!success)
@@ -3470,7 +3615,7 @@ bool DLL430_OldApiV3::HIL_RST(long state)
 	return success;
 }
 
-bool DLL430_OldApiV3::HIL_TST(long state)
+bool DLL430_OldApiV3::HIL_TST(int32_t state)
 {
 	const bool success = handle && handle->setJtagPin(JTAG_PIN_TST, state != 0);
 	if (!success)
@@ -3479,7 +3624,7 @@ bool DLL430_OldApiV3::HIL_TST(long state)
 	return success;
 }
 
-uint64_t DLL430_OldApiV3::HIL_JTAG_IR(long instruction)
+uint64_t DLL430_OldApiV3::HIL_JTAG_IR(int32_t instruction)
 {
 	uint64_t retVal = (uint64_t)-1;
 	if (handle)
@@ -3488,7 +3633,16 @@ uint64_t DLL430_OldApiV3::HIL_JTAG_IR(long instruction)
 	return retVal;
 }
 
-uint64_t DLL430_OldApiV3::HIL_JTAG_DR(int64_t data, long bitSize)
+uint64_t DLL430_OldApiV3::HIL_JTAG_IR4(int32_t instruction)
+{
+	uint64_t retVal = (uint64_t)-1;
+	if (handle)
+		retVal = handle->sendJtagShift(HIL_CMD_JTAG_IR4, instruction);
+
+	return retVal;
+}
+
+uint64_t DLL430_OldApiV3::HIL_JTAG_DR(int64_t data, int32_t bitSize)
 {
 	uint64_t retVal = (uint64_t)-1;
 	if (handle)
@@ -3497,26 +3651,106 @@ uint64_t DLL430_OldApiV3::HIL_JTAG_DR(int64_t data, long bitSize)
 	return retVal;
 }
 
+uint64_t DLL430_OldApiV3::HIL_JTAG_IR_DR(uint32_t instruction, uint64_t data, uint32_t bits)
+{
+	uint64_t resultDR = (uint64_t)-1;
+	if (FetHandleV3* fetHandle = dynamic_cast<FetHandleV3*>(handle))
+	{
+		JtagShifts shifts;
+
+		if (fetHandle->send(shifts(HIL_CMD_JTAG_IR, instruction, 8)(HIL_CMD_JTAG_DR, data, bits)))
+		{
+			//IR shift result at position 0 as 64bit value if needed
+			resultDR = shifts.getData().getOutputAt64(8);
+		}
+	}
+	return resultDR;
+}
+
+bool DLL430_OldApiV3::HIL_DPACC(uint8_t address, uint32_t *data, uint16_t RdnWr)
+{
+	HalExecElement *el = new HalExecElement(ID_HilCommand);
+
+	el->appendInputData32((uint32_t)HIL_CMD_DPACC);
+	el->appendInputData32((uint32_t)address);
+	el->appendInputData32(*data);
+	el->appendInputData32((uint32_t)RdnWr);
+
+	HalExecCommand cmd;
+	cmd.elements.emplace_back(el);
+
+	FetHandleV3* fetHandle = dynamic_cast<FetHandleV3*>(handle);
+
+	bool result = false;
+	if (fetHandle)
+	{
+		result = fetHandle->send(cmd);
+		*data  = cmd.elements[0]->getOutputAt32(0);
+	}
+
+	return result;
+}
+
+bool DLL430_OldApiV3::HIL_APACC(uint8_t portNum, uint8_t address, uint32_t *data, uint16_t RdnWr)
+{
+	HalExecElement *el = new HalExecElement(ID_HilCommand);
+
+	el->appendInputData32((uint32_t)HIL_CMD_APACC);
+	el->appendInputData32((uint32_t)address + (((uint32_t)portNum) << 24));
+	el->appendInputData32(*data);
+	el->appendInputData32((uint32_t)RdnWr);
+
+	HalExecCommand cmd;
+	cmd.elements.emplace_back(el);
+
+	FetHandleV3* fetHandle = dynamic_cast<FetHandleV3*>(handle);
+
+	bool result = false;
+	if (fetHandle)
+	{
+		result = fetHandle->send(cmd);
+		*data  = cmd.elements[0]->getOutputAt32(0);
+	}
+
+	return result;
+}
+
+bool DLL430_OldApiV3::HIL_MEMAP(uint8_t portNum, uint32_t address, uint32_t *data, uint16_t RdnWr)
+{
+	HalExecElement *el = new HalExecElement(ID_HilCommand);
+
+	el->appendInputData32((uint32_t)HIL_CMD_MEMAP);
+	el->appendInputData32(address);
+	el->appendInputData32(*data);
+	el->appendInputData32((uint32_t)RdnWr | ((uint32_t)portNum << 24));
+
+	HalExecCommand cmd;
+	cmd.elements.emplace_back(el);
+
+	FetHandleV3* fetHandle = dynamic_cast<FetHandleV3*>(handle);
+
+	bool result = false;
+	if (fetHandle)
+	{
+		result = fetHandle->send(cmd);
+		*data  = cmd.elements[0]->getOutputAt32(0);
+	}
+
+	return result;
+}
+
 void DLL430_OldApiV3::execNotifyCallback(SYSTEM_EVENT_MSP event)
 {
 	// just executes the function, given by the IDE
-	if(notifyCallback!=0)
+	if (notifyCallback!=0)
 	{
-		this->notifyCallback(event);		// event could be DEVICE_CONNECTION_LOST etc
+		this->notifyCallback(event);
 	}
 }
 
-void DLL430_OldApiV3::iNotifyCallback(uint32_t msgId, uint32_t wParam, uint32_t lParam, uint32_t clientHandle)
+void DLL430_OldApiV3::iNotifyCallback(uint32_t systemEventID)
 {
-	switch(wParam)
-	{
-	case 0:
-		this->execNotifyCallback(FET_CONNECTION_LOST);
-		break;
-
-	default:
-		break;
-	}
+	this->execNotifyCallback((enum SYSTEM_EVENT_MSP)systemEventID);
 }
 
 bool DLL430_OldApiV3::writeToExternalMemory()
@@ -3528,12 +3762,12 @@ bool DLL430_OldApiV3::writeToExternalMemory()
 	// R14 = 0x0002       write image starting at addr 2
 	// R15 = RAM_LENGTH   (RAM_END-RAM_START)
 	// SP  = 0x23FE       make space for return addr on stack
-	// @23FE = @1C7E      make function return to program start 
+	// @23FE = @1C7E      make function return to program start
 	MemoryManager* mm = singleDevice ? singleDevice->getMemoryManager() : 0;
-		
-	MemoryArea* registers = mm ? mm->getMemoryArea("CPU") : 0;
-	
-	if (!registers)
+
+	CpuRegisters* cpu = mm ? mm->getCpuRegisters() : 0;
+
+	if (!cpu)
 	{
 		log(LogTarget::ERR, INTERNAL_ERR, "");
 		return false;
@@ -3547,9 +3781,9 @@ bool DLL430_OldApiV3::writeToExternalMemory()
 	const uint32_t stackPtr = ramEnd - 2;
 	const uint32_t stackReserve = 50;
 
-	registers->read(0, saveRegister, 16);
+	cpu->read(0, saveRegister, 16);
 
-	uint32_t tmp[2] = {0};
+	uint8_t tmp[2] = {0};
 
 	if ( !mm->read(0xF8A2, tmp, 2) || !mm->sync() )
 	{
@@ -3565,83 +3799,114 @@ bool DLL430_OldApiV3::writeToExternalMemory()
 		return false;
 	}
 
-	const uint32_t programStart = tmp[0] | (tmp[1] << 8);	
+	const uint32_t programStart = tmp[0] | (tmp[1] << 8);
 
-	uint32_t loaderAddress[2] = {0xFE, 0xBC};
+	uint8_t loaderAddress[2] = {0xFE, 0xBC};
 	if ( !mm->write(stackPtr, loaderAddress, 2) || !mm->sync() )
 	{
 		log(LogTarget::ERR, WRITE_MEMORY_ERR, "");
 		return false;
 	}
 
-	registers->write(0, functionAddress );	//Set PC to start of Generate Image routine
-	registers->write(1, stackPtr);
-	registers->write(11, programStart );
-	registers->write(12, ramStart);
-	registers->write(13, 0);
-	registers->write(14, 2);
-	registers->write(15, ramEnd - ramStart - stackReserve);
+	cpu->write(0, functionAddress );	//Set PC to start of Generate Image routine
+	cpu->write(1, stackPtr);
+	cpu->write(11, programStart );
+	cpu->write(12, ramStart);
+	cpu->write(13, 0);
+	cpu->write(14, 2);
+	cpu->write(15, ramEnd - ramStart - stackReserve);
 
 	this->handle->getConfigManager()->start();
 
 	Run(FREE_RUN, true);					// start execution of loader code
 
-	boost::this_thread::sleep(boost::get_system_time() + boost::posix_time::seconds(15));
-	
-	long state;
-	long pCPUCycles;
+	this_thread::sleep_for(chrono::seconds(15));
+
+	int32_t state;
+	int32_t pCPUCycles;
 	State(&state, true, &pCPUCycles);
 
 	uint32_t value;
-	registers->read(0, &value, 1);
+	cpu->read(0, &value);
 
-	registers->write(0, saveRegister, 16);
-	registers->getCacheCtrl()->flush(0, 0);	 // write save register values into the msp
+	cpu->write(0, saveRegister, 16);
+	cpu->flushCache(); // write save register values into the msp
 
 	return (value != WRITE_ERROR);
 }
 
 bool DLL430_OldApiV3::EnableEnergyTrace(const EnergyTraceSetup* setup, const EnergyTraceCallbacks* callbacks, EnergyTraceHandle* handle)
 {
-	if(!this->handle->getConfigManager()->isEnergyTraceSupported())
+	if (!this->handle)
+	{
+		log(LogTarget::ERR, INTERNAL_ERR, "");
+		return false;
+	}
+	if (!this->handle->getConfigManager()->isEnergyTraceSupported())
 	{
 		log(LogTarget::ERR, ET_NOT_SUPPORTED, "");
+		return false;
+	}
+	if (!handle)
+	{
+		log(LogTarget::ERR, PARAMETER_ERR, "");
 		return false;
 	}
 
 	bool EA_Result = false;
 
-    if(mEnergyTraceManager)
-    {
-        mPdSetup = *setup;
+	if (mEnergyTraceManager)
+	{
+		mPdSetup = *setup;
 
-        mPdCallbacks = *callbacks;
-	    *handle = (EnergyTraceHandle*)this;
+		mPdCallbacks = *callbacks;
+		*handle = (EnergyTraceHandle*)this;
 
-		// Check if we have a device which supports power gating --> no BP set or ET possible during High power debug active only in ULP mode
-		if(singleDevice && !singleDevice->eemAccessibleInLpm())
+		// if ET7
+		if (setup->ETMode == ET_PROFILING_ANALOG_DSTATE)
 		{
-			// check if ULP debug is active
-			if(!this->handle->getConfigManager()->ulpDebugEnabled())
+			if (!this->handle->getConfigManager()->ulpDebugEnabled())
 			{
-				log(LogTarget::ERR, ET_NOT_SUPPORTED, "");
+				log(LogTarget::ERR, ET_NOT_SUPPORTED_ULP_DEBUG, "");
 				return false;
 			}
+			if (!singleDevice)
+			{
+				log(LogTarget::ERR, NO_DEVICE_ERR, "");
+				return false;
+			}
+			// if ET7 && not Jstate capbile device return error.
+			if (!singleDevice->deviceSupportsEnergyTrace())
+			{
+				log(LogTarget::ERR, ET_NOT_SUPPORTED_DEVICE, "");
+				return false;
+			}
+			// if ET7 && Jstate capbile device start ET
+			else
+			{
+				EA_Result = mEnergyTraceManager->startEnergyTrace(this, setup->ETMode, setup->ETCallback, singleDevice);
+			}
 		}
-
-		EA_Result = mEnergyTraceManager->startEnergyTrace(this, mPdSetup.ETMode,mPdSetup.ETCallback, singleDevice);
-
-		this->debug.EnergyTraceActive = EA_Result;
-		this->debug.EnergyTraceEnabled = EA_Result;
+		// if ET8 - start on every device
+		else if (mPdSetup.ETMode == ET_PROFILING_ANALOG)
+		{
+			EA_Result = mEnergyTraceManager->startEnergyTrace(this, setup->ETMode, setup->ETCallback, singleDevice);
+		}
+		// default return error
+		else
+		{
+			log(LogTarget::ERR, ET_NOT_SUPPORTED_DEVICE, "");
+			return false;
+		}
 	}
-	if(!EA_Result)
+	if (!EA_Result)
 	{
-		log(LogTarget::ERR, ET_NOT_SUPPORTED, "");
+		log(LogTarget::ERR, ET_NOT_SUPPORTED_DEVICE, "");
 		return false;
 	}
-
 	return true;
 }
+
 bool DLL430_OldApiV3::ResetEnergyTrace(const EnergyTraceHandle handle)
 {
 	return mEnergyTraceManager->ResetEnergyTrace();
@@ -3649,35 +3914,29 @@ bool DLL430_OldApiV3::ResetEnergyTrace(const EnergyTraceHandle handle)
 
 bool DLL430_OldApiV3::DisableEnergyTrace(const EnergyTraceHandle handle)
 {
-    bool retVal = false;
+	bool retVal = false;
 
-	if(mEnergyTraceManager)
+	if (mEnergyTraceManager)
 	{
-        mEnergyTraceManager->pausePolling();
-        mEnergyTraceManager->stopPolling();
-        retVal = true;
-	}
-	else
-	{
-		retVal = false;
+		mEnergyTraceManager->stopPolling();
+		retVal = true;
 	}
 
 	mPdCallbacks.pContext = 0;
 	mPdCallbacks.pErrorOccurredFn = 0;
 	mPdCallbacks.pPushDataFn = 0;
 
-    this->debug.EnergyTraceEnabled = false;
-    this->debug.EnergyTraceActive = false;
-
-    return retVal;
+	return retVal;
 }
 
 void DLL430_OldApiV3::prepareEemAccess() const
 {
-	const bool isStopped = (debug.state == STOPPED) ||
-						   (debug.state == BREAKPOINT_HIT) ||
-						   (debug.state == LPMX5_WAKEUP);
-	if (singleDevice && handle && handle->getConfigManager() && 
-		(!isStopped && !singleDevice->eemAccessibleInLpm() && this->handle->getConfigManager()->ulpDebugEnabled()))
+	if (singleDevice && handle && handle->getConfigManager() &&
+		(deviceIsRunning() && !singleDevice->eemAccessibleInLpm() && this->handle->getConfigManager()->ulpDebugEnabled()))
 		throw EM_EemNotAccessibleException();
+}
+
+bool DLL430_OldApiV3::deviceIsRunning() const
+{
+	return (debug.state == RUNNING || debug.state == LPMX5_MODE);
 }

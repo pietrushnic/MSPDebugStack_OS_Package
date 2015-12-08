@@ -3,53 +3,44 @@
  *
  * Shared trace and variable watch implementation for 430
  *
- * Copyright (C) 2007 - 2011 Texas Instruments Incorporated - http://www.ti.com/ 
- * 
- * 
- *  Redistribution and use in source and binary forms, with or without 
- *  modification, are permitted provided that the following conditions 
+ * Copyright (C) 2007 - 2011 Texas Instruments Incorporated - http://www.ti.com/
+ *
+ *
+ *  Redistribution and use in source and binary forms, with or without
+ *  modification, are permitted provided that the following conditions
  *  are met:
  *
- *    Redistributions of source code must retain the above copyright 
+ *    Redistributions of source code must retain the above copyright
  *    notice, this list of conditions and the following disclaimer.
  *
  *    Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the 
- *    documentation and/or other materials provided with the   
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the
  *    distribution.
  *
  *    Neither the name of Texas Instruments Incorporated nor the names of
  *    its contributors may be used to endorse or promote products derived
  *    from this software without specific prior written permission.
  *
- *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS 
- *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT 
+ *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
  *  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT 
- *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, 
- *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT 
+ *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
  *  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
  *  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
- *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
+ *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#pragma once
 
-#ifndef DLL430_STATE_STORAGE_430_H
-#define DLL430_STATE_STORAGE_430_H
-
-#include <stdint.h>
-#include <vector>
-#include <boost/weak_ptr.hpp>
-#include <boost/thread.hpp>
-
-#include <MessageData.h>
 #include "../Trace/Trace430.h"
 #include "../TriggerCondition/ITriggerConditionManager.h"
 #include "../VariableWatch/VariableWatch430.h"
 #include "../VariableWatch/WatchedVariable430.h"
-
 
 
 namespace TI { namespace DLL430 {
@@ -70,16 +61,12 @@ enum StateStorageControlBits
 };
 
 
-
 class StateStorage430 : public Trace430InterfaceSplitter, public VariableWatch430InterfaceSplitter
 {
 public:
 	StateStorage430();
 	~StateStorage430();
 
-	virtual void initialize();
-	virtual void cleanup();
-	
 	virtual void writeConfiguration();
 
 
@@ -107,7 +94,6 @@ public:
 	virtual const TraceBuffer getTraceData();
 
 
-
 	//VariableWatch Interface implementation
 	virtual void onEventVWatch(MessageDataPtr messageData);
 
@@ -117,25 +103,18 @@ public:
 	virtual WatchedVariablePtr createWatchedVariable(uint32_t address, uint32_t bitSize, TriggerConditionManagerPtr tcManager);
 
 private:
-	void updateWatchedVariable(uint32_t triggerId, uint16_t value);
+	void updateWatchedVariable(uint32_t slot, uint32_t address, uint16_t value);
 
 
 	uint16_t controlRegister_;
 
 	std::vector<TriggerConditionPtr> triggerConditions_;
-	
+
 	TraceBuffer traceBuffer_;
 
-	boost::mutex traceBufferMutex_;
+	std::mutex traceBufferMutex_;
 
-	std::vector<boost::weak_ptr<WatchedVariable430> > watchedVariables_;
+	std::vector<std::weak_ptr<WatchedVariable430> > watchedVariables_;
 };
 
-
-
-
-
-
 }}
-
-#endif

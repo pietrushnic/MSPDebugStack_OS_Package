@@ -37,6 +37,7 @@
 */
 
 #pragma once
+
 #include "MSPBSL_Connection5xx.h"
 
 class MSPBSL_Connection5xxUSB : public MSPBSL_Connection5xx
@@ -46,8 +47,8 @@ public:
 	MSPBSL_Connection5xxUSB(std::string initString);
 	virtual ~MSPBSL_Connection5xxUSB();
 
-	uint16_t loadRAM_BSL();
-	uint16_t loadRAM_BSL(uint8_t* password);
+	uint16_t loadRAM_BSL(uint16_t toolPid);
+	uint16_t loadRAM_BSL(uint8_t* password, uint16_t toolPid);
 
 	void closeBslconnection();
 

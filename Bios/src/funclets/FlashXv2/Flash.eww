@@ -13,7 +13,8 @@
   <project>
     <path>$WS_DIR$\FramErase.ewp</path>
   </project>
+  <project>
+    <path>$WS_DIR$\FramEraseFR41xx.ewp</path>
+  </project>
   <batchBuild/>
 </workspace>
-
-

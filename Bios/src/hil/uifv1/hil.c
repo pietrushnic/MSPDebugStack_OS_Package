@@ -7,34 +7,34 @@
 *
 */
 /*
- * Copyright (C) 2012 Texas Instruments Incorporated - http://www.ti.com/ 
- *  
- *  Redistribution and use in source and binary forms, with or without 
- *  modification, are permitted provided that the following conditions 
+ * Copyright (C) 2012 Texas Instruments Incorporated - http://www.ti.com/
+ *
+ *  Redistribution and use in source and binary forms, with or without
+ *  modification, are permitted provided that the following conditions
  *  are met:
  *
- *    Redistributions of source code must retain the above copyright 
+ *    Redistributions of source code must retain the above copyright
  *    notice, this list of conditions and the following disclaimer.
  *
  *    Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the 
- *    documentation and/or other materials provided with the   
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the
  *    distribution.
  *
  *    Neither the name of Texas Instruments Incorporated nor the names of
  *    its contributors may be used to endorse or promote products derived
  *    from this software without specific prior written permission.
  *
- *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS 
- *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT 
+ *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
  *  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT 
- *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, 
- *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT 
+ *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
  *  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
  *  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
- *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
+ *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
@@ -57,17 +57,13 @@
 #include "HalGlobalVars.h"
 #include "stream.h"
 
-// vars
-enum {JTAG = 0, SPYBIWIRE, SPYBIWIREJTAG};
-
 unsigned short gprotocol_id;
 unsigned short gTclkHighWhilePsa;
 unsigned short bVccOn;  // Target Vcc is switched off by default
                          // dependant on calls to _hil_SetVcc()
 unsigned char *tstctrl_port_;
 unsigned char entdi2tdo_;
-
-unsigned short setPCclockBeforeCapture2;
+unsigned short jtagReleased;
 
 // function prototypes for map initialization
 // common HIL configuration methods
@@ -82,30 +78,27 @@ short _hil_Close( void );
 short IccMonitor_Process(unsigned short flags); // flags: to be compatible with HIL calls
 void  _hil_EntrySequences(unsigned char states);
 
-void  _hil_SetJtagBits(unsigned char output);
-unsigned char _hil_GetJtagBits(void);
 
-void  _hil_SetTgtCtrlBits(unsigned char);
-unsigned char _hil_GetTgtCtrlBits(void);
+void _hil_SetJtagSpeed(unsigned short speed, unsigned short sbwSpeed);
+void _hil_ConfigureSetPc(unsigned short x) {}
 
-void  _hil_SetTestBits(unsigned char);
-void  _hil_SetJtagSpeed(unsigned short speed, unsigned short sbwSpeed);
-void  _hil_ConfigureSetPc(unsigned short);
-
-unsigned char _hil_GetTestBits(void);
 
 void _hil_SetReset(unsigned char);
 void _hil_SetTest(unsigned char);
+void _hil_SetTMS(unsigned char);
+void _hil_SetTCK(unsigned char);
+void _hil_SetTDI(unsigned char);
 void _hil_initTimerB0(void);
-void _hil_BSL_EntrySequence(void);
+void _hil_BSL_EntrySequence(unsigned short dummy);
+void _hil_SwitchVccFET(unsigned short SwitchVccFET){};
 
 edt_common_methods_t _edt_Common_Methods =
 {
     _hil_Init,
     _hil_SetVcc,
+    _hil_SwitchVccFET,
     _hil_GetVcc,
     _hil_SetProtocol,
-    _hil_SetPsaSetup,
     _hil_SetPsaTCLK,
     _hil_Open,
     _hil_Close,
@@ -113,18 +106,15 @@ edt_common_methods_t _edt_Common_Methods =
     _hil_Delay_1ms,
     IccMonitor_Process,
     _hil_EntrySequences,
-    _hil_SetJtagBits,
-    _hil_GetJtagBits,
-    _hil_SetTgtCtrlBits,
-    _hil_GetTgtCtrlBits,
-    _hil_SetTestBits,
-    _hil_GetTestBits,    
     _hil_SetReset,
     _hil_SetTest,
     _hil_SetJtagSpeed,
     _hil_ConfigureSetPc,
     _hil_initTimerB0,
     _hil_BSL_EntrySequence,
+    _hil_SetTMS,
+    _hil_SetTCK,
+    _hil_SetTDI,
 };
 // init by HIL init function
 VAR_AT(edt_distinct_methods_t _edt_Distinct_Methods, HAL_ADDR_VAR_EDT_DISTINCT_METHODS);
@@ -133,7 +123,6 @@ VAR_AT(edt_distinct_methods_t _edt_Distinct_Methods, HAL_ADDR_VAR_EDT_DISTINCT_M
 // (must be implemeted in 4-wire JTAG and 2-wire Spy-Bi-Wire mode)
 extern short _hil_4w_TapReset(void);
 extern short _hil_4w_CheckJtagFuse(void);
-extern unsigned short _hil_4w_EnumChain(void);
 extern unsigned char _hil_4w_Instr(unsigned char Instruction);
 //extern unsigned long _hil_4w_SetReg_XBits(unsigned long Data, short Bits);
 extern unsigned char _hil_4w_SetReg_XBits08(unsigned char Data);
@@ -141,7 +130,7 @@ extern unsigned short _hil_4w_SetReg_XBits16(unsigned short Data);
 extern unsigned long _hil_4w_SetReg_XBits20(unsigned long Data);
 extern unsigned long _hil_4w_SetReg_XBits32(unsigned long Data);
 extern unsigned long long _hil_4w_SetReg_XBits64(unsigned long long Data);
-extern unsigned long long _hil_4w_SetReg_XBits8_64(unsigned long long Data, unsigned short loopCount);
+extern unsigned long long _hil_4w_SetReg_XBits8_64(unsigned long long Data, unsigned short loopCount, unsigned short JStateVersion);
 
 extern void _hil_4w_Tclk(unsigned char state);
 extern void _hil_4w_StepPsa(unsigned long length);
@@ -150,7 +139,6 @@ extern short _hil_4w_BlowFuse(unsigned char targetHasTestVpp);
 
 extern short _hil_2w_TapReset(void);
 extern short _hil_2w_CheckJtagFuse(void);
-extern unsigned short _hil_2w_EnumChain(void);
 extern unsigned char _hil_2w_Instr(unsigned char Instruction);
 //extern unsigned long _hil_2w_SetReg_XBits(unsigned long Data, short Bits);
 extern unsigned char _hil_2w_SetReg_XBits08(unsigned char Data);
@@ -158,15 +146,29 @@ extern unsigned short _hil_2w_SetReg_XBits16(unsigned short Data);
 extern unsigned long _hil_2w_SetReg_XBits20(unsigned long Data);
 extern unsigned long _hil_2w_SetReg_XBits32(unsigned long Data);
 extern unsigned long long _hil_2w_SetReg_XBits64(unsigned long long Data);
-extern unsigned long long _hil_2w_SetReg_XBits8_64(unsigned long long Data, unsigned short loopCount);
+extern unsigned long long _hil_2w_SetReg_XBits8_64(unsigned long long Data, unsigned short loopCount, unsigned short JStateVersion);
 extern void _hil_2w_Tclk(unsigned char state);
 extern void _hil_2w_StepPsa(unsigned long length);
 extern void _hil_2w_StepPsaTclkHigh(unsigned long length);
 extern short _hil_2w_BlowFuse(unsigned char targetHasTestVpp);
+void _hil_2w_StepPsa_Xv2(unsigned long length);
 
 extern unsigned char _hil_2w_GetPrevInstruction();
 extern unsigned char _hil_4w_GetPrevInstruction();
 
+short _hil_dummy_TapReset(void) {return 0;}
+short _hil_dummy_CheckJtagFuse(void){return 0;}
+unsigned char _hil_dummy_Instr(unsigned char Instruction){return 0;}
+unsigned char _hil_dummy_SetReg_XBits08(unsigned char Data){return 0;}
+unsigned short _hil_dummy_SetReg_XBits16(unsigned short Data){return 0;}
+unsigned long _hil_dummy_SetReg_XBits20(unsigned long Data){return 0;}
+unsigned long _hil_dummy_SetReg_XBits32(unsigned long Data){return 0;}
+unsigned long long _hil_dummy_SetReg_XBits64(unsigned long long Data){return 0;}
+unsigned long long _hil_dummy_SetReg_XBits8_64(unsigned long long Data, unsigned short loopCount, unsigned short JStateVersion){return 0;}
+void _hil_dummy_Tclk(unsigned char state){return;}
+void _hil_dummy_StepPsa(unsigned long length){return;}
+short _hil_dummy_BlowFuse(unsigned char targetHasTestVpp){return 0;}
+unsigned char _hil_dummy_GetPrevInstruction(){return 0;}
 
 // PSA distinct methods
 void _hil_EnhancedPsaSetup(unsigned long address);
@@ -201,21 +203,21 @@ static volatile unsigned char VFSettleFlag = 0;
 static volatile unsigned char useTDI = 0;
 
 unsigned short ConvertAD(unsigned short channel)
-{	
+{
     unsigned long tmp;
-    unsigned short ret_mv = 0;  
-    
+    unsigned short ret_mv = 0;
+
     if(channel < 4 )
     {
-        tmp = *((unsigned short*)&ADC12MEM0+channel) + 
-        *((unsigned short*)&ADC12MEM4+channel) + 
-        *((unsigned short*)&ADC12MEM8+channel) + 
+        tmp = *((unsigned short*)&ADC12MEM0+channel) +
+        *((unsigned short*)&ADC12MEM4+channel) +
+        *((unsigned short*)&ADC12MEM8+channel) +
         *((unsigned short*)&ADC12MEM12+channel);
         tmp *= ADC_MV[channel];
         tmp /= ADC_CONV_RANGE * ADC_AVERAGES;
         ret_mv = tmp;
     }
-    return(ret_mv);  
+    return(ret_mv);
 }
 
 /*----------------------------------------------------------------------------
@@ -226,7 +228,7 @@ unsigned short ConvertAD(unsigned short channel)
    Result:    word (12 bit ADC conversion result)
 */
 short ConvertAD_(short channel)
-{		
+{
 // select channel and do conversion
   ADC12CTL0  &= ~ENC;                   // Disable conversion, write controls
   ADC12MCTL0  = 0x10 + channel;         // select Vref and analog channel Ax
@@ -244,7 +246,7 @@ void SetDac(unsigned short vcc)
 {
     signed short nomDac;
     signed short corr;
-    
+
     if(last_vcc != vcc)
     {
         nomDac = (unsigned short)(ConvRange - (vcc - minVCCT));      // calculate approximated value
@@ -281,14 +283,9 @@ void SetDac(unsigned short vcc)
     }
 }
 
-void _hil_ConfigureSetPc(unsigned short PCclockBeforeCapture)
-{
-    setPCclockBeforeCapture2 = PCclockBeforeCapture;
-}
-
 // -----------------------------------------------------------------------------
 short _hil_Init( void )
-{ 
+{
     // Setup ADC12
     ADC12CTL0  &= ~ENC;					  // Disable conversions, write controls
     ADC12CTL0  = ADC12ON | REFON | REF2_5V | MSC | SHT0_2 | SHT1_2;  // Turn on ADC12, VREF = 2.5v, set samp. time
@@ -314,7 +311,7 @@ short _hil_Init( void )
     ADC12CTL0  |= ENC;                    // Enable conversions
     // ADCs run free
     ADC12CTL0  |= ADC12SC;                // Start conversions
-    
+
     DAC12_0DAT = VCCTmin;                           // set voltage to MIN ~0
     DAC12_0CTL = DAC12CALON + DAC12IR + DAC12AMP_5; // Internal ref gain 1
 
@@ -327,23 +324,25 @@ short _hil_Init( void )
     UMCTL1 = 0x00;						// Clear Modulation Register
     UCTL1 &= ~SWRST;
     ME2   |= USPIE1;					// Enable SPI module
-    
+
     // DMA init
     DMACTL0 = 0;                  // URXIFG0 trigger for DMS channel0, channel1 and channel2 are software triggered
     DMACTL1 = 0;                           // DAM immediatly, no round-robin, no NMI interrupt
-    
+
     DMA1CTL = ( DMADT0 | DMASRCINCR1 | DMASRCINCR0 | DMASRCBYTE | DMADSTBYTE);
     DMA1DA = (unsigned int)_Jtag.Out; //JTAGOUT;       // set destination address
     DMA2CTL = ( DMADT0 | DMASRCINCR1 | DMASRCINCR0 | DMASRCBYTE | DMADSTBYTE);
     DMA2DA = (unsigned int)_Jtag.Out; //JTAGOUT;       // set destination address
     DMA2SZ = 4;                            // JTAG test/idle sequence is always 4 transisions
-  
+
     // set default debug protocol to JTAG
     gprotocol_id = JTAG;
     // set default to TCLK low when doing PSA
     gTclkHighWhilePsa = 0;
     // initialize function pointers to distinct functions
     _hil_SetProtocol(gprotocol_id);
+    jtagReleased = 1;
+
     return 0;
 }
 
@@ -355,16 +354,16 @@ void _hil_SetJtagSpeed(unsigned short speed, unsigned short sbwSpeed)
     }
 }
 // -----------------------------------------------------------------------------
-#pragma optimize = none
+#pragma optimize = medium
 short _hil_SetVcc(unsigned short Vcc)
 {
   static unsigned char bPowerUp = 1;
-  
+
     if(Vcc)
     {
           //This workaround is necessary to set TCK to a defined low level before
           //applying Vcc to the target device
-          //otherwise the target will not power up correctly and the UIF can't 
+          //otherwise the target will not power up correctly and the UIF can't
           //establish a SBW communication
 
           if(bPowerUp)
@@ -375,7 +374,6 @@ short _hil_SetVcc(unsigned short Vcc)
             SetDac(Vcc+50);
             VCCTon();
             _hil_Delay_1ms(1);
-            TGTCTRLOUT |= SELT;
             bPowerUp = 0;
           }
           else
@@ -387,10 +385,10 @@ short _hil_SetVcc(unsigned short Vcc)
     }
     else
     {
-        VCCToff();  
-        EDT_Close();                                // DF 20110131
+        VCCToff();
+        _hil_Close();
         bVccOn = 0;
-        bPowerUp = 1;        
+        bPowerUp = 1;
     }
     return 0;
 }
@@ -399,7 +397,7 @@ short _hil_GetVcc(double* Vcc, double* ExtVcc)
 {
     if(P4OUT & BIT3)
     {
-        *Vcc = ConvertAD(VCCTCHN); 
+        *Vcc = ConvertAD(VCCTCHN);
     }
     else
     {
@@ -410,9 +408,9 @@ short _hil_GetVcc(double* Vcc, double* ExtVcc)
 }
 // -----------------------------------------------------------------------------
 short _hil_SetProtocol(unsigned short protocol_id)
-{ 
+{
     short ret_value = 0;
-    
+
     if((protocol_id == JTAG))
     {
         gprotocol_id = JTAG;
@@ -432,39 +430,43 @@ short _hil_SetProtocol(unsigned short protocol_id)
 
     tstctrl_port_ = (unsigned char*)&P4OUT;
     entdi2tdo_ = BIT2;
-   
+
     if(gprotocol_id == SPYBIWIRE)
     {
         _edt_Distinct_Methods.TapReset = _hil_2w_TapReset;
         _edt_Distinct_Methods.CheckJtagFuse = _hil_2w_CheckJtagFuse;
-        _edt_Distinct_Methods.EnumChain = _hil_2w_EnumChain;
         _edt_Distinct_Methods.Instr = _hil_2w_Instr;
         _edt_Distinct_Methods.SetReg_XBits08 = _hil_2w_SetReg_XBits08;
         _edt_Distinct_Methods.SetReg_XBits16 = _hil_2w_SetReg_XBits16;
         _edt_Distinct_Methods.SetReg_XBits20 = _hil_2w_SetReg_XBits20;
         _edt_Distinct_Methods.SetReg_XBits32 = _hil_2w_SetReg_XBits32;
         _edt_Distinct_Methods.SetReg_XBits64 = _hil_2w_SetReg_XBits64;
-        _edt_Distinct_Methods.SetReg_XBits8_64 = _hil_2w_SetReg_XBits8_64; 
-        _edt_Distinct_Methods.Tclk = _hil_2w_Tclk;        
+        _edt_Distinct_Methods.SetReg_XBits8_64 = _hil_2w_SetReg_XBits8_64;
+        _edt_Distinct_Methods.Tclk = _hil_2w_Tclk;
         _edt_Distinct_Methods.GetPrevInstruction = _hil_2w_GetPrevInstruction;
-        if(!gTclkHighWhilePsa)
-        {
-            _edt_Distinct_Methods.StepPsa = _hil_2w_StepPsa;
-        } 
-        else
+
+        if(gTclkHighWhilePsa == 1)
         {
             _edt_Distinct_Methods.StepPsa = _hil_2w_StepPsaTclkHigh;
         }
+        else if(gTclkHighWhilePsa == 2)
+        {
+          _edt_Distinct_Methods.StepPsa = _hil_2w_StepPsa_Xv2;
+        }
+        else
+        {
+            _edt_Distinct_Methods.StepPsa = _hil_2w_StepPsa;
+        }
+
         _edt_Distinct_Methods.BlowFuse = _hil_2w_BlowFuse;
         DMA1SZ = 6;                         // load DMA1 with size
         DMA2SZ = 6;                         // load DMA1 with size
-        DMA2SA = (unsigned int)DMA_TMSL_TDIL; 
+        DMA2SA = (unsigned int)DMA_TMSL_TDIL;
     }
     else
     {
         _edt_Distinct_Methods.TapReset = _hil_4w_TapReset;
         _edt_Distinct_Methods.CheckJtagFuse = _hil_4w_CheckJtagFuse;
-        _edt_Distinct_Methods.EnumChain = _hil_4w_EnumChain;
         _edt_Distinct_Methods.Instr = _hil_4w_Instr;
         _edt_Distinct_Methods.SetReg_XBits08 = _hil_4w_SetReg_XBits08;
         _edt_Distinct_Methods.SetReg_XBits16 = _hil_4w_SetReg_XBits16;
@@ -472,9 +474,9 @@ short _hil_SetProtocol(unsigned short protocol_id)
         _edt_Distinct_Methods.SetReg_XBits32 = _hil_4w_SetReg_XBits32;
         _edt_Distinct_Methods.SetReg_XBits64 = _hil_4w_SetReg_XBits64;
         _edt_Distinct_Methods.SetReg_XBits8_64 = _hil_4w_SetReg_XBits8_64;
-        _edt_Distinct_Methods.Tclk = _hil_4w_Tclk;        
+        _edt_Distinct_Methods.Tclk = _hil_4w_Tclk;
         _edt_Distinct_Methods.GetPrevInstruction = _hil_4w_GetPrevInstruction;
-        if(!gTclkHighWhilePsa)
+        if(gTclkHighWhilePsa == 0 || gTclkHighWhilePsa == 2)
         {
             _edt_Distinct_Methods.StepPsa = _hil_4w_StepPsa;
         }
@@ -482,42 +484,24 @@ short _hil_SetProtocol(unsigned short protocol_id)
         {
             _edt_Distinct_Methods.StepPsa = _hil_4w_StepPsaTclkHigh;
         }
-        _edt_Distinct_Methods.BlowFuse = _hil_4w_BlowFuse;        
+        _edt_Distinct_Methods.BlowFuse = _hil_4w_BlowFuse;
         DMA2SZ = 4;                         // load DMA1 with size
     }
     return(ret_value);
 }
 
-void _hil_SetPsaSetup(unsigned short enhancedPsa)
-{
-    if(enhancedPsa)
-    {
-        _edt_Distinct_Methods.SetupPsa = _hil_EnhancedPsaSetup;
-        _edt_Distinct_Methods.EndPsa = _hil_EnhancedPsaEnd;
-    }
-    else
-    {
-        _edt_Distinct_Methods.SetupPsa = _hil_PsaSetup;
-        _edt_Distinct_Methods.EndPsa = _hil_PsaEnd;
-    }
-}
-
 void _hil_SetPsaTCLK(unsigned short tclkValue)
 {
-    if(tclkValue)
-    {
-        gTclkHighWhilePsa = 1;
-    }
-    else
-    {
-        gTclkHighWhilePsa = 0;
-    }
-    
+    gTclkHighWhilePsa = tclkValue;
     if(gprotocol_id == SPYBIWIRE)
     {
-        if(gTclkHighWhilePsa)
+        if(gTclkHighWhilePsa == 1)
         {
             _edt_Distinct_Methods.StepPsa = _hil_2w_StepPsaTclkHigh;
+        }
+        else if(gTclkHighWhilePsa == 2)
+        {
+          _edt_Distinct_Methods.StepPsa = _hil_2w_StepPsa_Xv2;
         }
         else
         {
@@ -526,7 +510,7 @@ void _hil_SetPsaTCLK(unsigned short tclkValue)
     }
     else
     {
-        if(gTclkHighWhilePsa)
+        if(gTclkHighWhilePsa == 1)
         {
             _edt_Distinct_Methods.StepPsa = _hil_4w_StepPsaTclkHigh;
         }
@@ -539,26 +523,43 @@ void _hil_SetPsaTCLK(unsigned short tclkValue)
 
 static void _hil_Release(void)
 {
-    if(gprotocol_id == SPYBIWIRE)
+    if(!jtagReleased)
     {
-        // drive target RST/SBWTDIO pin high
-        JTAGOUT |=  sbwdato;        // TDI drives target RST high
-      TSTCTRLOUT |= ENTDI2TDO;          // disable TDI2TDO
-        EDT_Delay_1ms(1);
-        // drive target TEST/SBWTCK pin low
-        JTAGOUT &= ~sbwclk;         // TCK drives target TEST low - release Spy-Bi-Wire logic
-        TGTCTRLOUT |=  SELT;               // disable JTAG & RST pin drivers
+        if(gprotocol_id == SPYBIWIRE)
+        {
+            // drive target RST/SBWTDIO pin high
+            JTAGOUT |=  sbwdato;                // TDI drives target RST high
+            TSTCTRLOUT |= ENTDI2TDO;            // disable TDI2TDO
+            IHIL_Delay_1ms(1);
+            // drive target TEST/SBWTCK pin low
+            JTAGOUT &= ~sbwclk;                 // TCK drives target TEST low - release Spy-Bi-Wire logic
+        }
+        else
+        {
+            // hands off from target RST pin  -> will be pulled up
+            TSTCTRLOUT |= ENTDI2TDO;          // disable TDI2TDO
+            TGTCTRLOUT |=  SELT;               // disable JTAG & RST pin drivers
+            IHIL_Delay_1ms(1);
+            // hands off from target TEST pin -> will be pulled down
+            TSTCTRLOUT |=  TEST;               // reset target TEST pin low
+        }
+        _edt_Distinct_Methods.TapReset  = _hil_dummy_TapReset;
+        _edt_Distinct_Methods.CheckJtagFuse = _hil_dummy_CheckJtagFuse;
+        _edt_Distinct_Methods.Instr = _hil_dummy_Instr;
+        _edt_Distinct_Methods.SetReg_XBits08 = _hil_dummy_SetReg_XBits08;
+        _edt_Distinct_Methods.SetReg_XBits16 = _hil_dummy_SetReg_XBits16;
+        _edt_Distinct_Methods.SetReg_XBits20 = _hil_dummy_SetReg_XBits20;
+        _edt_Distinct_Methods.SetReg_XBits32 = _hil_dummy_SetReg_XBits32;
+        _edt_Distinct_Methods.SetReg_XBits64 = _hil_dummy_SetReg_XBits64;
+        _edt_Distinct_Methods.SetReg_XBits8_64 = _hil_dummy_SetReg_XBits8_64;
+        _edt_Distinct_Methods.Tclk = _hil_dummy_Tclk;
+        _edt_Distinct_Methods.GetPrevInstruction = _hil_dummy_GetPrevInstruction;
+        _edt_Distinct_Methods.StepPsa = _hil_dummy_StepPsa;
+        _edt_Distinct_Methods.BlowFuse = _hil_dummy_BlowFuse;
+
+        jtagReleased = 1;
     }
-    else
-    {
-    // hands off from target RST pin  -> will be pulled up
-        TSTCTRLOUT |= ENTDI2TDO;          // disable TDI2TDO
-        TGTCTRLOUT |=  SELT;               // disable JTAG & RST pin drivers
-        EDT_Delay_1ms(1);
-        // hands off from target TEST pin -> will be pulled down
-        TSTCTRLOUT |=  TEST;               // reset target TEST pin low
-    }
-    EDT_Delay_1ms(5);
+    IHIL_Delay_1ms(5);
 }
 
 #define RSTLOW_SBW   0
@@ -575,7 +576,7 @@ static void _hil_Release(void)
 #define qDriveSbw()     { TSTCTRLOUT |=  TEST;                                 \
                           JTAGOUT |=  sbwdato;                                 \
                           TSTCTRLOUT &= ~ENTDI2TDO;                            \
-                          EDT_Delay_1ms(1);                                    \
+                          IHIL_Delay_1ms(1);                                    \
                           JTAGOUT &= ~sbwclk;                                  \
                           TGTCTRLOUT &= ~SELT;                                 \
                         }
@@ -592,28 +593,28 @@ static void _hil_EntrySequences_RstLow_JTAG()
 {
     __disable_interrupt();
     TSTset0;                    //1
-    EDT_Delay_1ms(1);           //reset TEST logic
+    IHIL_Delay_1ms(4);           //reset TEST logic
 
     RSTset0;                    //2
 
     TSTset1;                    //3
-    EDT_Delay_1ms(50);         //activate TEST logic
-    
+    IHIL_Delay_1ms(50);         //activate TEST logic
+
     RSTset0;                    //4
-    //EDT_Delay_1us(40);
+    IHIL_Delay_1us(40);
 
      // for 4-wire JTAG clear Test pin Test(0)
     ((TSTCTRLOUT) |= (TEST));   //5
-    EDT_Delay_1us(5);
+    IHIL_Delay_1us(2);
 
     // for 4-wire JTAG -dry  Reset(1)
     TGTCTRLOUT &= ~SELT;
     TGTCTRLOUT |=  TGTRST;
-    EDT_Delay_1us(6);
+    IHIL_Delay_1us(2);
 
     // 4-wire JTAG - Test (1)
     ((TSTCTRLOUT) &= (~TEST));  //7
-    EDT_Delay_1ms(5);
+    IHIL_Delay_1ms(5);
     __enable_interrupt();
 }
 
@@ -628,27 +629,27 @@ INLINE(forced)
 static void _hil_EntrySequences_RstHigh_JTAG()
 {
     TSTset0;                    //1
-    EDT_Delay_1ms(1);           //reset TEST logic
+    IHIL_Delay_1ms(1);           //reset TEST logic
 
     RSTset1;                    //2
 
     TSTset1;                    //3
-    EDT_Delay_1ms(100);         //activate TEST logic
+    IHIL_Delay_1ms(100);         //activate TEST logic
 
     RSTset0;                    //4
-    EDT_Delay_1us(40);
+    IHIL_Delay_1us(40);
 
     // for 4-wire JTAG clear Test pin Test(0)
     ((TSTCTRLOUT) |= (TEST));   //5
-    EDT_Delay_1us(1);
+    IHIL_Delay_1us(1);
 
     // for 4-wire JTAG - Test (1)
     ((TSTCTRLOUT) &= (~TEST));  //7
-    EDT_Delay_1us(40);
+    IHIL_Delay_1us(40);
 
     // phase 5 Reset(1)
     TGTCTRLOUT &= ~SELT; TGTCTRLOUT |=  TGTRST;
-    EDT_Delay_1ms(5);
+    IHIL_Delay_1ms(5);
 }
 
 /*-------------RstHigh_SBW---------------
@@ -661,30 +662,30 @@ INLINE(forced)
 static void _hil_EntrySequences_RstHigh_SBW()
 {
     TSTset0;                //1
-    EDT_Delay_1ms(1);       // reset TEST logic
-    
+    IHIL_Delay_1ms(1);       // reset TEST logic
+
     RSTset1;                //2
 
     TSTset1;                //3
-    EDT_Delay_1ms(100);     // activate TEST logic
-  
+    IHIL_Delay_1ms(100);     // activate TEST logic
+
     // phase 1
     RSTset1;                //4
-    EDT_Delay_1us(40);
-  
+    IHIL_Delay_1us(40);
+
     // phase 2 -> TEST pin to 0, no change on RST pin
     // for Spy-Bi-Wire
     __disable_interrupt();
     JTAGOUT &= ~sbwclk;     //5
-    EDT_Delay_1us(1);
-  
+    IHIL_Delay_1us(1);
+
     // phase 4 -> TEST pin to 1, no change on RST pin
     // for Spy-Bi-Wire
     JTAGOUT |= sbwclk;      //7
     __enable_interrupt();
-    EDT_Delay_1us(40);
+    IHIL_Delay_1us(40);
 
-    EDT_Delay_1ms(5);
+    IHIL_Delay_1ms(5);
 }
 
 /*-------------RstLow_SBW----------------
@@ -697,117 +698,83 @@ INLINE(forced)
 static void _hil_EntrySequences_RstLow_SBW()
 {
     TSTset0;                //1
-    EDT_Delay_1ms(1);       // reset TEST logic
+    IHIL_Delay_1ms(1);       // reset TEST logic
 
     RSTset0;                //2
 
     TSTset1;                //3
-    EDT_Delay_1ms(100);     // activate TEST logic
-  
+    IHIL_Delay_1ms(100);     // activate TEST logic
+
     // phase 1
     RSTset1;                //4
-    EDT_Delay_1us(40);
+    IHIL_Delay_1us(40);
 
     // phase 2 -> TEST pin to 0, no change on RST pin
     // for Spy-Bi-Wire
     __disable_interrupt();
     JTAGOUT &= ~sbwclk;     //5
-    EDT_Delay_1us(1);
+    IHIL_Delay_1us(1);
 
     // phase 4 -> TEST pin to 1, no change on RST pin
     // for Spy-Bi-Wire
     JTAGOUT |= sbwclk;      //7
     __enable_interrupt();
-    EDT_Delay_1us(40);
-    EDT_Delay_1ms(5);
+    IHIL_Delay_1us(40);
+    IHIL_Delay_1ms(5);
 }
 
 void _hil_EntrySequences(unsigned char states)
 {
-    switch(states)
+    switch(gprotocol_id)
     {
-        case RSTHIGH_JTAG:
+    case SPYBIWIRE:
+        if (states == RSTLOW)
         {
-            _hil_EntrySequences_RstHigh_JTAG();
-            break;
+            _hil_EntrySequences_RstLow_SBW();
         }
-        case RSTHIGH_SBW:
+        if (states == RSTHIGH)
         {
             _hil_EntrySequences_RstHigh_SBW();
-            break;
         }
-        case RSTLOW_JTAG:
+        break;
+
+    case SPYBIWIREJTAG:
+        if (states == RSTLOW)
         {
             _hil_EntrySequences_RstLow_JTAG();
-            break;
         }
-        case RSTLOW_SBW:
+        if (states == RSTHIGH)
         {
-             _hil_EntrySequences_RstLow_SBW();
-            break;
+            _hil_EntrySequences_RstHigh_JTAG();
         }
+        break;
+
+    default:
+        TSTset1
+        break;
     }
-}
-
-// -----------------------------------------------------------------------------
-void _hil_PsaSetup(unsigned long StartAddr)
-{
-    data_16bit
-    EDT_Tclk(1);
-    SetReg_16Bits_(MOV_IMM_PC)
-    EDT_Tclk(0);
-    EDT_Tclk(1);
-    SetReg_16Bits_(StartAddr - 2)
-    EDT_Tclk(0);
-    EDT_Tclk(1);
-    EDT_Tclk(0);
-    EDT_Tclk(1);
-    EDT_Tclk(0);
-    addr_capture
-    SetReg_16Bits_(0x0000);  
-}
-
-// -----------------------------------------------------------------------------
-void _hil_EnhancedPsaSetup(unsigned long StartAddr )
-{
-    SetPc(StartAddr - 4)
-    halt_cpu
-    EDT_Tclk(0);
-    data_16bit
-    SetReg_16Bits_(StartAddr - 2)   
-}
-
-// -----------------------------------------------------------------------------
-void _hil_PsaEnd(void)
-{
-    // Intentionally does nothing
-}
-
-// -----------------------------------------------------------------------------
-void _hil_EnhancedPsaEnd(void)
-{
-    decl_out
-    decl_isInstrLoad  
-  
-    release_cpu
-    isInstrLoad
 }
 
 // -----------------------------------------------------------------------------
 static void _hil_Connect(unsigned char state)
 {
-    if(state == RSTHIGH) 
+    if(jtagReleased)
+    {
+        _hil_SetProtocol(gprotocol_id);
+    }
+
+    if(state == RSTHIGH)
     {
         if(gprotocol_id == SPYBIWIRE)
         {
             qDriveSbw();
-            EDT_Delay_1ms(1);
+            IHIL_Delay_1ms(1);
             _hil_EntrySequences_RstHigh_SBW();
         }
         else
         {
             qDriveSignals();
-            EDT_Delay_1ms(1);
+            IHIL_Delay_1ms(1);
             if(gprotocol_id == SPYBIWIREJTAG)
             {
                 _hil_EntrySequences_RstHigh_JTAG();
@@ -823,13 +790,13 @@ static void _hil_Connect(unsigned char state)
         if(gprotocol_id == SPYBIWIRE)
         {
             qDriveSbw();
-            EDT_Delay_1ms(1);
+            IHIL_Delay_1ms(1);
             _hil_EntrySequences_RstLow_SBW();
         }
         else
         {
             qDriveSignals();
-            EDT_Delay_1ms(1);
+            IHIL_Delay_1ms(1);
             if(gprotocol_id == SPYBIWIREJTAG)
             {
                 _hil_EntrySequences_RstLow_JTAG();
@@ -841,6 +808,7 @@ static void _hil_Connect(unsigned char state)
             }
         }
     }
+    jtagReleased = 0;
 }
 
 // -----------------------------------------------------------------------------
@@ -868,7 +836,7 @@ short IccMonitor_Process(unsigned short flags)
     signed short ext_vcc;
     signed short int_vcc;
     signed short rint_vcc;
-    
+
     ext_vcc = ConvertAD(VCCICHN);          // convert channel
     int_vcc = ConvertAD(VCCTCHN);          // convert channel
     rint_vcc = ConvertAD(VCCRCHN);
@@ -888,7 +856,7 @@ short IccMonitor_Process(unsigned short flags)
           _hil_SetVcc(bVccOn);
         }
     }
-    
+
     if(bVccOn && bIccMonitorOn)
     {
         if((rint_vcc - int_vcc) > 150) // eqivalent to > 100mA
@@ -897,7 +865,7 @@ short IccMonitor_Process(unsigned short flags)
             if(over_current_count > 400)
             {
                 bHighCurrent = 1;
-                EDT_Close();                            
+                IHIL_Close();
                 P4OUT &= ~BIT3;                             // turn off target VCC
                 bVccOn = 0;
                 STREAM_biosLedOff(1);
@@ -959,7 +927,7 @@ void SetVFuse(void)
 // -----------------------------------------------------------------------------
 void SetVpp(long voltage)
 {
-    if(voltage) 
+    if(voltage)
     {
         SetVFuse();
         if(useTDI)
@@ -970,7 +938,7 @@ void SetVpp(long voltage)
         {
             VPPon(VPP_ON_TEST);
         }
-        EDT_Delay_1ms(10);
+        IHIL_Delay_1ms(10);
     }
     else
     {
@@ -984,51 +952,15 @@ void testVpp(unsigned char mode)
     if(mode)
     {
         SETTDOOUT;
-        SETTDION;  
+        SETTDION;
     }
     else
     {
         SETTDIOFF;
         SETTDOIN;
     }
-    
+
     useTDI = !mode;
-}
-
-// -----------------------------------------------------------------------------
-void _hil_SetJtagBits(unsigned char output)
-{
-    JTAGOUT = output;
-}
-
-// -----------------------------------------------------------------------------
-unsigned char _hil_GetJtagBits(void)
-{
-    return JTAGOUT;
-}
-
-// -----------------------------------------------------------------------------
-void _hil_SetTgtCtrlBits(unsigned char output)
-{
-    TGTCTRLOUT = output;
-}
-
-// -----------------------------------------------------------------------------
-unsigned char _hil_GetTgtCtrlBits(void)
-{
-    return TGTCTRLOUT;
-}
-
-// -----------------------------------------------------------------------------
-void _hil_SetTestBits(unsigned char output)
-{
-    TSTCTRLOUT = output;
-}
-
-// -----------------------------------------------------------------------------
-unsigned char _hil_GetTestBits(void)
-{
-    return TSTCTRLOUT;
 }
 
 // -----------------------------------------------------------------------------
@@ -1041,6 +973,45 @@ void _hil_SetReset(unsigned char value)
     else
     {
         RSTset0
+    }
+}
+
+// -----------------------------------------------------------------------------
+void _hil_SetTMS(unsigned char value)
+{
+    if(value)
+    {
+        TMSset1
+    }
+    else
+    {
+        TMSset0
+    }
+}
+
+// -----------------------------------------------------------------------------
+void _hil_SetTDI(unsigned char value)
+{
+    if(value)
+    {
+        TDIset1
+    }
+    else
+    {
+        TDIset0
+    }
+}
+
+// -----------------------------------------------------------------------------
+void _hil_SetTCK(unsigned char value)
+{
+    if(value)
+    {
+        TCKset1
+    }
+    else
+    {
+        TCKset0
     }
 }
 
@@ -1074,92 +1045,92 @@ void _hil_initTimerB0(void)
 /*                                                                        */
 /*                                                 BSL Enabled here!!     */
 /*------------------------------------------------------------------------*/
-void _hil_BSL_EntrySequence(void)
+void _hil_BSL_EntrySequence(unsigned short dummy)
 {
     if(gprotocol_id == SPYBIWIRE)
     {
         // set Default state of RST and TST
         JTAGOUT |= sbwclk;            // set test to 1
-        EDT_Delay_1ms(1);
+        IHIL_Delay_1ms(1);
         RSTset1;                      // set RST 1;
 
         // INIT phase
         JTAGOUT &= ~sbwclk;           // set test 0;
-        EDT_Delay_1ms(100);
+        IHIL_Delay_1ms(100);
 
         JTAGOUT &= ~sbwdato;          // set RST low
-        EDT_Delay_1ms(100);
+        IHIL_Delay_1ms(100);
 
         JTAGOUT |= sbwclk;            // set test to 1
-        EDT_Delay_1ms(100);
+        IHIL_Delay_1ms(100);
 
         /*this is the first pulse keep it low for less than 15us */
         JTAGOUT &= ~sbwclk;          // set test 0;
-        EDT_Delay_1us(10);
+        IHIL_Delay_1us(10);
         JTAGOUT |= sbwclk;           // set test 1;
 
-        EDT_Delay_1ms(100);
+        IHIL_Delay_1ms(100);
         RSTset1;
-        EDT_Delay_1ms(100);
+        IHIL_Delay_1ms(100);
         JTAGOUT &= ~sbwclk;         // set test 0;
-        EDT_Delay_1ms(100);
+        IHIL_Delay_1ms(100);
     }
     else
     {
         // set Default state of RST and TST
         ((TSTCTRLOUT) &= (~TEST));    // set test to 1
-        EDT_Delay_1ms(1);
+        IHIL_Delay_1ms(1);
         RSTset1;                      // set RST 1;
 
         // INIT phase
         ((TSTCTRLOUT) |= (TEST));     // set test 0;
-        EDT_Delay_1ms(10);
+        IHIL_Delay_1ms(10);
 
         { TGTCTRLOUT &= ~SELT; TGTCTRLOUT &= ~TGTRST; }// set RST 0
-        EDT_Delay_1ms(10);
+        IHIL_Delay_1ms(10);
 
         ((TSTCTRLOUT) &= (~TEST));    // set test to 1
-        EDT_Delay_1ms(10);
+        IHIL_Delay_1ms(10);
 
         /*this is the first pulse keep it low for less than 15us */
         ((TSTCTRLOUT) |= (TEST));     // set test 0;
-        EDT_Delay_1us(10);
+        IHIL_Delay_1us(10);
         ((TSTCTRLOUT) &= ~(TEST));    // set test 1;
 
-        EDT_Delay_1ms(10);
+        IHIL_Delay_1ms(10);
         RSTset1;                      // set RST 1;
-        EDT_Delay_1ms(10);
+        IHIL_Delay_1ms(10);
         ((TSTCTRLOUT) |= (TEST));     // set test 0 ;
-        EDT_Delay_1ms(10);
+        IHIL_Delay_1ms(10);
     }
  }
 
 // -----------------------------------------------------------------------------
 #ifdef uController
     #pragma optimize = none
-#endif 
+#endif
 void JSBW_EntrySequences(unsigned char states)
 {
-  
+
     qDriveSignals();
-    EDT_Delay_1ms(10);
-    
+    IHIL_Delay_1ms(10);
+
     TSTset0;
-    EDT_Delay_1ms(1); // reset TEST logic
-    
+    IHIL_Delay_1ms(1); // reset TEST logic
+
     if(states == 0 || states == 1)
     {
-        TGTCTRLOUT &=  ~TGTRST;//RST 0  
+        TGTCTRLOUT &=  ~TGTRST;//RST 0
     }
     else
     {
         RSTset1;
     }
-    EDT_Delay_1us(10);
-    
+    IHIL_Delay_1us(10);
+
     TSTset1;
-    EDT_Delay_1ms(25); // activate TEST logic
-    
+    IHIL_Delay_1ms(25); // activate TEST logic
+
     // phase 1
     if(states == 1 || states == 3)
     {
@@ -1168,10 +1139,10 @@ void JSBW_EntrySequences(unsigned char states)
     else
     {
         RSTset1;
-    }  
-    EDT_Delay_1us(40);
-    
-    
+    }
+    IHIL_Delay_1us(40);
+
+
     // phase 2 -> TEST pin to 0, no change on RST pin
     if(states == 0 || states == 2)
     { // for Spy-Bi-Wire
@@ -1181,15 +1152,15 @@ void JSBW_EntrySequences(unsigned char states)
     { // for 4-wire JTAG
         ((TSTCTRLOUT) |= (TEST));   //5 clear the bastard test
     }
-    
+
     // phase 3
     if(states == 1)
     {
-         TGTCTRLOUT &= ~SELT;    // set the reset 1 
+         TGTCTRLOUT &= ~SELT;    // set the reset 1
          TGTCTRLOUT |=  TGTRST;  //6
     }
-    EDT_Delay_1us(1);
-    
+    IHIL_Delay_1us(1);
+
     // phase 4 -> TEST pin to 1, no change on RST pin
     if(states == 0 || states == 2)
     { // for Spy-Bi-Wire
@@ -1199,14 +1170,14 @@ void JSBW_EntrySequences(unsigned char states)
     { // for 4-wire JTAG set Test pin
         ((TSTCTRLOUT) &= (~TEST));  //5
     }
-    EDT_Delay_1us(40);
-    
+    IHIL_Delay_1us(40);
+
     // phase 5
     if(states == 3)
     {
-        TGTCTRLOUT &= ~SELT; 
+        TGTCTRLOUT &= ~SELT;
         TGTCTRLOUT |=  TGTRST;
     }
-    EDT_Delay_1ms(5);
+    IHIL_Delay_1ms(5);
 }
 /* EOF */

@@ -3,78 +3,75 @@
  *
  * Base class for all memory classes.
  *
- * Copyright (C) 2007 - 2011 Texas Instruments Incorporated - http://www.ti.com/ 
- * 
- * 
- *  Redistribution and use in source and binary forms, with or without 
- *  modification, are permitted provided that the following conditions 
+ * Copyright (C) 2007 - 2011 Texas Instruments Incorporated - http://www.ti.com/
+ *
+ *
+ *  Redistribution and use in source and binary forms, with or without
+ *  modification, are permitted provided that the following conditions
  *  are met:
  *
- *    Redistributions of source code must retain the above copyright 
+ *    Redistributions of source code must retain the above copyright
  *    notice, this list of conditions and the following disclaimer.
  *
  *    Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the 
- *    documentation and/or other materials provided with the   
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the
  *    distribution.
  *
  *    Neither the name of Texas Instruments Incorporated nor the names of
  *    its contributors may be used to endorse or promote products derived
  *    from this software without specific prior written permission.
  *
- *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS 
- *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT 
+ *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
  *  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT 
- *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, 
- *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT 
+ *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
  *  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
  *  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
- *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
- *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.                                                                                                                                                                                                                                                                                                         
+ *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <pch.h>
 #include "MemoryAreaBase.h"
+#include "CpuRegisters.h"
+#include "MemoryManager.h"
 #include "HalExecCommand.h"
-#include "DeviceHandleV3.h"
+#include "DeviceHandle.h"
 
 using namespace TI::DLL430;
 
-MemoryAreaBase::MemoryAreaBase (const std::string& name, 
-								DeviceHandleV3* devHandle, 
-								uint32_t start, 
-								uint32_t size, 
-								uint32_t seg, 
-								uint32_t banks, 
+MemoryAreaBase::MemoryAreaBase (MemoryArea::Name name,
+								DeviceHandle* devHandle,
+								uint32_t start,
+								uint32_t size,
+								uint32_t seg,
+								uint32_t banks,
 								bool mapped,
 								const bool protectable,
 								uint8_t psa)
 
  : name(name)
  , devHandle(devHandle)
+ , psaType(psa)
+ , err(MEMORY_NO_ERROR)
  , start(start)
- , end(start + size - 1) 
+ , end(start + size - 1)
  , segmentSize(seg)
  , banks(banks)
  , mapped(mapped)
- , isProtectable(protectable) 
+ , isProtectable(protectable)
  , locked(isProtectable ? true : false)
- , cache(NULL)
- , psaType(psa)
- , err(MEMORY_NO_ERROR)
+ , isAccessible_(true)
 {
 }
 
-MemoryAreaBase::~MemoryAreaBase ()
+MemoryArea::Name MemoryAreaBase::getName () const
 {
-	if(cache!=NULL)
-		delete cache;
-}
-
-const char* MemoryAreaBase::getName () const
-{
-	return this->name.c_str();
+	return this->name;
 }
 
 MemoryError MemoryAreaBase::getError ()
@@ -84,28 +81,9 @@ MemoryError MemoryAreaBase::getError ()
 	return error;
 }
 
-bool MemoryAreaBase::isCacheable () const
-{
-	return cache!=NULL;
-}
-
-bool MemoryAreaBase::isReadOnly ()
+bool MemoryAreaBase::isReadOnly () const
 {
 	return false;
-}
-
-MemoryCacheCtrl* MemoryAreaBase::getCacheCtrl ()
-{
-	return cache;
-}
-
-bool MemoryAreaBase::addCache(MemoryCacheCtrl * mem_cache)
-{
-	if(cache!=NULL)
-		return false;
-
-	cache=mem_cache;
-	return true;
 }
 
 uint32_t MemoryAreaBase::getStart () const
@@ -147,7 +125,7 @@ bool MemoryAreaBase::isLocked () const
 //(otherwise certain IDEs will abort initialization)
 bool MemoryAreaBase::lock ()
 {
-	if(isProtectable)
+	if (isProtectable)
 		locked = true;
 
 	return true;
@@ -155,13 +133,13 @@ bool MemoryAreaBase::lock ()
 
 bool MemoryAreaBase::unlock ()
 {
-	if(isProtectable)
+	if (isProtectable)
 		locked = false;
-	
+
 	return true;
 }
 
-bool MemoryAreaBase::read (uint32_t address, uint32_t* buffer, size_t count)
+bool MemoryAreaBase::read (uint32_t address, uint8_t* buffer, size_t count)
 {
 	err = MEMORY_READ_ERROR;
 	bool success = doRead(address, buffer, count);
@@ -178,7 +156,7 @@ MemoryAreaBase::Alignment MemoryAreaBase::alignData(uint32_t address, uint32_t c
 }
 
 
-bool MemoryAreaBase::overwrite (uint32_t address, uint32_t* buffer, size_t count)
+bool MemoryAreaBase::overwrite (uint32_t address, const uint8_t* buffer, size_t count)
 {
 	err = MEMORY_WRITE_ERROR;
 	bool success = doOverwrite(address, buffer, count);
@@ -189,7 +167,7 @@ bool MemoryAreaBase::overwrite (uint32_t address, uint32_t* buffer, size_t count
 }
 
 
-bool MemoryAreaBase::write (uint32_t address, uint32_t* buffer, size_t count)
+bool MemoryAreaBase::write (uint32_t address, const uint8_t* buffer, size_t count)
 {
 	err = MEMORY_WRITE_ERROR;
 	bool success = doWrite(address, buffer, count);
@@ -210,37 +188,57 @@ bool MemoryAreaBase::write (uint32_t address, uint32_t value)
 
 }
 
-bool MemoryAreaBase::doRead (uint32_t address, uint32_t* buffer, size_t count)
+bool MemoryAreaBase::defaultRead(hal_id readMacro, MemoryManager* mm, uint32_t address, uint8_t* buffer, size_t count)
 {
-	bool omitFirst = (address & 0x1);
-	if (omitFirst) 
+	uint32_t pc = 0;
+
+	if (mm)
+	{
+		CpuRegisters* cpu = mm->getCpuRegisters();
+		if (!cpu)
+		{
+			return false;
+		}
+
+		cpu->read(0, &pc, 1);
+	}
+
+	const bool omitFirst = (address & 0x1);
+	if (omitFirst)
 	{
 		--address;
 		++count;
 	}
-	bool omitLast = (count & 1);
-	if (omitLast) 
+	const bool omitLast = (count & 1);
+	if (omitLast)
 	{
 		++count;
-	}	
+	}
 
-	HalExecElement* el = new HalExecElement(this->devHandle->checkHalId(ID_ReadMemWords));
+	HalExecElement* el = new HalExecElement(this->devHandle->checkHalId(readMacro));
 	el->appendInputData32(this->getStart() + address);
-	el->appendInputData32(static_cast<uint32_t>(count/2));
+	el->appendInputData32(static_cast<uint32_t>(count / 2));
+	el->appendInputData32(pc);
 	el->setOutputSize(count);
 
-	ReadElement r(buffer, count, omitFirst, omitLast, 0);
+	ReadElement r(buffer, count, omitFirst, omitLast, address);
 	this->readMap[this->elements.size()] = r;
-	this->elements.push_back(el);
+	this->elements.emplace_back(el);
 	return true;
 }
 
-bool MemoryAreaBase::doOverwrite (uint32_t address, uint32_t* buffer, size_t count)
+
+bool MemoryAreaBase::doRead(uint32_t address, uint8_t* buffer, size_t count)
+{
+	return defaultRead(ID_ReadMemWords, nullptr, address, buffer, count);
+}
+
+bool MemoryAreaBase::doOverwrite(uint32_t address, const uint8_t* buffer, size_t count)
 {
 	return doWrite(address, buffer, count);
 }
 
-bool MemoryAreaBase::doWrite (uint32_t address, uint32_t* buffer, size_t count)
+bool MemoryAreaBase::doWrite (uint32_t address, const uint8_t* buffer, size_t count)
 {
 	return false;
 }
@@ -262,15 +260,11 @@ bool MemoryAreaBase::erase (uint32_t start, uint32_t end)
 	return true;
 }
 
-bool MemoryAreaBase::verify(uint32_t address, uint32_t* buffer, size_t count)
+bool MemoryAreaBase::verify(uint32_t address, const uint8_t* buffer, size_t count)
 {
-	MemoryCacheCtrl* cc = this->getCacheCtrl(); 
-	if (cc && !cc->flush(address,count))
-		return false;
-
-	if (address & 0x1) 
+	if (address & 0x1)
 	{
-		uint32_t tmp = 0;	
+		uint8_t tmp = 0;
 		if (!this->read(address++, &tmp, 1) || !this->sync())
 			return false;
 
@@ -280,28 +274,27 @@ bool MemoryAreaBase::verify(uint32_t address, uint32_t* buffer, size_t count)
 		--count;
 	}
 
-	if (count > 1) 
+	if (count > 1)
 	{
 		HalExecCommand cmd;
-		cmd.setTimeout( max((size_t)20000, count/15) ); //Set timeout according to data size
-		
+		cmd.setTimeout( std::max(20000u, static_cast<uint32_t>(count) / 15) ); //Set timeout according to data size
+
 		HalExecElement*el = new HalExecElement(this->devHandle->checkHalId(ID_Psa));
 		el->appendInputData32(static_cast<uint32_t>((address+this->getStart()) & 0xFFFFFFFF));
 		el->appendInputData32(static_cast<uint32_t>((count / 2) & 0xFFFFFFFF));
 		el->appendInputData8(this->psaType);
-		el->setOutputSize(2);
-		cmd.elements.push_back(el);
+		cmd.elements.emplace_back(el);
 		if (!this->devHandle->send(cmd))
 			return false;
-		
+
 		if (MemoryAreaBase::psa(address+this->getStart(), buffer, (size_t)((uint32_t)count&0xfffffffe)) != el->getOutputAt16(0))
-			return false;				
+			return false;
 	}
 
-	if (count & 1) 
+	if (count & 1)
 	{
-		uint32_t tmp = 0;
-		if (!this->read(address + count - 1, &tmp, 1) || !this->sync())
+		uint8_t tmp = 0;
+		if (!this->read(address + static_cast<uint32_t>(count) - 1, &tmp, 1) || !this->sync())
 			return false;
 
 		if (buffer? tmp != buffer[count - 1]: tmp != 0xFF)
@@ -310,36 +303,20 @@ bool MemoryAreaBase::verify(uint32_t address, uint32_t* buffer, size_t count)
 	return true;
 }
 
-bool MemoryAreaBase::sendWithChainInfo(boost::ptr_vector<HalExecElement> * elem, HalExecCommand * cmd)
-{	
-	HalExecElement* el = new HalExecElement(ID_SetDeviceChainInfo);
-	el->appendInputData16(static_cast<uint16_t>(this->devHandle->getDevChainInfo()->getBusId()));
-	cmd->elements.push_back(el);
-	/* this transfers all object from given elements to cmd.elements */
-	cmd->elements.transfer(cmd->elements.end(), *elem);
-	if (!this->devHandle->send(*cmd)) 
-	{
-		this->elements.transfer(elem->end(), cmd->elements);
-		return false;
-	}
-	return true;
-}
-
-bool MemoryAreaBase::sendWithChainInfo(HalExecElement * elem, HalExecCommand * cmd)
+bool MemoryAreaBase::send(std::vector< std::unique_ptr<HalExecElement> >* elem, HalExecCommand* cmd)
 {
-	HalExecElement* el = new HalExecElement(ID_SetDeviceChainInfo);
-	el->appendInputData16(static_cast<uint16_t>(this->devHandle->getDevChainInfo()->getBusId()));
-	cmd->elements.push_back(el);
-	/* this transfers one object to cmd.elements */
-	cmd->elements.push_back(elem);
-	if (!this->devHandle->send(*cmd)) 
+	move(elem->begin(), elem->end(), back_inserter(cmd->elements));
+	elem->clear();
+	if (!this->devHandle->send(*cmd))
 	{
+		move(cmd->elements.begin(), cmd->elements.end(), back_inserter(*elem));
+		cmd->elements.clear();
 		return false;
 	}
 	return true;
 }
 
-bool MemoryAreaBase::sync ()
+bool MemoryAreaBase::sync()
 {
 	if (!preSync())
 		return false;
@@ -350,13 +327,13 @@ bool MemoryAreaBase::sync ()
 	HalExecCommand cmd;
 	cmd.setTimeout(60000);
 
-	if (!sendWithChainInfo(&this->elements,&cmd))
+	if (!send(&this->elements, &cmd))
 		return false;
 
 	return postSync(cmd);
 }
 
-uint16_t MemoryAreaBase::psa (uint32_t address, uint32_t* buffer, size_t count)
+uint16_t MemoryAreaBase::psa(uint32_t address, const uint8_t* buffer, size_t count)
 {
 	if (address & 0x1)
 		return false;
@@ -369,7 +346,7 @@ uint16_t MemoryAreaBase::psa (uint32_t address, uint32_t* buffer, size_t count)
 	/* Polynom value for PSA calculation */
 	const uint16_t polynom = 0x0805;
 
-	uint16_t remainder = initial;  
+	uint16_t remainder = initial;
 	for (size_t i = 0; i < count; i += 2) {
 		// Calculate the PSA (Pseudo Signature Analysis) value
 		if ((remainder & 0x8000) != 0)
@@ -385,4 +362,39 @@ uint16_t MemoryAreaBase::psa (uint32_t address, uint32_t* buffer, size_t count)
 	}
 
 	return remainder;
+}
+
+void MemoryAreaBase::setAccessible(bool accessible)
+{
+	isAccessible_ = accessible;
+}
+
+bool MemoryAreaBase::isAccessible() const
+{
+	return isAccessible_;
+}
+
+bool MemoryAreaBase::postSync(const HalExecCommand& cmd)
+{
+	for (size_t n = 0; n < cmd.elements.size(); ++n)
+	{
+		ReadElement_map::iterator it = this->readMap.find(n);
+		if (it != this->readMap.end())
+		{
+			ReadElement r = it->second;
+			size_t size = r.size;
+			if (r.omitLast)
+			{
+				--size;
+			}
+
+			const HalExecElement& el = *cmd.elements[n];
+			for (size_t i = 0, k = (r.omitFirst ? 1 : 0); k < size; ++k, ++i)
+			{
+				r.v_buffer[i] = el.getOutputAt8(k);
+			}
+			this->readMap.erase(it);
+		}
+	}
+	return true;
 }

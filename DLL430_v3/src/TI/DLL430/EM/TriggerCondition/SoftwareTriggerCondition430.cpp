@@ -35,7 +35,7 @@
  *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-
+#include <pch.h>
 #include "SoftwareTriggerCondition430.h"
 
 using namespace TI::DLL430;

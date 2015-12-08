@@ -367,10 +367,9 @@ __program_start:
         popx   R6
         popx   R5
         popx   R4   
-        
-        //XCALL   #_hil_startUp        
-        movx.a  #dcdc_Init, PC      
-        MOV     saved_stack,SP             
+
+        movx.a  #dcdc_Init, PC
+        MOV     saved_stack,SP
         //XRET                            // indicates that the normal
         //XCALL   #exit
 

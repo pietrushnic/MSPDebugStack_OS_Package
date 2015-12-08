@@ -3,47 +3,39 @@
  *
  * Functionality for debugging target device.
  *
- * Copyright (C) 2007 - 2011 Texas Instruments Incorporated - http://www.ti.com/ 
- * 
- * 
- *  Redistribution and use in source and binary forms, with or without 
- *  modification, are permitted provided that the following conditions 
+ * Copyright (C) 2007 - 2011 Texas Instruments Incorporated - http://www.ti.com/
+ *
+ *
+ *  Redistribution and use in source and binary forms, with or without
+ *  modification, are permitted provided that the following conditions
  *  are met:
  *
- *    Redistributions of source code must retain the above copyright 
+ *    Redistributions of source code must retain the above copyright
  *    notice, this list of conditions and the following disclaimer.
  *
  *    Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the 
- *    documentation and/or other materials provided with the   
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the
  *    distribution.
  *
  *    Neither the name of Texas Instruments Incorporated nor the names of
  *    its contributors may be used to endorse or promote products derived
  *    from this software without specific prior written permission.
  *
- *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS 
- *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT 
+ *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
  *  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT 
- *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, 
- *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT 
+ *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
  *  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
  *  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
- *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
- *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.                                                                                                                                                                                                                                                                                                         
+ *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#if _MSC_VER > 1000
 #pragma once
-#endif
-#ifndef DLL430_DEBUGMANAGERV3_H
-#define DLL430_DEBUGMANAGERV3_H
-
-#include <boost/ptr_container/ptr_vector.hpp>
-#include <boost/thread/thread.hpp>
-#include <map>
 
 #include "HalExecCommand.h"
 #include "DeviceInfo.h"
@@ -59,7 +51,7 @@ namespace TI
 {
 	namespace DLL430
 	{
-		class DeviceHandleV3;
+		class DeviceHandle;
 		namespace EEM {
 			class Trigger;
 			class TriggerGroupImpl;
@@ -69,8 +61,11 @@ namespace TI
 		class DebugManagerV3 : public DebugManager
 		{
 		public:
-			DebugManagerV3 (DeviceHandleV3*, const DeviceInfo*);
+			DebugManagerV3 (DeviceHandle*, const DeviceInfo*);
 			~DebugManagerV3 ();
+
+			DebugManagerV3(const DebugManagerV3&) = delete;
+			DebugManagerV3& operator=(const DebugManagerV3&) = delete;
 
 			bool reconnectJTAG();
 
@@ -81,7 +76,7 @@ namespace TI
 
 			/* sync Jtag */
 			bool stop (bool jtagWasReleased = false);
-			
+
 			/* do a single step */
 			bool singleStep (uint32_t* cycles = 0);
 
@@ -89,13 +84,11 @@ namespace TI
 
 			uint16_t getClockControlSetting() const;
 
-			void setClockControlSetting(uint16_t clkCntrl);
+			uint16_t getGeneralClockDefaultSetting() const;
 
 			uint16_t getClockModuleDefaultSetting() const;
 
 			uint16_t getClockModuleSetting() const;
-
-			void setClockModuleSetting(uint16_t modules);
 
 			char ** getModuleStrings(uint32_t * n) const;
 
@@ -117,38 +110,46 @@ namespace TI
 
 			bool activateJStatePolling(DebugEventTarget* cb);
 
-			bool queryLpm5State();
-
-			bool isDeviceInLpm5();
+			bool queryIsInLpm5State();
 
 			bool wakeupDevice();
 
 			void pausePolling();
-			
+
 			void resumePolling();
 
 			bool syncDeviceAfterLPMx5();
 
+			void enableLegacyCycleCounter(bool enable);
+
+			bool legacyCycleCounterEnabled() const { return cycleCounter_.isEnabled(); }
+
 			uint64_t getCycleCounterValue() { return cycleCounter_.getValue(); }
-			
+
 			void resetCycleCounterValue() { cycleCounter_.reset(); }
 
 			bool startStoragePolling();
-			
+
 			bool stopStoragePolling();
 
 			void setCalibrationValues(double *calibrationValues);
 
 			void setPollingManager(PollingManager* pollingManager);
 
-		protected:
-
 		private:
-			DeviceHandleV3* parent;
+			//helper funtion to fill data behind moduleStrings pointer in a heap based way
+			void createModuleStrings(const DeviceInfo::ClockMapping& clockMapping);
+			void createClockStrings(const DeviceInfo::ClockNames& clockNames);
+
+			void setLeaAccessibility();
+
+			DeviceHandle* parent;
 
 			uint8_t clockControl;
 			uint16_t genclkcntrl;
 			uint16_t mclkcntrl0;
+
+			uint16_t defaultGenClkCntrl;
 			uint16_t defaultMclkcntrl0;
 
 			uint8_t emulationLevel;
@@ -159,22 +160,15 @@ namespace TI
 			char** clockStrings;
 			uint32_t nClockStrings;
 
-			size_t lastWrite;
-
 			uint16_t lpm5WakeupDetected;
 
-			//helper funtion to fill data behind moduleStrings pointer in a heap based way
-			void createModuleStrings(const DeviceInfo::ClockMapping& clockMapping);
-			void createClockStrings(const DeviceInfo::ClockNames& clockNames);
+			uint16_t irRequest;
 
 			uint16_t mdbPatchValue;
 
 			DebugEventTarget* cbx;
-			uint8_t typex;
 
 			bool lpmDebuggingEnabled;
-
-			bool deviceInLpm5;
 
 			CycleCounter cycleCounter_;
 			bool resetCycleCounterBeforeNextStep;
@@ -183,7 +177,5 @@ namespace TI
 			PollingManager* mPollingManager;
 		};
 
-	};
-};
-
-#endif /* DLL430_DEBUGMANAGERV3_H */
+	}
+}

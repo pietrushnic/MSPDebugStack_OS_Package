@@ -27,7 +27,7 @@
         VALUE "OriginalFilename", "MSP430.dll"
         VALUE "ProductName", "MSP430 Dynamic Link Library"
         VALUE "ProductVersion", VERSION_STRING(VERSION_MAJOR,VERSION_MINOR,VERSION_PATCH,VERSION_BUILD)
-		VALUE "BuildNumber", "0000"
+        VALUE "BuildNumber", "0000"
       END
     END
     BLOCK "VarFileInfo"

@@ -7,35 +7,35 @@
 *
 */
 /*
- * Copyright (C) 2012 Texas Instruments Incorporated - http://www.ti.com/ 
- * 
- * 
- *  Redistribution and use in source and binary forms, with or without 
- *  modification, are permitted provided that the following conditions 
+ * Copyright (C) 2012 Texas Instruments Incorporated - http://www.ti.com/
+ *
+ *
+ *  Redistribution and use in source and binary forms, with or without
+ *  modification, are permitted provided that the following conditions
  *  are met:
  *
- *    Redistributions of source code must retain the above copyright 
+ *    Redistributions of source code must retain the above copyright
  *    notice, this list of conditions and the following disclaimer.
  *
  *    Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the 
- *    documentation and/or other materials provided with the   
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the
  *    distribution.
  *
  *    Neither the name of Texas Instruments Incorporated nor the names of
  *    its contributors may be used to endorse or promote products derived
  *    from this software without specific prior written permission.
  *
- *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS 
- *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT 
+ *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
  *  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT 
- *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, 
- *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT 
+ *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
  *  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
  *  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
- *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
+ *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
@@ -82,7 +82,7 @@ HAL_FUNCTION(_hal_RestoreContext_ReleaseJtagX)
     {
       return HALERR_RESTORECONTEXT_RELEASE_JTAG_NO_CONTROL_MASK;
     }
-    if(STREAM_get_word(&mdb) == -1)
+    if(STREAM_get_word(&mdb) != 0)
     {
       return HALERR_RESTORECONTEXT_RELEASE_JTAG_NO_MDB;
     }
@@ -93,7 +93,7 @@ HAL_FUNCTION(_hal_RestoreContext_ReleaseJtagX)
     STREAM_discard_bytes(2);
 
     // Write back Status Register
-    WriteCpuRegX(2, sr)
+    WriteCpuRegX(2, sr);
 
     // Restore Watchdog Control Register
     WriteMemWordX(wdt_addr, wdt_value);
@@ -103,41 +103,41 @@ HAL_FUNCTION(_hal_RestoreContext_ReleaseJtagX)
 
     if (deviceSettings.clockControlType == GCC_EXTENDED)
     {
-        eem_data_exchange32
-        SetReg_32Bits_(MX_GENCNTRL + MX_WRITE)               // write access to EEM General Control Register (MX_GENCNTRL)
-        SetReg_32Bits_(EMU_FEAT_EN | EMU_CLK_EN | CLEAR_STOP | EEM_EN)
+        eem_data_exchange32();
+        SetReg_32Bits(MX_GENCNTRL + MX_WRITE);              // write access to EEM General Control Register (MX_GENCNTRL)
+        SetReg_32Bits(EMU_FEAT_EN | EMU_CLK_EN | CLEAR_STOP | EEM_EN);
     }
 
     // activate EEM
-    eem_write_control
-    SetReg_16Bits_(control_mask)
-    
+    eem_write_control();
+    SetReg_16Bits(control_mask);
+
     // Pre-initialize MDB before release if
     if(mdb)
     {
-        data_16bit
-        SetReg_16Bits_(mdb)
-        EDT_Tclk(0);
-        addr_capture
-        EDT_Tclk(1);
+        data_16bit();
+        SetReg_16Bits(mdb);
+        IHIL_Tclk(0);
+        addr_capture();
+        IHIL_Tclk(1);
     }
     else
     {
-      addr_capture
+      addr_capture();
     }
-    
+
     syncWithRunVarAddress = getTargetRunningVar();
     if(syncWithRunVarAddress)
-    {    
-          *syncWithRunVarAddress = 0x0001;  
+    {
+          *syncWithRunVarAddress = 0x0001;
     }
 
     // release target device from JTAG control
-    cntrl_sig_release
-      
+    cntrl_sig_release();
+
     if(releaseJtag)
     {
-        EDT_Close(); // release JTAG on go 
+        IHIL_Close(); // release JTAG on go
     }
 
     return(0);

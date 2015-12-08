@@ -3,57 +3,58 @@
  *
  * Handles cycle counter functionality
  *
- * Copyright (C) 2007 - 2011 Texas Instruments Incorporated - http://www.ti.com/ 
- * 
- * 
- *  Redistribution and use in source and binary forms, with or without 
- *  modification, are permitted provided that the following conditions 
+ * Copyright (C) 2007 - 2011 Texas Instruments Incorporated - http://www.ti.com/
+ *
+ *
+ *  Redistribution and use in source and binary forms, with or without
+ *  modification, are permitted provided that the following conditions
  *  are met:
  *
- *    Redistributions of source code must retain the above copyright 
+ *    Redistributions of source code must retain the above copyright
  *    notice, this list of conditions and the following disclaimer.
  *
  *    Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the 
- *    documentation and/or other materials provided with the   
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the
  *    distribution.
  *
  *    Neither the name of Texas Instruments Incorporated nor the names of
  *    its contributors may be used to endorse or promote products derived
  *    from this software without specific prior written permission.
  *
- *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS 
- *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT 
+ *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
  *  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT 
- *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, 
- *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT 
+ *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
  *  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
  *  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
- *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
- *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.                                                                                                                                                                                                                                                                                                         
+ *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <pch.h>
 #include "DeviceInfo.h"
 #include "CycleCounter.h"
-#include "DebugManagerV3.h"
-#include "DeviceHandleV3.h"
-#include "EemMemoryAccess.h"
-#include "CpuMemoryAccess.h"
-#include "TemplateDeviceDb/MSP430Defaults.h"
-#include <boost/foreach.hpp>
-
-#include "EM/EmulationManager/IEmulationManager.h"
-#include "EM/EemRegisters/EemRegisterAccess.h"
+#include "EM/EemRegisters/EemRegisterAccess430.h"
 #include "EM/Exceptions/Exceptions.h"
 
 using namespace TI::DLL430;
 using namespace TI::DLL430::TemplateDeviceDb;
 
+enum EemCycleCounterRegisters
+{
+	CCNT0CTL = 0xb0,
+	CCNT0L = 0xb2,
+	CCNT0H = 0xb4,
+};
+
+uint64_t fromLFSR(uint64_t lfsr);
+
 static const unsigned resetBit = (1 << 6);
 static const unsigned defaultMode = 0x5;
-
 
 //Used for old software cycle counter code
 static uint32_t CPUCycles = 0;
@@ -63,17 +64,16 @@ uint32_t GetCycles(uint16_t Instruction);
 uint32_t GetExtensionCycles(uint16_t wExtensionWord, uint16_t Instruction);
 
 
-
-CycleCounter::CycleCounter(DeviceHandleV3* deviceHandle, const DeviceInfo* info) 
-	: deviceHandle(deviceHandle)
-	, emulationLevel((EMEX_MODE)info->getEmulationLevel())
-	, cycleCounterControl(resetBit | defaultMode)
+CycleCounter::CycleCounter(const DeviceInfo* info)
+	: emulationLevel((EMEX_MODE)info->getEmulationLevel())
+	, cycleCounterControl(0)
 	, counterValue(0)
 	, isCpuX(false)
+	, enabled(true)
 {
-	BOOST_FOREACH(const DeviceInfo::memoryInfo& memInfo, info->getMemoryInfo())
+	for (const auto& memInfo : info->getMemoryInfo())
 	{
-		if (memInfo.name == "CPU" && memInfo.bits == 20)
+		if (memInfo->name == MemoryArea::CPU && memInfo->bits == 20)
 		{
 			isCpuX = true;
 		}
@@ -81,39 +81,30 @@ CycleCounter::CycleCounter(DeviceHandleV3* deviceHandle, const DeviceInfo* info)
 }
 
 
-
 void CycleCounter::reset()
 {
 	try
 	{
-		if (emulationLevel >= EMEX_EXTRA_SMALL_5XX)
+		if (enabled && emulationLevel >= EMEX_EXTRA_SMALL_5XX)
 		{
-			counterValue = 0;
-			cycleCounterControl = resetBit | defaultMode;
-			writeEemRegister(CCNT0CTL, cycleCounterControl, true);
+			writeEemRegister430(CCNT0CTL, resetBit | defaultMode, true);
 		}
+		counterValue = 0;
 	}
-	catch(const EM_Exception&)
-	{
-	}
+	catch (const EM_Exception&) {}
 }
 
 
-void CycleCounter::configure()
+void CycleCounter::configure() const
 {
 	try
 	{
-		if (emulationLevel >= EMEX_EXTRA_SMALL_5XX)
+		if (enabled && emulationLevel >= EMEX_EXTRA_SMALL_5XX)
 		{
-			EmulationManagerPtr emManager = deviceHandle->getEmulationManager();
-
-			cycleCounterControl = defaultMode;
-			emManager->writeRegister(CCNT0CTL, cycleCounterControl);
+			writeEemRegister430(CCNT0CTL, defaultMode);
 		}
 	}
-	catch(const EM_Exception&)
-	{
-	}
+	catch (const EM_Exception&) {}
 }
 
 
@@ -121,37 +112,17 @@ uint64_t CycleCounter::read()
 {
 	try
 	{
-		if (emulationLevel >= EMEX_EXTRA_SMALL_5XX)
-		{ 
-			EmulationManagerPtr emManager = deviceHandle->getEmulationManager();
-
-			union CycleCount { struct { uint32_t low, high; }; uint64_t value; };
-			CycleCount cycleCount;
-
-			cycleCount.low = emManager->readRegister(CCNT0L);
-			cycleCount.high = emManager->readRegister(CCNT0H);
-		
-			counterValue = 0;
-
-			uint32_t factor = 1;
-			uint32_t lsfr2hex[16] = {0x0, 0x1, 0x2, 0x7, 0x5, 0x3, 0x8, 0xb, 0xe, 0x6, 0x4, 0xa, 0xd, 0x9, 0xc, 0};
-			for (int i = 0; i < 10; ++i)
-			{
-				counterValue += factor * lsfr2hex[(cycleCount.value & 0xf)];
-				cycleCount.value >>= 4;
-				factor *= 15;
-			}	
+		if (enabled && emulationLevel >= EMEX_EXTRA_SMALL_5XX)
+		{
+			const uint32_t low = readEemRegister430(CCNT0L);
+			const uint64_t high = readEemRegister430(CCNT0H);
+			counterValue = fromLFSR((high << 32) | low);
 		}
 	}
-	catch(const EM_Exception&)
-	{
-	}
+	catch (const EM_Exception&) {}
 
 	return counterValue;
 }
-
-
-
 
 
 void CycleCounter::countInstruction(uint32_t instruction, bool steppedIntoInterrupt)
@@ -167,7 +138,6 @@ void CycleCounter::countInstruction(uint32_t instruction, bool steppedIntoInterr
 		if ((instruction & 0xF800) == 0x1800)
 		{
 			extensionWord = (instruction & 0xffff);
-			instruction >>= 16;
 		}
 
 		GetCycles(instructionWord);
@@ -184,9 +154,6 @@ void CycleCounter::countInstruction(uint32_t instruction, bool steppedIntoInterr
 		}
 	}
 }
-
-
-
 
 
 #define PC 0
@@ -253,32 +220,32 @@ void CycleCounter::countInstruction(uint32_t instruction, bool steppedIntoInterr
 // CYCLES FOR DOUBLE OPERAND INSTRUCTIONS:
 // The following Array contains the cycles for each DOIF. To get the cycles for a DOIF,
 // place As into Bit 2+3 and Ad into Bit 0 of a Byte. Bit 1 and 4 to 7 are zero. This Byte
-// has to be used as index into the following array 
+// has to be used as index into the following array
 
 static unsigned int const DOICycles[16] = {
-/*Src,Dst           AdAs   Index                   Cycles[AdAs] */
-/*Rn,Rn             0000   0    */                 1,
-/*X(Rn),Rn          0001   1    */                 3,
-/*@Rn,Rn            0010   2    */                 2,
-/*@Rn+,Rn           0011   3    */                 2,
-/*Rn,@Rn            ----   4    not possible*/     0,
-/*X(Rn),@Rn         ----   5    not possible*/     0,  
-/*@Rn,@Rn           ----   6    not possible*/     0,  
-/*@Rn+,@Rn          ----   7    not possible*/     0,  
-/*Rn,X(Rn)      1000   8    */                 4,
-/*X(Rn),X(Rn)       1001   9    */                 6,
-/*@Rn,X(Rn)         1010   A    */                 5,
-/*@Rn+,X(Rn)        1011   B    */                 5,
-/*Rn,@Rn+           ----   C    not possible*/     0,
-/*X(Rn),@Rn+        ----   D    not possible*/     0,
-/*@Rn,@Rn+          ----   E    not possible*/     0,
-/*@Rn+,@Rn+         ----   F    not possible*/     0
+/*Src, Dst           AdAs   Index                   Cycles[AdAs] */
+/*Rn, Rn             0000   0    */                 1,
+/*X(Rn), Rn          0001   1    */                 3,
+/*@Rn, Rn            0010   2    */                 2,
+/*@Rn+, Rn           0011   3    */                 2,
+/*Rn, @Rn            ----   4    not possible*/     0,
+/*X(Rn), @Rn         ----   5    not possible*/     0,
+/*@Rn, @Rn           ----   6    not possible*/     0,
+/*@Rn+, @Rn          ----   7    not possible*/     0,
+/*Rn, X(Rn)      1000   8    */                 4,
+/*X(Rn), X(Rn)       1001   9    */                 6,
+/*@Rn, X(Rn)         1010   A    */                 5,
+/*@Rn+, X(Rn)        1011   B    */                 5,
+/*Rn, @Rn+           ----   C    not possible*/     0,
+/*X(Rn), @Rn+        ----   D    not possible*/     0,
+/*@Rn, @Rn+          ----   E    not possible*/     0,
+/*@Rn+, @Rn+         ----   F    not possible*/     0
 };
 
 // CYCLES FOR SINGLE OPERAND INSTRUCTIONS:
 // The following Arrays contain the cycles for each SOIF. To get the cycles for a SOIF,
 // place Ad into Bit 0 and 1 of a Byte. Bit 2 to 7 are zero. This Byte has to be used as
-// index into the corresponding array 
+// index into the corresponding array
 
 // RRC, RRA, SWPB, SXT:
 static unsigned int const SOICycles_1[4] = {
@@ -367,13 +334,13 @@ void DOIF(uint16_t Instruction)
       CPUCycles++;
 
     // check if the device has CPUX
-    if(deviceHasMSP430X)
+    if (deviceHasMSP430X)
     {
       // check instruction: MOV || CMP || BIT
-      if(DOpCode == DOI_MOV || DOpCode == DOI_CMP || DOpCode == DOI_BIT)
+      if (DOpCode == DOI_MOV || DOpCode == DOI_CMP || DOpCode == DOI_BIT)
       {
         // check addressing DST mode: x(Rn) || EDE || &EDE
-        if(Ad == AM_IdxMode)
+        if (Ad == AM_IdxMode)
         {
           CPUCycles--;
         }
@@ -390,7 +357,7 @@ void SOIF(uint16_t Instruction)
   uint16_t Ad        = (Instruction & IM_AsMask) >> 4;
   uint16_t SOICycles = 0;
 
-  switch(Instruction & IF_SOpCodeMask)
+  switch (Instruction & IF_SOpCodeMask)
   {
     case SOI_PUSH: SOICycles = 2;
            break;
@@ -419,7 +386,7 @@ void SOIF(uint16_t Instruction)
                {
                  CPUCycles += XSOICycles_2[Ad];
                  // one more cycle for X(Rn) when Rn == SP
-                 if(DstRegNo == SP && Ad == AM_IdxMode)
+                 if (DstRegNo == SP && Ad == AM_IdxMode)
                  {
                    CPUCycles++;
                  }
@@ -433,7 +400,7 @@ void SOIF(uint16_t Instruction)
                {
                  CPUCycles += XSOICycles_3[Ad];
                  // one more cycle for X(Rn) when Rn == SP
-                 if(DstRegNo == SP && Ad == AM_IdxMode)
+                 if (DstRegNo == SP && Ad == AM_IdxMode)
                  {
                    CPUCycles++;
                  }
@@ -491,7 +458,7 @@ void ADDRI(uint16_t Instruction)
   uint16_t BitLoc    = (Instruction & 0x0C00) >> 10;
 
   // is is a rotate instruction??
-  if((Instruction & Rotate_OpCodeId) == 0x0040)
+  if ((Instruction & Rotate_OpCodeId) == 0x0040)
   {
     // The rotate instructions take 1, 2, 3 or 4 CPU cycles according to the
     // number of bit positions shifted.
@@ -499,7 +466,7 @@ void ADDRI(uint16_t Instruction)
   }
   else
   {
-    switch(Instruction & ADDRI_OpCodeMask)
+    switch (Instruction & ADDRI_OpCodeMask)
     {
     case MOVA_ATRsrcRdst:
     case MOVA_ATRsrcPlusRdst:
@@ -518,7 +485,7 @@ void ADDRI(uint16_t Instruction)
     case ADDA_Imm20Rdst:
     case SUBA_Imm20Rdst:
       CPUCycles += 2;
-      if(DstRegNo == PC)
+      if (DstRegNo == PC)
       {
         CPUCycles++;
       }
@@ -528,7 +495,7 @@ void ADDRI(uint16_t Instruction)
     case ADDA_RsrcRdst:
     case SUBA_RsrcRdst:
       CPUCycles ++;
-      if(DstRegNo == PC)
+      if (DstRegNo == PC)
       {
         CPUCycles++;
       }
@@ -560,29 +527,29 @@ bool XSOIF(uint16_t Instruction)
   uint16_t DstRegNo  = Instruction & IM_DstMask;
   uint16_t MultBits  = (Instruction & 0x00F0) >> 4;
 
-  switch(Instruction & 0xFF00)
+  switch (Instruction & 0xFF00)
   {
   // RETI or CALLA??
   case NOI_RETI:
     // RETI??
-    if(Instruction == NOI_RETI)
+    if (Instruction == NOI_RETI)
     {
       // RETI needs 3 cycles
       CPUCycles += 3;
     }
     else
     {
-      switch(Instruction & 0x00F0)
+      switch (Instruction & 0x00F0)
       {
       case CALLA_Imm20:
       case CALLA_Rdst:       CPUCycles += 4; break;
 
       case CALLA_AtRdst:
-      case CALLA_AtRdstPlus: CPUCycles += 5; break; 
+      case CALLA_AtRdstPlus: CPUCycles += 5; break;
 
-      case CALLA_IdxRdst:    if(DstRegNo == SP) CPUCycles++; CPUCycles += 6; break; 
+      case CALLA_IdxRdst:    if (DstRegNo == SP) CPUCycles++; CPUCycles += 6; break;
       case CALLA_Abs20:
-      case CALLA_Symbolic:   CPUCycles += 6; break; 
+      case CALLA_Symbolic:   CPUCycles += 6; break;
       }
     }
     RetState   = false;
@@ -600,7 +567,7 @@ bool XSOIF(uint16_t Instruction)
     break;
   }
 
-  return (RetState);
+  return RetState;
 }
 
 //--------------------------------------------------------------------------
@@ -616,7 +583,7 @@ uint32_t GetCycles(uint16_t Instruction)
     case 0x0000: ADDRI(Instruction); break;  // CPUX Address Instructions
     case 0x1000:
       // look for CPUX instructions first
-      if(deviceHasMSP430X)
+      if (deviceHasMSP430X)
       {
           RetState = XSOIF(Instruction);
       }
@@ -631,7 +598,7 @@ uint32_t GetCycles(uint16_t Instruction)
     default:     DOIF(Instruction);           //Double Operand Instruction Format
       };
 
-  return (CPUCycles - lastCPUCycles);
+  return CPUCycles - lastCPUCycles;
 }
 
 #define EXT_AL  0x0040
@@ -650,39 +617,39 @@ uint32_t GetExtensionCycles(uint16_t wExtensionWord, uint16_t Instruction)
   CPUCycles++;
   // handle a few exceptions
 
-  // 1. <INSTR> @Rn,PC
-  if(DstRegNo == PC && As == AM_IdtMode && Ad == AM_RegMode)
+  // 1. <INSTR> @Rn, PC
+  if (DstRegNo == PC && As == AM_IdtMode && Ad == AM_RegMode)
   {
     CPUCycles--;
   }
 
-  // 1. <INSTR> @Rn,PC
-  if(DstRegNo == PC && SrcRegNo == PC && As == AM_IdAMode && Ad == AM_RegMode)
+  // 1. <INSTR> @Rn, PC
+  if (DstRegNo == PC && SrcRegNo == PC && As == AM_IdAMode && Ad == AM_RegMode)
   {
     CPUCycles--;
   }
 
-  // 2. <INSTR> x(Rn),PC == <INSTR> x(Rn),EDE == <INSTR> x(Rn),&EDE
-  if(DstRegNo == PC && As == AM_IdxMode && Ad == AM_RegMode)
+  // 2. <INSTR> x(Rn), PC == <INSTR> x(Rn), EDE == <INSTR> x(Rn), &EDE
+  if (DstRegNo == PC && As == AM_IdxMode && Ad == AM_RegMode)
   {
     // but only if it's NOT MOV, ADD or SUB
-    if(!(DOpCode == DOI_MOV || DOpCode == DOI_ADD || DOpCode == DOI_SUB))
+    if (!(DOpCode == DOI_MOV || DOpCode == DOI_ADD || DOpCode == DOI_SUB))
     {
 //      CPUCycles++;
     }
   }
 
   // ADDRESS access?? EXT_AL must be 0!
-  if(!(wExtensionWord & EXT_AL))
+  if (!(wExtensionWord & EXT_AL))
   {
-    // <INSTR> Rn,x(Rm)
-    // <INSTR> #N,x(Rm)
-    if(Ad == AM_IdxMode)
+    // <INSTR> Rn, x(Rm)
+    // <INSTR> #N, x(Rm)
+    if (Ad == AM_IdxMode)
     {
-      if(As == AM_RegMode || As == AM_IdtMode || SrcRegNo == PC)
+      if (As == AM_RegMode || As == AM_IdtMode || SrcRegNo == PC)
       {
         CPUCycles += 1;
-		if(As == AM_IdxMode)
+		if (As == AM_IdxMode)
 		{
           CPUCycles += 1;
 		}
@@ -692,27 +659,27 @@ uint32_t GetExtensionCycles(uint16_t wExtensionWord, uint16_t Instruction)
         CPUCycles += 2;
       }
     }
-    // <INSTR> @Rx,Rx
-	// <INSTR> @Rx+,Rx
-    if(Ad == AM_RegMode && (As == AM_IdxMode || As == AM_IdtMode || As == AM_IdAMode))
+    // <INSTR> @Rx, Rx
+	// <INSTR> @Rx+, Rx
+    if (Ad == AM_RegMode && (As == AM_IdxMode || As == AM_IdtMode || As == AM_IdAMode))
     {
         CPUCycles += 1;
     }
   // RRA, RRC
-  if((Instruction & 0xF000) == 0x1000 && As != AM_RegMode)
+  if ((Instruction & 0xF000) == 0x1000 && As != AM_RegMode)
   {
     CPUCycles += 1;
   }
   // PUSHX Rx
-  if((Instruction &0xFFF0) == 0x1240)
+  if ((Instruction &0xFFF0) == 0x1240)
   {
     CPUCycles += 1;
   }
 
-     if(!(DOpCode == DOI_MOV || DOpCode == DOI_CMP || DOpCode == DOI_BIT))
+     if (!(DOpCode == DOI_MOV || DOpCode == DOI_CMP || DOpCode == DOI_BIT))
       {
         // check addressing DST mode: x(Rn) || EDE || &EDE
-        if(Ad == AM_IdxMode)
+        if (Ad == AM_IdxMode)
         {
           CPUCycles++;
         }
@@ -721,10 +688,10 @@ uint32_t GetExtensionCycles(uint16_t wExtensionWord, uint16_t Instruction)
 
   // repeat instruction, lower nibbel of wExtensionword
   // defines the number of repetitions
-  if(!(wExtensionWord & EXT_GATTER))
+  if (!(wExtensionWord & EXT_GATTER))
   {
     CPUCycles += (wExtensionWord & 0x000F);
   }
 
-  return (CPUCycles - lastCPUCycles);
+  return CPUCycles - lastCPUCycles;
 }

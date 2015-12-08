@@ -7,35 +7,35 @@
 *
 */
 /*
- * Copyright (C) 2012 Texas Instruments Incorporated - http://www.ti.com/ 
- * 
- * 
- *  Redistribution and use in source and binary forms, with or without 
- *  modification, are permitted provided that the following conditions 
+ * Copyright (C) 2012 Texas Instruments Incorporated - http://www.ti.com/
+ *
+ *
+ *  Redistribution and use in source and binary forms, with or without
+ *  modification, are permitted provided that the following conditions
  *  are met:
  *
- *    Redistributions of source code must retain the above copyright 
+ *    Redistributions of source code must retain the above copyright
  *    notice, this list of conditions and the following disclaimer.
  *
  *    Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the 
- *    documentation and/or other materials provided with the   
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the
  *    distribution.
  *
  *    Neither the name of Texas Instruments Incorporated nor the names of
  *    its contributors may be used to endorse or promote products derived
  *    from this software without specific prior written permission.
  *
- *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS 
- *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT 
+ *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
  *  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT 
- *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, 
- *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT 
+ *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
  *  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
  *  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
- *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
+ *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
@@ -51,7 +51,7 @@
 //!   General Purpose Registers used by funclet
 //!   =========================================
 //!   The following registers are used by the funclet for general purpose. The
-//!   debugger is responsible for restoring the value of the registers after 
+//!   debugger is responsible for restoring the value of the registers after
 //!   completion.
 //!
 //!   R10             Memory pointer
@@ -108,18 +108,19 @@
 
 static void setFuncletRegisters(const unsigned long* registerData)
 {
-    WriteCpuRegX(REG_ADDRESS, registerData[0])
-    WriteCpuRegX(REG_SIZE, registerData[1])
-    WriteCpuRegX(REG_TYPE, registerData[2])
-    WriteCpuRegX(REG_LOCKA, registerData[3])
-	WriteCpuRegX(REG_GP1, registerData[4]) 
-	WriteCpuRegX(REG_GP2, registerData[5]) 
-	WriteCpuRegX(REG_GP3, registerData[6]) 
+    WriteCpuRegX(REG_ADDRESS, registerData[0]);
+    WriteCpuRegX(REG_SIZE, registerData[1]);
+    WriteCpuRegX(REG_TYPE, registerData[2]);
+    WriteCpuRegX(REG_LOCKA, registerData[3]);
+	WriteCpuRegX(REG_GP1, registerData[4]);
+	WriteCpuRegX(REG_GP2, registerData[5]);
+	WriteCpuRegX(REG_GP3, registerData[6]);
 }
 
 HAL_FUNCTION(_hal_ExecuteFuncletX)
 {
     short ret_value = 0;
+    unsigned long lOut_long = 0;
     static unsigned long  lLen;
     static unsigned short ret_len = 0;
     static unsigned long Addr = 0x0;
@@ -128,25 +129,23 @@ HAL_FUNCTION(_hal_ExecuteFuncletX)
     static unsigned short usType =0x0;
     static unsigned short startAddr;
     static unsigned short R12_BCSLTC1;
-    static unsigned short R11_DCO;   
+    static unsigned short R11_DCO;
 
-    
+
     static unsigned long registerBackups[7] = {0};
 
     static unsigned short FCTL1Value;
     static unsigned short FCTL2Value;
-    static unsigned short FCTL3Value;     
+    static unsigned short FCTL3Value;
 
-    unsigned short tmpFCTL3Value;    
-    
+    unsigned short tmpFCTL3Value;
+
     unsigned short tgtStart     =0x0;
     unsigned short data         =0x0;
     unsigned short timeOut      =3000;
-    decl_out
-    decl_out_long
 
     StreamSafe stream_tmp;
-  
+
     if(flags & MESSAGE_NEW_MSG)
     {
         // get target RAM start
@@ -155,12 +154,12 @@ HAL_FUNCTION(_hal_ExecuteFuncletX)
             return(HALERR_EXECUTE_FUNCLET_NO_RAM_START);
         }
        /// get available RAM size (ram - funclet size)
-        if(STREAM_get_word(&memSize)!= 0) 
+        if(STREAM_get_word(&memSize)!= 0)
         {
             return(HALERR_EXECUTE_FUNCLET_NO_RAM_SIZE);
-        }        
-        /// get RAM Start + Code offset   
-        if(STREAM_get_word(&startAddr)!= 0) 
+        }
+        /// get RAM Start + Code offset
+        if(STREAM_get_word(&startAddr)!= 0)
         {
             return(HALERR_EXECUTE_FUNCLET_NO_OFFSET);
         }
@@ -172,50 +171,50 @@ HAL_FUNCTION(_hal_ExecuteFuncletX)
         // get length ot be flashed
         if(STREAM_get_long(&lLen) != 0)
         {
-            return(HALERR_EXECUTE_FUNCLET_NO_LENGTH);    
-        }   
-        if(STREAM_get_word(&usType) != 0)  
+            return(HALERR_EXECUTE_FUNCLET_NO_LENGTH);
+        }
+        if(STREAM_get_word(&usType) != 0)
         {
             return(HALERR_EXECUTE_FUNCLET_NO_TYPE);
         }
-        // lock A handling 
+        // lock A handling
         if(STREAM_get_word(&LockA) == -1)
         {
             return(HALERR_EXECUTE_FUNCLET_NO_LOCKA);
         }
-        
+
         if(STREAM_get_word(&R11_DCO) == -1)
         {
             return(HALERR_EXECUTE_FUNCLET_NO_LOCKA);
         }
-        
+
         if(STREAM_get_word(&R12_BCSLTC1) == -1)
         {
             return(HALERR_EXECUTE_FUNCLET_NO_LOCKA);
         }
 
-        ReadCpuRegX(REG_ADDRESS, registerBackups[0])
-        ReadCpuRegX(REG_SIZE, registerBackups[1])
-        ReadCpuRegX(REG_TYPE, registerBackups[2])
-        ReadCpuRegX(REG_LOCKA, registerBackups[3]) 
-		ReadCpuRegX(REG_GP1, registerBackups[4]) 
-		ReadCpuRegX(REG_GP2, registerBackups[5]) 
-		ReadCpuRegX(REG_GP3, registerBackups[6]) 
+        registerBackups[0] = ReadCpuRegX(REG_ADDRESS);
+        registerBackups[1] = ReadCpuRegX(REG_SIZE);
+        registerBackups[2] = ReadCpuRegX(REG_TYPE);
+        registerBackups[3] = ReadCpuRegX(REG_LOCKA);
+        registerBackups[4] = ReadCpuRegX(REG_GP1);
+        registerBackups[5] = ReadCpuRegX(REG_GP2);
+        registerBackups[6] = ReadCpuRegX(REG_GP3);
 
         // Setup the Flash Controller
         // Read FCTL registers for later restore
-        ReadMemWordX(0x128,FCTL1Value)
-        ReadMemWordX(0x12A,FCTL2Value)            
-        ReadMemWordX(0x12C,FCTL3Value)
+        FCTL1Value = ReadMemWordX(0x128);
+        FCTL2Value = ReadMemWordX(0x12A);
+        FCTL3Value = ReadMemWordX(0x12C);
         // Restore password byte
         FCTL1Value ^= 0x3300;
         FCTL2Value ^= 0x3300;
         FCTL3Value ^= 0x3300;
-        
-        WriteMemWordX(0x12A,0xA544)     // Source = MCLK, DIV = 5.
-        WriteMemWordX(0x12C,LockA)      // Set LockA
-        ReadMemWordX(0x12C,tmpFCTL3Value)    // Read out register again
-              
+
+        WriteMemWordX(0x12A,0xA544);     // Source = MCLK, DIV = 5.
+        WriteMemWordX(0x12C,LockA);      // Set LockA
+        tmpFCTL3Value = ReadMemWordX(0x12C);    // Read out register again
+
         if((LockA & 0xff) != (tmpFCTL3Value & 0xff))
         {   // Value of lockA is not as expected, so toggle it
             WriteMemWordX(0x12C,LockA | 0x40);
@@ -227,23 +226,23 @@ HAL_FUNCTION(_hal_ExecuteFuncletX)
             WriteCpuRegX(2, 0);
         }
 
-        // i_SetPcRel 
+        // i_SetPcRel
         SetPcX(startAddr);
         // prepare release & release
-        cntrl_sig_16bit
-        SetReg_16Bits_(0x0401)
-        addr_capture
-        cntrl_sig_release
-        
-        // Poll until the funclet reaches the WaitForDead loop, 
+        cntrl_sig_16bit();
+        SetReg_16Bits(0x0401);
+        addr_capture();
+        cntrl_sig_release();
+
+        // Poll until the funclet reaches the WaitForDead loop,
         // ie. it is ready to process data
         do
         {
-            EDT_Delay_1ms(1);
-            addr_capture
-            SetReg_20Bits(0)
+            IHIL_Delay_1ms(1);
+            addr_capture();
+            lOut_long = SetReg_20Bits(0);
             timeOut--;
-        } 
+        }
         while(!((lOut_long >= (startAddr + WAIT_FOR_DEAD_START)) && (lOut_long <= (startAddr + WAIT_FOR_DEAD_END))) && timeOut);
     }
 
@@ -254,52 +253,52 @@ HAL_FUNCTION(_hal_ExecuteFuncletX)
       unsigned short numWordsToWrite = 0;
 
       SetPcX(startAddr + FINISHED_OFFSET);
-      
+
       // The device has limited RAM available to write updates to,
       // make sure we stay within this limit: Total memory size - 96 bytes for the funclet
-      halt_cpu
-      EDT_Tclk(0);
-      cntrl_sig_low_byte
-      SetReg_16Bits_(0x08)
-          
+      halt_cpu();
+      IHIL_Tclk(0);
+      cntrl_sig_low_byte();
+      SetReg_16Bits(0x08);
+
       while( (writePos < writeEndPos) && (ret_value == 0) )
       {
           ret_value = STREAM_get_word(&data);
-          addr_16bit
-          SetReg_20Bits_(writePos)
-          data_to_addr
-          SetReg_16Bits_(data);
-          EDT_Tclk(1);
-          EDT_Tclk(0);
+          addr_16bit();
+          SetReg_20Bits(writePos);
+          data_to_addr();
+          SetReg_16Bits(data);
+          IHIL_Tclk(1);
+          IHIL_Tclk(0);
           writePos += 2;
       }
-      
-      release_cpu
-        
+
+      release_cpu();
+
       numWordsToWrite = (writePos - (startAddr + DATA_OFFSET)) / 2;
 
-	  WriteCpuRegX(REG_SIZE, numWordsToWrite)
-      WriteCpuRegX(REG_ADDRESS, Addr)
+	  WriteCpuRegX(REG_SIZE, numWordsToWrite);
+      WriteCpuRegX(REG_ADDRESS, Addr);
 
       Addr += 2 * numWordsToWrite;
       lLen -= numWordsToWrite;
 
       SetPcX(startAddr + EXECUTE_FUNCLET);
-      cntrl_sig_release
+      cntrl_sig_release();
 
-      // Poll until the funclet reaches the Stop loop, 
+      // Poll until the funclet reaches the Stop loop,
       // ie. it is finished
       timeOut = 3000;
       do
       {
-          EDT_Delay_1ms(1);
-          addr_capture
-          SetReg_20Bits(0)
+          IHIL_Delay_1ms(1);
+          addr_capture();
+          lOut_long = SetReg_20Bits(0);
           timeOut--;
       }
       while(!(lOut_long == (startAddr + FINISHED_OFFSET)) && timeOut);
     }
-    
+
     if(flags & MESSAGE_LAST_MSG )
     { // ExitFlashWrite
         {   //Setup values for watchdog control regsiters
@@ -311,16 +310,16 @@ HAL_FUNCTION(_hal_ExecuteFuncletX)
         }
         setFuncletRegisters(registerBackups);
         // Restore the Flash controller registers
-        WriteMemWordX(0x128,FCTL1Value)
-        WriteMemWordX(0x12A,FCTL2Value)
-        WriteMemWordX(0x12C,FCTL3Value)
-        ReadMemWordX(0x12C,tmpFCTL3Value)    // Read out register again
-        
+        WriteMemWordX(0x128,FCTL1Value);
+        WriteMemWordX(0x12A,FCTL2Value);
+        WriteMemWordX(0x12C,FCTL3Value);
+        tmpFCTL3Value = ReadMemWordX(0x12C);    // Read out register again
+
         if((FCTL3Value & 0xff) != (tmpFCTL3Value & 0xff))
         {   // Value of lockA is not as expected, so toggle it
             WriteMemWordX(0x12C,FCTL3Value | 0x40);
-        }            
-        
+        }
+
         STREAM_put_word(ret_len);
     }
     else if(ret_value == 1)
@@ -329,27 +328,27 @@ HAL_FUNCTION(_hal_ExecuteFuncletX)
         ret_value = 0;
     }
     else
-    {    
+    {
          //Setup values for watchdog control regsiters
          unsigned char DummyIn[8] = {WDTCTL_ADDRESS & 0xFF,(WDTCTL_ADDRESS >> 8) & 0xFF,
                                         WDTHOLD_DEF,WDTPW_DEF,0,0,0,0};
          STREAM_internal_stream(DummyIn, sizeof(DummyIn), NULL, 0, &stream_tmp);
          HAL_SyncJtag_Conditional_SaveContextX(MESSAGE_NEW_MSG | MESSAGE_LAST_MSG);
          STREAM_external_stream(&stream_tmp);
-         
+
          setFuncletRegisters(registerBackups);
          // Restore the Flash controller registers
-         WriteMemWordX(0x128,FCTL1Value)
-         WriteMemWordX(0x12A,FCTL2Value)
-         WriteMemWordX(0x12C,FCTL3Value)
-         ReadMemWordX(0x12C,tmpFCTL3Value)    // Read out register again
-        
+         WriteMemWordX(0x128,FCTL1Value);
+         WriteMemWordX(0x12A,FCTL2Value);
+         WriteMemWordX(0x12C,FCTL3Value);
+         tmpFCTL3Value = ReadMemWordX(0x12C);    // Read out register again
+
          if((FCTL3Value & 0xff) != (tmpFCTL3Value & 0xff))
          {   // Value of lockA is not as expected, so toggle it
              WriteMemWordX(0x12C,FCTL3Value | 0x40);
-         }                         
-         
+         }
+
          ret_value = HALERR_EXECUTE_FUNCLET_EXECUTION_ERROR;
-    }  
+    }
     return(ret_value);
 }

@@ -7,35 +7,35 @@
 *
 */
 /*
- * Copyright (C) 2012 Texas Instruments Incorporated - http://www.ti.com/ 
- * 
- * 
- *  Redistribution and use in source and binary forms, with or without 
- *  modification, are permitted provided that the following conditions 
+ * Copyright (C) 2012 Texas Instruments Incorporated - http://www.ti.com/
+ *
+ *
+ *  Redistribution and use in source and binary forms, with or without
+ *  modification, are permitted provided that the following conditions
  *  are met:
  *
- *    Redistributions of source code must retain the above copyright 
+ *    Redistributions of source code must retain the above copyright
  *    notice, this list of conditions and the following disclaimer.
  *
  *    Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the 
- *    documentation and/or other materials provided with the   
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the
  *    distribution.
  *
  *    Neither the name of Texas Instruments Incorporated nor the names of
  *    its contributors may be used to endorse or promote products derived
  *    from this software without specific prior written permission.
  *
- *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS 
- *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT 
+ *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
  *  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT 
- *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, 
- *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT 
+ *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
  *  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
  *  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
- *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
+ *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
@@ -65,8 +65,8 @@ extern const struct jtag _Jtag;
 #define TDIset0    { *_Jtag.Out &= ~_Jtag.TDI; }
 #define TCKset1    { *_Jtag.Out |=  _Jtag.TCK; }
 #define TCKset0    { *_Jtag.Out &= ~_Jtag.TCK; }
-#define TCLKset1   { EDT_Tclk(1); }
-#define TCLKset0   { EDT_Tclk(0); }
+#define TCLKset1   { IHIL_Tclk(1); }
+#define TCLKset0   { IHIL_Tclk(0); }
 #define TCLK       { TCLKset0 TCLKset1 }
 #define TDIset1TMSset1    { *_Jtag.Out |=  _Jtag.TDI | _Jtag.TMS; }
 #define TDIset0TMSset1    { *_Jtag.Out &= ~_Jtag.TDI; *_Jtag.Out |= _Jtag.TMS;}
@@ -86,6 +86,7 @@ extern const struct jtag _Jtag;
 #define SELT           BIT5  // P2.5 out (high) (aktiv low)
 #define TGTRST         BIT6  // P2.6 out (high) (aktiv low)
 
+enum {JTAG = 0, SPYBIWIRE, SPYBIWIREJTAG, JTAGUNDEF, SPYBIWIRE_SUBMCU=5, SPYBIWIRE_MSP_FET=6 };
 
 #define RSTset1    {   if (gprotocol_id == SPYBIWIRE)                          \
                        {                                                       \
@@ -95,7 +96,7 @@ extern const struct jtag _Jtag;
                        {                                                       \
                          { TGTCTRLOUT &= ~SELT; TGTCTRLOUT |=  TGTRST; }       \
                        }                                                       \
-                       EDT_Delay_1ms(DEFAULT_RSTDELAY);                        \
+                       IHIL_Delay_1ms(DEFAULT_RSTDELAY);                        \
                    }
 #define RSTset0    {   if (gprotocol_id == SPYBIWIRE)                          \
                        {                                                       \
@@ -105,7 +106,7 @@ extern const struct jtag _Jtag;
                        {                                                       \
                          { TGTCTRLOUT &= ~SELT; TGTCTRLOUT &= ~TGTRST; }       \
                        }                                                       \
-                       EDT_Delay_1ms(DEFAULT_RSTDELAY);                        \
+                       IHIL_Delay_1ms(DEFAULT_RSTDELAY);                        \
                    }
 #define TSTset1    {   if (gprotocol_id == SPYBIWIRE)                          \
                        {                                                       \
@@ -115,7 +116,7 @@ extern const struct jtag _Jtag;
                        {                                                       \
                          { ((TSTCTRLOUT) &= (~TEST)); }                        \
                        }                                                       \
-                       EDT_Delay_1ms(DEFAULT_RSTDELAY);                        \
+                       IHIL_Delay_1ms(DEFAULT_RSTDELAY);                        \
                    }
 #define TSTset0    {   if (gprotocol_id == SPYBIWIRE)                          \
                        {                                                       \
@@ -125,7 +126,7 @@ extern const struct jtag _Jtag;
                        {                                                       \
                          { ((TSTCTRLOUT) |= (TEST)); }                      \
                        }                                                       \
-                       EDT_Delay_1ms(DEFAULT_RSTDELAY);                        \
+                       IHIL_Delay_1ms(DEFAULT_RSTDELAY);                        \
                    }
 
 #define TMSL    JTAGOUT &= ~sbwdato; JTAGOUT &= ~sbwclk; JTAGOUT |= sbwclk;
@@ -175,7 +176,7 @@ extern const struct jtag _Jtag;
 //#define    reset     TMS
 //#define    rti       TCK   // Run/test-idle
 
-#define VALID_DATA   0x1A                             
+#define VALID_DATA   0x1A
 #define SYNC_ONGOING 0x2A
 #define INVALID_DATA 0x3A
 #define JTAG_LOCKED  0x4A
@@ -187,6 +188,7 @@ extern const struct jtag _Jtag;
 #define EIGHT_JSTATE_BITS          0x100000000000000ull
 
 #define JSTATE_FLOW_CONTROL_BITS   0xC7
+
 #define JSTATE_BP_HIT              0x4
 #define JSTATE_SYNC_ONGOING        0x83
 #define JSTATE_LOCKED_STATE        0x40
@@ -196,7 +198,16 @@ extern const struct jtag _Jtag;
 #define JSTATE_VALID_CAPTURE       0x03
 #define JSTATE_LPM_X_FIVE          0xC0
 
+#define JSTATE_SYNC_BROKEN_MASK         0xC3
+#define JSTATE_SYNC_BROKEN_PGACT        0x02
+#define JSTATE_SYNC_BROKEN_MCLK         0x01
+#define JSTATE_SYNC_BROKEN_MCLK_PGACT   0x00
+
 #define FET_TRUE                   0x1
 #define FET_FALSE                  0x0
+
+#define L092_MODE 0xA55AA55A
+#define C092_MODE 0x5AA55AA5
+
 
 #endif

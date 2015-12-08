@@ -38,9 +38,6 @@
 
 #pragma once
 
-#include <string>
-#include <boost/cstdint.hpp>
-
 class MSPBSL_CRCEngine
 {
 public:

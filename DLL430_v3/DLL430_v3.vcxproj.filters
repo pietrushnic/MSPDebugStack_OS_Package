@@ -2,13 +2,10 @@
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <ClCompile Include="src\TI\DLL430\Record.cpp" />
-    <ClCompile Include="src\Ti\Dll430\DeviceChainInfo.cpp" />
     <ClCompile Include="src\TI\DLL430\DeviceDbManagerExt.cpp" />
     <ClCompile Include="src\TI\DLL430\DeviceInfo.cpp" />
-    <ClCompile Include="src\TI\DLL430\FileFuncImpl.cpp" />
     <ClCompile Include="src\TI\DLL430\VersionInfo.cpp" />
     <ClCompile Include="src\TI\DLL430\WatchdogControl.cpp" />
-    <ClCompile Include="src\Ti\Dll430\TemplateDeviceDb\DeviceUnknown.cpp" />
     <ClCompile Include="src\TI\DLL430\IoChannel.cpp">
       <Filter>IOChannel</Filter>
     </ClCompile>
@@ -153,9 +150,6 @@
     <ClCompile Include="src\Ti\Dll430\TemplateDeviceDb\MSP430AFE2xx.cpp">
       <Filter>TemplateDB</Filter>
     </ClCompile>
-    <ClCompile Include="src\TI\DLL430\MpuFr5739.cpp">
-      <Filter>TemplateDB</Filter>
-    </ClCompile>
     <ClCompile Include="src\TI\DLL430\FetHandleV3.cpp">
       <Filter>v3</Filter>
     </ClCompile>
@@ -163,9 +157,6 @@
       <Filter>Memory</Filter>
     </ClCompile>
     <ClCompile Include="src\TI\DLL430\MemoryAreaFactory.cpp">
-      <Filter>Memory</Filter>
-    </ClCompile>
-    <ClCompile Include="src\TI\DLL430\MemoryCacheGeneric.cpp">
       <Filter>Memory</Filter>
     </ClCompile>
     <ClCompile Include="src\TI\DLL430\FlashMemoryAccessBase.cpp">
@@ -179,9 +170,6 @@
     </ClCompile>
     <ClCompile Include="src\TI\DLL430\CpuMemoryAccess.cpp">
       <Filter>Memory</Filter>
-    </ClCompile>
-    <ClCompile Include="src\TI\DLL430\EemMemoryAccess.cpp">
-      <Filter>EEM</Filter>
     </ClCompile>
     <ClCompile Include="src\TI\DLL430\FetHandleManagerImpl.cpp">
       <Filter>FET</Filter>
@@ -223,12 +211,6 @@
     <ClCompile Include="src\TI\DLL430\TemplateDeviceDb\MSP430FR59xx.cpp">
       <Filter>TemplateDB</Filter>
     </ClCompile>
-    <ClCompile Include="src\TI\DLL430\UpdateManagerEzFet.cpp">
-      <Filter>v3</Filter>
-    </ClCompile>
-    <ClCompile Include="src\TI\DLL430\MpuFr5969.cpp">
-      <Filter>TemplateDB</Filter>
-    </ClCompile>
     <ClCompile Include="src\TI\DLL430\UpdateManagerMSP_FET430.cpp">
       <Filter>v3</Filter>
     </ClCompile>
@@ -244,7 +226,7 @@
     <ClCompile Include="src\TI\DLL430\EM\CycleCounter\CycleCounter430.cpp">
       <Filter>EM\CycleCounter</Filter>
     </ClCompile>
-    <ClCompile Include="src\TI\DLL430\EM\EemRegisters\EemRegisterAccess.cpp">
+    <ClCompile Include="src\TI\DLL430\EM\EemRegisters\EemRegisterAccess430.cpp">
       <Filter>EM\EemRegisters</Filter>
     </ClCompile>
     <ClCompile Include="src\TI\DLL430\EM\EmulationManager\EmulationManager430.cpp">
@@ -324,9 +306,6 @@
     <ClCompile Include="src\TI\DLL430\MainMemoryAccessBase.cpp">
       <Filter>Memory</Filter>
     </ClCompile>
-    <ClCompile Include="src\TI\DLL430\EnergyTrace_TSPA\EnergyTraceLowPassFilter.cpp">
-      <Filter>EnergyTrace_TSPA</Filter>
-    </ClCompile>
     <ClCompile Include="src\TI\DLL430\EnergyTrace_TSPA\EnergyTraceManager.cpp">
       <Filter>EnergyTrace_TSPA</Filter>
     </ClCompile>
@@ -339,13 +318,9 @@
     <ClCompile Include="src\TI\DLL430\EnergyTrace_TSPA\EnergyTraceProcessorId8.cpp">
       <Filter>EnergyTrace_TSPA</Filter>
     </ClCompile>
-    <ClCompile Include="src\TI\DLL430\EnergyTrace_TSPA\EnergyTraceProcessorJState.cpp">
-      <Filter>EnergyTrace_TSPA</Filter>
-    </ClCompile>
     <ClCompile Include="src\TI\DLL430\EnergyTrace_TSPA\EnergyTraceRunningAverageFilter.cpp">
       <Filter>EnergyTrace_TSPA</Filter>
     </ClCompile>
-    <ClCompile Include="src\TI\DLL430\FramMemoryAccessBase.cpp" />
     <ClCompile Include="src\TI\DLL430\EM\SoftwareBreakpoints\SoftwareBreakpoints430.cpp">
       <Filter>EM\SoftwareBreakpoints</Filter>
     </ClCompile>
@@ -355,22 +330,114 @@
     <ClCompile Include="src\TI\DLL430\EM\SoftwareBreakpoints\SoftwareBreakpointManager.cpp">
       <Filter>EM\SoftwareBreakpoints</Filter>
     </ClCompile>
+    <ClCompile Include="src\TI\DLL430\UpdateManagerFet.cpp">
+      <Filter>v3</Filter>
+    </ClCompile>
+    <ClCompile Include="src\TI\DLL430\pch.cpp" />
     <ClCompile Include="src\TI\DLL430\TemplateDeviceDb\MSP430I20xx.cpp">
       <Filter>TemplateDB</Filter>
     </ClCompile>
+    <ClCompile Include="src\TI\DLL430\TemplateDeviceDb\MSP430FG662x.cpp">
+      <Filter>TemplateDB</Filter>
+    </ClCompile>
+    <ClCompile Include="src\TI\DLL430\MpuFRx.cpp">
+      <Filter>Memory</Filter>
+    </ClCompile>
+    <ClCompile Include="src\TI\DLL430\TemplateDeviceDb\MSP430FR41xx.cpp">
+      <Filter>TemplateDB</Filter>
+    </ClCompile>
+    <ClCompile Include="src\TI\DLL430\TemplateDeviceDb\RF430FRL15xH.cpp">
+      <Filter>TemplateDB</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Ti\Dll430\TemplateDeviceDb\DeviceUnknown.cpp">
+      <Filter>TemplateDB</Filter>
+    </ClCompile>
+    <ClCompile Include="src\TI\DLL430\TemplateDeviceDb\DeviceLegacy.cpp">
+      <Filter>TemplateDB</Filter>
+    </ClCompile>
+    <ClCompile Include="src\TI\DLL430\TemplateDeviceDb\MSP430FR26xx.cpp">
+      <Filter>TemplateDB</Filter>
+    </ClCompile>
+    <ClCompile Include="src\TI\DLL430\EnergyTrace_TSPA\EnergyTraceJstateParser.cpp">
+      <Filter>EnergyTrace_TSPA</Filter>
+    </ClCompile>
+    <ClCompile Include="src\TI\DLL430\TemplateDeviceDb\RF430F51xx.cpp">
+      <Filter>TemplateDB</Filter>
+    </ClCompile>
+    <ClCompile Include="src\TI\DLL430\ArmCpuMemoryAccess.cpp">
+      <Filter>Memory</Filter>
+    </ClCompile>
+    <ClCompile Include="src\TI\DLL430\ArmRandomMemoryAccess.cpp">
+      <Filter>Memory</Filter>
+    </ClCompile>
+    <ClCompile Include="src\TI\DLL430\MSP432\DebugManagerMSP432.cpp">
+      <Filter>MSP432</Filter>
+    </ClCompile>
+    <ClCompile Include="src\TI\DLL430\ArmFlashMemoryAccess.cpp">
+      <Filter>Memory</Filter>
+    </ClCompile>
+    <ClCompile Include="src\TI\DLL430\EM\EmulationManager\EmulationManager432Create.cpp">
+      <Filter>EM\EmulationManager</Filter>
+    </ClCompile>
+    <ClCompile Include="src\TI\DLL430\EM\EmulationManager\EmulationManager432.cpp">
+      <Filter>EM\EmulationManager</Filter>
+    </ClCompile>
+    <ClCompile Include="src\TI\DLL430\EM\TriggerManager\TriggerManager432.cpp">
+      <Filter>EM\Trigger</Filter>
+    </ClCompile>
+    <ClCompile Include="src\TI\DLL430\EM\Trigger\Trigger432.cpp">
+      <Filter>EM\Trigger</Filter>
+    </ClCompile>
+    <ClCompile Include="src\TI\DLL430\EM\TriggerCondition\AddressCondition432.cpp">
+      <Filter>EM\TriggerCondition</Filter>
+    </ClCompile>
+    <ClCompile Include="src\TI\DLL430\EM\TriggerCondition\TriggerConditionManager432.cpp">
+      <Filter>EM\TriggerCondition</Filter>
+    </ClCompile>
+    <ClCompile Include="src\TI\DLL430\EM\BreakpointManager\BreakpointManager432.cpp">
+      <Filter>EM\BreakpointManager</Filter>
+    </ClCompile>
+    <ClCompile Include="src\TI\DLL430\EM\BreakpointManager\Breakpoint432.cpp">
+      <Filter>EM\BreakpointManager</Filter>
+    </ClCompile>
+    <ClCompile Include="src\TI\DLL430\EM\EemRegisters\EemRegisterAccess432.cpp">
+      <Filter>EM\EemRegisters</Filter>
+    </ClCompile>
+    <ClCompile Include="src\TI\DLL430\MSP432\DeviceHandleMSP432.cpp">
+      <Filter>MSP432</Filter>
+    </ClCompile>
+    <ClCompile Include="src\TI\DLL430\EemMemoryAccess.cpp">
+      <Filter>Memory</Filter>
+    </ClCompile>
+    <ClCompile Include="src\TI\DLL430\FileReader.cpp">
+      <Filter>FileRW</Filter>
+    </ClCompile>
+    <ClCompile Include="src\TI\DLL430\FileReaderIntel.cpp">
+      <Filter>FileRW</Filter>
+    </ClCompile>
+    <ClCompile Include="src\TI\DLL430\FileReaderTI.cpp">
+      <Filter>FileRW</Filter>
+    </ClCompile>
+    <ClCompile Include="src\TI\DLL430\FileWriter.cpp">
+      <Filter>FileRW</Filter>
+    </ClCompile>
+    <ClCompile Include="src\TI\DLL430\FileWriterIntel.cpp">
+      <Filter>FileRW</Filter>
+    </ClCompile>
+    <ClCompile Include="src\TI\DLL430\FileWriterTI.cpp">
+      <Filter>FileRW</Filter>
+    </ClCompile>
+    <ClCompile Include="src\TI\DLL430\MemoryContent.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\TI\DLL430\Record.h" />
     <ClInclude Include="src\TI\DLL430\ConfigManager.h" />
     <ClInclude Include="src\TI\DLL430\DebugManager.h" />
-    <ClInclude Include="src\TI\DLL430\DeviceChainInfo.h" />
     <ClInclude Include="src\TI\DLL430\DeviceDbManager.h" />
     <ClInclude Include="src\TI\DLL430\DeviceDbManagerExt.h" />
     <ClInclude Include="src\TI\DLL430\DeviceHandle.h" />
     <ClInclude Include="src\TI\DLL430\DeviceHandleManager.h" />
     <ClInclude Include="src\TI\DLL430\DeviceInfo.h" />
-    <ClInclude Include="src\TI\DLL430\FileFunc.h" />
-    <ClInclude Include="src\TI\DLL430\FileFuncImpl.h" />
     <ClInclude Include="src\TI\DLL430\Log.h" />
     <ClInclude Include="version.h" />
     <ClInclude Include="src\TI\DLL430\VersionInfo.h" />
@@ -452,9 +519,6 @@
     <ClInclude Include="src\Ti\Dll430\TemplateDeviceDb\MSP430F5xxx.h">
       <Filter>TemplateDB</Filter>
     </ClInclude>
-    <ClInclude Include="src\TI\DLL430\MpuFr5739.h">
-      <Filter>TemplateDB</Filter>
-    </ClInclude>
     <ClInclude Include="src\TI\DLL430\FetHandleV3.h">
       <Filter>v3</Filter>
     </ClInclude>
@@ -465,12 +529,6 @@
       <Filter>Memory</Filter>
     </ClInclude>
     <ClInclude Include="src\TI\DLL430\MemoryAreaFactory.h">
-      <Filter>Memory</Filter>
-    </ClInclude>
-    <ClInclude Include="src\TI\DLL430\MemoryCache.h">
-      <Filter>Memory</Filter>
-    </ClInclude>
-    <ClInclude Include="src\TI\DLL430\MemoryCacheGeneric.h">
       <Filter>Memory</Filter>
     </ClInclude>
     <ClInclude Include="src\TI\DLL430\FlashMemoryAccessBase.h">
@@ -487,9 +545,6 @@
     </ClInclude>
     <ClInclude Include="src\TI\DLL430\CpuMemoryAccess.h">
       <Filter>Memory</Filter>
-    </ClInclude>
-    <ClInclude Include="src\TI\DLL430\EemMemoryAccess.h">
-      <Filter>EEM</Filter>
     </ClInclude>
     <ClInclude Include="src\TI\DLL430\FetHandle.h">
       <Filter>FET</Filter>
@@ -536,17 +591,11 @@
     <ClInclude Include="include\MSP430_EnergyTrace.h">
       <Filter>OldAPI</Filter>
     </ClInclude>
-    <ClInclude Include="src\TI\DLL430\UpdateManagerEzFet.h">
-      <Filter>v3</Filter>
-    </ClInclude>
     <ClInclude Include="src\TI\DLL430\HidUpdateManager.h">
       <Filter>v3</Filter>
     </ClInclude>
     <ClInclude Include="src\TI\DLL430\ClockCalibration.h" />
     <ClInclude Include="src\Ti\Dll430\TemplateDeviceDb\MSP430Defaults.h">
-      <Filter>TemplateDB</Filter>
-    </ClInclude>
-    <ClInclude Include="src\TI\DLL430\MpuFr5969.h">
       <Filter>TemplateDB</Filter>
     </ClInclude>
     <ClInclude Include="src\TI\DLL430\UpdateManagerMSP_FET430.h">
@@ -621,7 +670,7 @@
     <ClInclude Include="src\TI\DLL430\EM\CycleCounter\CycleCounter430.h">
       <Filter>EM\CycleCounter</Filter>
     </ClInclude>
-    <ClInclude Include="src\TI\DLL430\EM\EemRegisters\EemRegisterAccess.h">
+    <ClInclude Include="src\TI\DLL430\EM\EemRegisters\EemRegisterAccess430.h">
       <Filter>EM\EemRegisters</Filter>
     </ClInclude>
     <ClInclude Include="src\TI\DLL430\EM\EmulationManager\EmulationManager430.h">
@@ -702,11 +751,11 @@
     <ClInclude Include="src\TI\DLL430\FramMemoryAccessBase.h">
       <Filter>Memory</Filter>
     </ClInclude>
+    <ClInclude Include="include\MSP430_HIL.h">
+      <Filter>OldAPI</Filter>
+    </ClInclude>
     <ClInclude Include="src\TI\DLL430\MainMemoryAccessBase.h">
       <Filter>Memory</Filter>
-    </ClInclude>
-    <ClInclude Include="src\TI\DLL430\EnergyTrace_TSPA\EnergyTraceLowPassFilter.h">
-      <Filter>EnergyTrace_TSPA</Filter>
     </ClInclude>
     <ClInclude Include="src\TI\DLL430\EnergyTrace_TSPA\EnergyTraceProcessor.h">
       <Filter>EnergyTrace_TSPA</Filter>
@@ -715,9 +764,6 @@
       <Filter>EnergyTrace_TSPA</Filter>
     </ClInclude>
     <ClInclude Include="src\TI\DLL430\EnergyTrace_TSPA\EnergyTraceProcessorId8.h">
-      <Filter>EnergyTrace_TSPA</Filter>
-    </ClInclude>
-    <ClInclude Include="src\TI\DLL430\EnergyTrace_TSPA\EnergyTraceProcessorJState.h">
       <Filter>EnergyTrace_TSPA</Filter>
     </ClInclude>
     <ClInclude Include="src\TI\DLL430\EnergyTrace_TSPA\EnergyTraceRunningAverageFilter.h">
@@ -738,6 +784,94 @@
     <ClInclude Include="src\TI\DLL430\EnergyTrace_TSPA\EnergyTraceManager.h">
       <Filter>EnergyTrace_TSPA</Filter>
     </ClInclude>
+    <ClInclude Include="src\TI\DLL430\UpdateManagerFet.h">
+      <Filter>v3</Filter>
+    </ClInclude>
+    <ClInclude Include="src\TI\DLL430\pch.h" />
+    <ClInclude Include="..\Bios\include\JtagId.h" />
+    <ClInclude Include="src\TI\DLL430\MpuFRx.h">
+      <Filter>Memory</Filter>
+    </ClInclude>
+    <ClInclude Include="src\TI\DLL430\MpuWriteProtection.h">
+      <Filter>Memory</Filter>
+    </ClInclude>
+    <ClInclude Include="src\TI\DLL430\SyncedCallWrapper.h">
+      <Filter>Util</Filter>
+    </ClInclude>
+    <ClInclude Include="src\TI\DLL430\EnergyTrace_TSPA\EnergyTraceJstateParser.h">
+      <Filter>EnergyTrace_TSPA</Filter>
+    </ClInclude>
+    <ClInclude Include="src\TI\DLL430\MSP432\DeviceHandleMSP432.h">
+      <Filter>MSP432</Filter>
+    </ClInclude>
+    <ClInclude Include="src\TI\DLL430\ArmCpuMemoryAccess.h">
+      <Filter>Memory</Filter>
+    </ClInclude>
+    <ClInclude Include="src\TI\DLL430\ArmRandomMemoryAccess.h">
+      <Filter>Memory</Filter>
+    </ClInclude>
+    <ClInclude Include="src\TI\DLL430\MSP432\DebugManagerMSP432.h">
+      <Filter>MSP432</Filter>
+    </ClInclude>
+    <ClInclude Include="src\TI\DLL430\ArmFlashMemoryAccess.h">
+      <Filter>Memory</Filter>
+    </ClInclude>
+    <ClInclude Include="src\TI\DLL430\EM\EmulationManager\EmulationManager432.h">
+      <Filter>EM\EmulationManager</Filter>
+    </ClInclude>
+    <ClInclude Include="src\TI\DLL430\EM\TriggerManager\TriggerManager432.h">
+      <Filter>EM\Trigger</Filter>
+    </ClInclude>
+    <ClInclude Include="src\TI\DLL430\EM\Trigger\Trigger432.h">
+      <Filter>EM\Trigger</Filter>
+    </ClInclude>
+    <ClInclude Include="src\TI\DLL430\EM\TriggerCondition\AddressCondition432.h">
+      <Filter>EM\TriggerCondition</Filter>
+    </ClInclude>
+    <ClInclude Include="src\TI\DLL430\EM\TriggerCondition\TriggerConditionManager432.h">
+      <Filter>EM\TriggerCondition</Filter>
+    </ClInclude>
+    <ClInclude Include="src\TI\DLL430\EM\BreakpointManager\BreakpointManager432.h">
+      <Filter>EM\BreakpointManager</Filter>
+    </ClInclude>
+    <ClInclude Include="src\TI\DLL430\EM\BreakpointManager\Breakpoint432.h">
+      <Filter>EM\BreakpointManager</Filter>
+    </ClInclude>
+    <ClInclude Include="src\TI\DLL430\EM\EemRegisters\EemRegisterAccess432.h">
+      <Filter>EM\EemRegisters</Filter>
+    </ClInclude>
+    <ClInclude Include="src\TI\DLL430\JtagShifts.h" />
+    <ClInclude Include="src\TI\DLL430\MSP432_FlashLib.h">
+      <Filter>Memory</Filter>
+    </ClInclude>
+    <ClInclude Include="src\TI\DLL430\EemMemoryAccess.h">
+      <Filter>Memory</Filter>
+    </ClInclude>
+    <ClInclude Include="src\TI\DLL430\CpuRegisters.h">
+      <Filter>Memory</Filter>
+    </ClInclude>
+    <ClInclude Include="src\TI\DLL430\MemoryArea.h">
+      <Filter>Memory</Filter>
+    </ClInclude>
+    <ClInclude Include="src\TI\DLL430\FileWriterTI.h">
+      <Filter>FileRW</Filter>
+    </ClInclude>
+    <ClInclude Include="src\TI\DLL430\FileReader.h">
+      <Filter>FileRW</Filter>
+    </ClInclude>
+    <ClInclude Include="src\TI\DLL430\FileReaderIntel.h">
+      <Filter>FileRW</Filter>
+    </ClInclude>
+    <ClInclude Include="src\TI\DLL430\FileReaderTI.h">
+      <Filter>FileRW</Filter>
+    </ClInclude>
+    <ClInclude Include="src\TI\DLL430\FileWriter.h">
+      <Filter>FileRW</Filter>
+    </ClInclude>
+    <ClInclude Include="src\TI\DLL430\FileWriterIntel.h">
+      <Filter>FileRW</Filter>
+    </ClInclude>
+    <ClInclude Include="src\TI\DLL430\MemoryContent.h" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="DLL430.rc" />
@@ -820,6 +954,12 @@
     </Filter>
     <Filter Include="EM\SoftwareBreakpoints">
       <UniqueIdentifier>{4c1bb0ba-e054-4104-a0ba-e94ec4648ea9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="MSP432">
+      <UniqueIdentifier>{ac3cd60a-8b22-42ff-b068-b308909d7d67}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="FileRW">
+      <UniqueIdentifier>{4c6c0a64-22fd-4f35-8549-5ab01e1e78ac}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
 </Project>

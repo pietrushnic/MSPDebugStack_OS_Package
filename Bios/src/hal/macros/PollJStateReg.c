@@ -51,8 +51,12 @@
 #include "JTAG_defs.h"
 #include "global_variables.h"
 
+
+#define JSTATE20 0x20
+#define JSTATE21 0x21
+
 //-----------------------------------------------------------------------------
-#ifdef EZ_FET
+#if defined(eZ_FET) || defined(MSP_FET)
 //-----------------------------------------------------------------------------
 #pragma pack(1)
 typedef struct EnergyTraceRecordEt7
@@ -82,11 +86,6 @@ typedef enum ETMode
     ET_OFF_MODE = 0,
 } ETMode_t;
 
-unsigned short TimerA0Overflow = 0;
-unsigned short TimerA2Overflow = 0;
-
-unsigned short prevTA2R = 0;
-unsigned short prevTA0R = 0;
 
 unsigned long getTimeStamp();
 unsigned long getIMeasure();
@@ -96,8 +95,14 @@ unsigned long getTimeStamp()
 {
     unsigned long TimeStamp = 0;
     unsigned short currentTA0R = TA0R;
+    unsigned short currentTA0R2 = TA0R;
     unsigned short * TimeTick = 0;
     unsigned short testa = 0;
+
+    if (currentTA0R2 < currentTA0R)
+    {
+        currentTA0R = currentTA0R2;
+    }
 
     STREAM_getSharedVariable(ID_SHARED_MEMORY_TYPE_TIME_TICK, &TimeTick);
     testa = *(unsigned short*)TimeTick;
@@ -110,14 +115,25 @@ unsigned long getTimeStamp()
 unsigned long getIMeasure()
 {
     unsigned long IMeasure = 0;
-    unsigned short currentTA2R  = TA2R;
+#ifdef MSP_FET
+    unsigned short currentIClocks = TB0R;
+    unsigned short currentIClocks2 = TB0R;
+#else
+    unsigned short currentIClocks = TA2R;
+    unsigned short currentIClocks2 = TA2R;
+#endif
     unsigned short* ITick = 0;
     unsigned short testt = 0;
+
+    if (currentIClocks2 < currentIClocks)
+    {
+        currentIClocks = currentIClocks2;
+    }
 
     STREAM_getSharedVariable(ID_SHARED_MEMORY_TYPE_I_TICK, &ITick);
     testt = *(unsigned short*)ITick;
 
-    IMeasure =  (((unsigned long)testt) << 16) + (unsigned long)(currentTA2R & 0xFFFF);
+    IMeasure = (((unsigned long)testt) << 16) + (unsigned long)(currentIClocks & 0xFFFF);
     return IMeasure;
 }
 //-----------------------------------------------------------------Event type 8 only analog ------------------------------------------------------------------
@@ -158,20 +174,20 @@ HAL_FUNCTION(_hal_PollJStateRegEt8)
 
     buffer[currentIndex].eventID = 8;
 
-    EDT_GetVcc(&vcc, &extVcc);
-    vcc = (vcc ? vcc : extVcc);
-
-
-    while(TA0R > 0xFFC0 || TA0R  == 0)
+    while(TA0R > 0xFFA0 || TA0R  < 2)
     {
-        EDT_Delay_1us(3);
+        IHIL_Delay_1us(3);
     }
 
     _DINT_FET();
+
     buffer[currentIndex].TimeStamp = getTimeStamp();
     buffer[currentIndex].currentTicks = getIMeasure();
+
+    IHIL_GetVcc(&vcc, &extVcc);
+
     _EINT_FET();
-    buffer[currentIndex].voltage = (unsigned int)vcc;
+    buffer[currentIndex].voltage = (unsigned int)(vcc ? vcc : extVcc);
 
     // Energy trace data is available send it first -> don't check LPMx.5 or Breakpoint hit
     if(++currentIndex == NUM_RECORDS_TO_CAPTURE)
@@ -230,9 +246,7 @@ unsigned long long prevJState = 0x0000000000000000;
 short PollforLPMx5(unsigned long long JStateValue, unsigned short forceSendState)
 {
     StreamSafe stream_tmp;
-    decl_out
-    short RetState = -1;
-    short LPMx5Wakeup = 0;
+    short RetState = -1, LPMx5Wakeup = 0;
 
     unsigned short* syncWithRunVarAddress = 0;
 
@@ -241,14 +255,12 @@ short PollforLPMx5(unsigned long long JStateValue, unsigned short forceSendState
     if (!(JStateValue & LPMX5_MASK_J) &&
       (((JStateValue & LPM4_1MASK_J) == LPM4_1MASK_J) || ((JStateValue & LPM4_2MASK_J) == LPM4_2MASK_J)))
     {
-        if (EDT_Instr(IR_JMB_EXCHANGE) == JTAGVERSION99)
-        {	
+        if (jmb_exchange() == JTAGVERSION99)
+        {
             // check if JTAG mailbox is ready & perform input request
-            SetReg_16Bits(0x0004)
-            if (lOut == 0x1207)
+            if (SetReg_16Bits(0x0004) == 0x1207)
             {
-                SetReg_16Bits(0x0000)
-                if (lOut == 0xA55A)
+                if (SetReg_16Bits(0x0000) == 0xA55A)
                 {
                     LPMx5Wakeup = 1;
                 }
@@ -265,7 +277,7 @@ short PollforLPMx5(unsigned long long JStateValue, unsigned short forceSendState
         if(((!(JStateValue & LPMX5_MASK_J)) && !forceSendState) || (LPMx5Wakeup && !forceSendState))
         {   //Device woke up on its own, so sync again
             //Setup values for watchdog control regsiters
-            unsigned char DummyIn[8] = {WDTCTL_ADDRESS_5XX & 0xFF,(WDTCTL_ADDRESS_5XX >> 8) & 0xFF,
+            unsigned char DummyIn[8] = {wdtctlAddress5xx & 0xFF,(wdtctlAddress5xx >> 8) & 0xFF,
                                      WDTHOLD_DEF,WDTPW_DEF,0,0,0,0};
             STREAM_internal_stream(DummyIn, sizeof(DummyIn), NULL, 0, &stream_tmp);
             HAL_SyncJtag_Conditional_SaveContextXv2(MESSAGE_NEW_MSG | MESSAGE_LAST_MSG);
@@ -296,15 +308,27 @@ short PollforLPMx5(unsigned long long JStateValue, unsigned short forceSendState
 }
 
 //-----------------------------------------------------------------Event type 7----------------------------------------------------------------------
+
 /**
   PollJStateReg
   Queries the JSTATE register and reports any changes in the relevant bits
   inData:  <forceSendState(16)> <pollBreakpoints(16)> <pollLPM(16)> <doEnergyTrace(16)> <gateMode(16)>
   outData: <eventFlag(16)> [<JStateLow(32)> <JStateHigh(32)> / <numEnergyTraceRecords> <energyTrace records>]
 */
+short PollJStateReg(unsigned short JStateVersion);
+
+HAL_FUNCTION(_hal_PollJStateReg20)
+{
+    return PollJStateReg(JSTATE20);
+}
+
 HAL_FUNCTION(_hal_PollJStateReg)
 {
-    decl_out_long_long
+    return PollJStateReg(JSTATE21);
+}
+
+short PollJStateReg(unsigned short JStateVersion)
+{
     short RetState = -1;
     unsigned short forceSendState = 0;
 
@@ -312,6 +336,7 @@ HAL_FUNCTION(_hal_PollJStateReg)
     unsigned short mLpmPollingActive = 0;
     unsigned short mEtActive = 0;
     unsigned short* syncWithRunVarAddress = 0;
+    unsigned long long lOut_long_long = 0;
 
     STREAM_get_word(&forceSendState);
     STREAM_get_word(&mBreakpointPollingActive);
@@ -329,13 +354,13 @@ HAL_FUNCTION(_hal_PollJStateReg)
         return -1;
     }
 
-    if(EDT_GetPrevInstruction() != IR_JSTATE_ID)
+    if(IHIL_GetPrevInstruction() != IR_JSTATE_ID)
     {
         // Query new JSTATE
-        jstate_read
+        jstate_read();
     }
 
-#ifdef EZ_FET
+#if defined(eZ_FET) || defined(MSP_FET)
     // check if Energy Trace should be enabled
     if(*syncWithRunVarAddress && mEtActive)
     {
@@ -346,24 +371,23 @@ HAL_FUNCTION(_hal_PollJStateReg)
 
         buffer[currentIndex].eventID = 7;
 
-        EDT_GetVcc(&vcc, &extVcc);
-        vcc = (vcc ? vcc : extVcc);
-
-        while(TA0R > 0xFFC0 || TA0R  == 0)
+        while(TA0R > 0xFFA0 || TA0R  < 2)
         {
-            EDT_Delay_1us(3);
+            IHIL_Delay_1us(3);
         }
 
         _DINT_FET();
-        {   // Critical Section - GIE disabled
-            buffer[currentIndex].TimeStamp = getTimeStamp();
-            buffer[currentIndex].currentTicks = getIMeasure();
-            _EINT_FET();
 
-            SetReg8_64Bits(0x00000000000000000,10);
-        }
+        buffer[currentIndex].TimeStamp = getTimeStamp();
+        buffer[currentIndex].currentTicks = getIMeasure();
+
+        IHIL_GetVcc(&vcc, &extVcc);
+
+        _EINT_FET();
+
+        lOut_long_long = SetReg8_64Bits(0xFFFFFFFFFFFFFFFF,30,JStateVersion);
         buffer[currentIndex].JState = lOut_long_long;
-        buffer[currentIndex].voltage = (unsigned short)vcc;
+        buffer[currentIndex].voltage = (unsigned short)(vcc ? vcc : extVcc);
 
         // Energy trace data is available send it first -> don't check LPMx.5 or Breakpoint hit
         if(++currentIndex == NUM_RECORDS_TO_CAPTURE)
@@ -393,8 +417,7 @@ HAL_FUNCTION(_hal_PollJStateReg)
                 return 2;
             }
         }
-
-        SetReg8_64Bits(0x0000000000000000,10);
+        lOut_long_long = SetReg_64Bits(0xFFFFFFFFFFFFFFFF);
     }
 
     if(*syncWithRunVarAddress && mBreakpointPollingActive)

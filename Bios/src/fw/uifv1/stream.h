@@ -206,4 +206,3 @@ extern short _stream_out_init(unsigned char msg_id, unsigned char res_type);
 extern unsigned char rx_queu_counter_public_;
 
 #endif
-

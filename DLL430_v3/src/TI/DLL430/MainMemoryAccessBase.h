@@ -35,27 +35,23 @@
  *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#if _MSC_VER > 1000
 #pragma once
-#endif
-#ifndef DLL430_MAINMEMORYACCESSBASE_H
-#define DLL430_MAINMEMORYACCESSBASE_H
 
 #include "MemoryAreaBase.h"
 #include "FuncletCode.h"
-
 
 namespace TI
 {
 	namespace DLL430
 	{
+		class MemoryManager;
 
 		class MainMemoryAccessBase : public MemoryAreaBase
 		{
 		public:
 			MainMemoryAccessBase(
-				const std::string& name,
-				DeviceHandleV3* devHandle,
+				MemoryArea::Name name,
+				DeviceHandle* devHandle,
 				uint32_t start,
 				uint32_t end,
 				uint32_t seg,
@@ -65,27 +61,24 @@ namespace TI
 				MemoryManager* mm,
 				uint8_t psa
 			);
-			virtual ~MainMemoryAccessBase();
 
-			virtual bool doRead(uint32_t address, uint32_t* buffer , size_t count);
-			virtual bool doWrite(uint32_t address, uint32_t* buffer, size_t count) = 0;
-			virtual bool doWrite(uint32_t address, uint32_t value);
+			virtual bool doRead(uint32_t address, uint8_t* buffer, size_t count) OVERRIDE;
+			virtual bool doWrite(uint32_t address, const uint8_t* buffer, size_t count) OVERRIDE = 0;
+			virtual bool doWrite(uint32_t address, uint32_t value) OVERRIDE;
 
-			virtual bool erase();
-			virtual bool erase(uint32_t start, uint32_t end);
+			virtual bool erase() OVERRIDE;
+			virtual bool erase(uint32_t start, uint32_t end) OVERRIDE;
 
 		protected:
 			bool uploadFunclet(FuncletCode::Type type);
 			void restoreRam();
-			virtual bool postSync(const HalExecCommand&);
+			virtual bool postSync(const HalExecCommand&) OVERRIDE;
 
 			MemoryManager* mm;
 			virtual bool erase(uint32_t start, uint32_t end, uint32_t block_size, int type) = 0;
 
 		private:
-			std::vector<uint32_t> ramBackup;
+			std::vector<uint8_t> ramBackup;
 		};
 	}
 }
-
-#endif

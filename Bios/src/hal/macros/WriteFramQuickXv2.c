@@ -7,35 +7,35 @@
 *
 */
 /*
- * Copyright (C) 2012 Texas Instruments Incorporated - http://www.ti.com/ 
- * 
- * 
- *  Redistribution and use in source and binary forms, with or without 
- *  modification, are permitted provided that the following conditions 
+ * Copyright (C) 2012 Texas Instruments Incorporated - http://www.ti.com/
+ *
+ *
+ *  Redistribution and use in source and binary forms, with or without
+ *  modification, are permitted provided that the following conditions
  *  are met:
  *
- *    Redistributions of source code must retain the above copyright 
+ *    Redistributions of source code must retain the above copyright
  *    notice, this list of conditions and the following disclaimer.
  *
  *    Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the 
- *    documentation and/or other materials provided with the   
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the
  *    distribution.
  *
  *    Neither the name of Texas Instruments Incorporated nor the names of
  *    its contributors may be used to endorse or promote products derived
  *    from this software without specific prior written permission.
  *
- *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS 
- *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT 
+ *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
  *  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT 
- *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, 
- *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT 
+ *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
  *  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
  *  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
- *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
+ *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
@@ -60,14 +60,13 @@
 
 HAL_FUNCTION(_hal_WriteFramQuickXv2)
 {
-  
+
     static unsigned long  lLen;
     static unsigned long Addr = 0x0 ;
     static unsigned short data;
     static unsigned short Mova;
-    static unsigned short ret_len = 0;    
-    
-    decl_out
+    static unsigned short ret_len = 0;
+    static unsigned short id;
     short ret_value = 0;
     //unsigned short BackupData = 0x0;
 
@@ -81,38 +80,50 @@ HAL_FUNCTION(_hal_WriteFramQuickXv2)
         // get length ot be flashed
         if(STREAM_get_long(&lLen) != 0)
         {
-            return(HALERR_EXECUTE_FUNCLET_NO_LENGTH);    
-        }           
-        // i_SetPcRel 
+            return(HALERR_EXECUTE_FUNCLET_NO_LENGTH);
+        }
+
+        id = cntrl_sig_capture();
+
+        // i_SetPcRel
         Mova  = 0x0080;
         Mova += (unsigned short)((Addr>>8) & 0x00000F00);
         Addr  = (unsigned short)((Addr & 0xFFFF));
-        
+
         SetPcXv2(Mova, Addr);
-      
-        cntrl_sig_16bit
-        SetReg_16Bits_(0x0500)              
-        EDT_Tclk(1);    
-          
-        data_quick             
+
+        cntrl_sig_16bit();
+        SetReg_16Bits(0x0500);
+        IHIL_Tclk(1);
+
+        data_quick();
     }
     // not first and not last message
     for(; lLen && (ret_value == 0); lLen--)
     {
-         EDT_Tclk(1);
+         IHIL_Tclk(1);
          ret_value = STREAM_get_word(&data);
-         SetReg_16Bits_(data);
-         EDT_Tclk(0);
+         SetReg_16Bits(data);
+         IHIL_Tclk(0);
     }
 
     // last message
     if(flags & MESSAGE_LAST_MSG )
     {
-        cntrl_sig_16bit
-        SetReg_16Bits_(0x0501)          
+        cntrl_sig_16bit();
+        SetReg_16Bits(0x0501);
+        IHIL_Tclk(1);
+        if(id == JTAGVERSION91 || id == JTAGVERSION99)
+        {
+            SetPcXv2(0x80, SAFE_PC_ADDRESS); // Set PC to "safe" JMP $ address
+            cntrl_sig_16bit();
+            SetReg_16Bits(0x0501);
+            IHIL_Tclk(1);
+            addr_capture();
+        }
+
         STREAM_put_word(ret_len);
-        EDT_Tclk(1);
-    }  
+    }
     else if(ret_value == 1)
     {
         STREAM_out_change_type(RESPTYP_ACKNOWLEDGE);
@@ -120,10 +131,19 @@ HAL_FUNCTION(_hal_WriteFramQuickXv2)
     }
     else
     {
-        cntrl_sig_16bit
-        SetReg_16Bits_(0x0501)         
+        cntrl_sig_16bit();
+        SetReg_16Bits(0x0501);
+        IHIL_Tclk(1);
+        if(id == JTAGVERSION91 || id == JTAGVERSION99)
+        {
+            SetPcXv2(0x80, SAFE_PC_ADDRESS); // Set PC to "safe" JMP $ address
+            cntrl_sig_16bit();
+            SetReg_16Bits(0x0501);
+            IHIL_Tclk(1);
+            addr_capture();
+        }
+
         ret_value = HALERR_EXECUTE_FUNCLET_EXECUTION_ERROR;
-        EDT_Tclk(1);
-    }  
+    }
     return(ret_value);
 }

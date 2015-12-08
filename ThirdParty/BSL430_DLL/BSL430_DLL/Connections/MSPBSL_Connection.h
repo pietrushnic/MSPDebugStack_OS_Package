@@ -38,9 +38,6 @@
 
 #pragma once
 
-#include <string>
-#include <boost/cstdint.hpp>
-
 //Error header (top 8 bits) definitions
 #define MSLBSL_CONNECTION_HEADER     0x0100
 #define getHeader(X)                 (X&0xFF00)
@@ -63,7 +60,9 @@ protected:
 	MSPBSL_PacketHandler* thePacketHandler;
 
 public:
-	MSPBSL_Connection() : thePacketHandler(NULL) {}
+	MSPBSL_Connection() : thePacketHandler(nullptr) {}
+	MSPBSL_Connection(const MSPBSL_Connection&) = delete;
+	MSPBSL_Connection& operator=(const MSPBSL_Connection&) = delete;
 	virtual ~MSPBSL_Connection();
 
 	virtual uint16_t massErase() = 0;

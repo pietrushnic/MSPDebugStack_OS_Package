@@ -51,9 +51,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <EnergyTraceRunningAverageFilter.h>
-#include <math.h>
-#include <deque>
+#include <pch.h>
+#include "EnergyTraceRunningAverageFilter.h"
 
 using namespace TI::DLL430;
 
@@ -70,45 +69,45 @@ EnergyTraceRunningAverageFilter::~EnergyTraceRunningAverageFilter()
 }
 
 //---------------------------------
-void EnergyTraceRunningAverageFilter::setCalibrationValues(double *calibrationValues, uint16_t vcc)
+void EnergyTraceRunningAverageFilter::setCalibrationValues(double*, uint16_t)
 {
 }
 
 //---------------------------------
-void EnergyTraceRunningAverageFilter::Reset(void)
+void EnergyTraceRunningAverageFilter::Reset()
 {
 	mBuffer.clear();
 }
 
 //---------------------------------
-bool EnergyTraceRunningAverageFilter::AddData(void *data, size_t size)
+bool EnergyTraceRunningAverageFilter::AddData(void *data, size_t)
 {
-    double avg = 0;
+	double avg = 0;
 
-    mBuffer.push_back(*((uint32_t *)data));
-    if(mBuffer.size() > mBufferSize)
-    {
-        mBuffer.pop_front();
-    }
+	mBuffer.push_back(*((uint32_t *)data));
+	if (mBuffer.size() > mBufferSize)
+	{
+		mBuffer.pop_front();
+	}
 
-    for (size_t i = 0; i < mBuffer.size(); ++i)
-    {
-        avg += mBuffer[i];
-    }
+	for (size_t i = 0; i < mBuffer.size(); ++i)
+	{
+		avg += mBuffer[i];
+	}
 
-    mOutput = (uint32_t)(avg / (double)mBuffer.size());
+	mOutput = (uint32_t)(avg / (double)mBuffer.size());
 
-    return true;
+	return true;
 }
 
 //---------------------------------
-void* EnergyTraceRunningAverageFilter::GetReadBufferPtr(void)
+void* EnergyTraceRunningAverageFilter::GetReadBufferPtr()
 {
-    return (void *)(&mOutput);
+	return (void *)(&mOutput);
 }
 
 //---------------------------------
-size_t EnergyTraceRunningAverageFilter::GetReadBufferSize(void)
+size_t EnergyTraceRunningAverageFilter::GetReadBufferSize()
 {
-    return sizeof(mOutput);
+	return sizeof(mOutput);
 }

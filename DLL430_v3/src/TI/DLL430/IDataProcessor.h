@@ -34,15 +34,9 @@
  *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-#if _MSC_VER > 1000
+
 #pragma once
-#endif
 
-#ifndef IDATA_PROCESSOR_H
-#define IDATA_PROCESSOR_H
-
-#include <stddef.h>
-#include <stdint.h>
 namespace TI
 {
 	namespace DLL430
@@ -55,17 +49,17 @@ namespace TI
 			 * \param size The desired size of the buffers
 			 */
 			IDataProcessor()
-            {
+			{
 			}
 
-			~IDataProcessor()
+			virtual ~IDataProcessor()
 			{
 			}
 
 			/**
 			 * \brief Resets the internal state of the processor
 			 */
-            virtual void Reset(void) = 0;
+			virtual void Reset() = 0;
 
 			/**
 			 * \brief Add data to be processed
@@ -78,19 +72,21 @@ namespace TI
 			 * \brief Get the pointer for reading data from the buffer
 			 * \return A pointer to the current read buffer
 			 */
-			virtual void* GetReadBufferPtr(void) = 0;
+			virtual void* GetReadBufferPtr() = 0;
 
-            /**
-             * \brief Get the buffer size
-             * \return the size
-             */
-            virtual size_t GetReadBufferSize(void) = 0;
+			/**
+			 * \brief Get the buffer size
+			 * \return the size
+			 */
+			virtual size_t GetReadBufferSize() = 0;
 
-            virtual void setCalibrationValues(double *calibrationValues, uint16_t vcc) = 0;
+			virtual void setTimerStep(uint32_t step) {}
+
+			virtual void setResistorValues(double *resistorValues) {}
+
+			virtual void setCalibrationValues(double *calibrationValues, uint16_t vcc) = 0;
 
 			virtual void setPrevSample(double){};
-        };
-    }
+		};
+	}
 }
-
-#endif // IDATA_PROCESSOR_H

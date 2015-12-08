@@ -38,8 +38,6 @@
 
 
 #pragma once
-#include <boost/asio.hpp> // include boost
-
 
 #if defined(BOOST_WINDOWS) || defined(__CYGWIN__)
 # define MSPBSL_ON_WIN

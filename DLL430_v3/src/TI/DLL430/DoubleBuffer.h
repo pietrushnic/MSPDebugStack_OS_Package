@@ -1,45 +1,41 @@
 /*
- * DoubleBuffer.h 
+ * DoubleBuffer.h
  *
  * Template class for doing double-buffering
  *
- * Copyright (C) 2007 - 2012 Texas Instruments Incorporated - http://www.ti.com/ 
- * 
- * 
- *  Redistribution and use in source and binary forms, with or without 
- *  modification, are permitted provided that the following conditions 
+ * Copyright (C) 2007 - 2012 Texas Instruments Incorporated - http://www.ti.com/
+ *
+ *
+ *  Redistribution and use in source and binary forms, with or without
+ *  modification, are permitted provided that the following conditions
  *  are met:
  *
- *    Redistributions of source code must retain the above copyright 
+ *    Redistributions of source code must retain the above copyright
  *    notice, this list of conditions and the following disclaimer.
  *
  *    Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the 
- *    documentation and/or other materials provided with the   
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the
  *    distribution.
  *
  *    Neither the name of Texas Instruments Incorporated nor the names of
  *    its contributors may be used to endorse or promote products derived
  *    from this software without specific prior written permission.
  *
- *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS 
- *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT 
+ *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
  *  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT 
- *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, 
- *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT 
+ *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
  *  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
  *  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
- *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
- *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.                                                                                                                                                                                                                                                                                                         
+ *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-#if _MSC_VER > 1000
-#pragma once
-#endif
 
-#ifndef DLL430_DOUBLEBUFFER_H
-#define DLL430_DOUBLEBUFFER_H
+#pragma once
 
 namespace TI
 {
@@ -63,8 +59,8 @@ namespace TI
 
 			~DoubleBuffer()
 			{
-				delete mBuffers[0];
-				delete mBuffers[1];
+				delete[] mBuffers[0];
+				delete[] mBuffers[1];
 			}
 
 			/**
@@ -76,7 +72,7 @@ namespace TI
 				mCurrentBufferLevel = 0;
 				mDataAvailable = false;
 			}
-			
+
 			/**
 			 * \brief Add data to the buffer and indicate that a swap has happened
 			 * \param data The data element to be written
@@ -89,7 +85,7 @@ namespace TI
 
 				return doSwap();
 			}
-			
+
 			/**
 			 * \brief Add an array of data to the buffer and indicate that a swap has happened
 			 * \param data The data element to be written
@@ -103,9 +99,9 @@ namespace TI
 				size_t copySize;
 				size_t sizeInBytes = size * sizeof(T);
 
-				while(sizeInBytes)
+				while (sizeInBytes)
 				{
-					if((mCurrentBufferLevel + sizeInBytes) > mSize)
+					if ((mCurrentBufferLevel + sizeInBytes) > mSize)
 					{
 						copySize = mSize - mCurrentBufferLevel;
 					}
@@ -114,10 +110,10 @@ namespace TI
 						copySize = sizeInBytes;
 					}
 					memcpy(&mBuffers[mCurrentBufferIndex][mCurrentBufferLevel], data, copySize);
-					
+
 					mCurrentBufferLevel += copySize;
 					sizeInBytes -= copySize;
-                    
+
 					retVal = retVal || doSwap();
 				}
 
@@ -132,7 +128,7 @@ namespace TI
 			{
 				T* retVal = 0;
 
-				if(mDataAvailable)
+				if (mDataAvailable)
 				{
 					retVal = mBuffers[(mCurrentBufferIndex + 1) % 2];
 				}
@@ -140,14 +136,14 @@ namespace TI
 				return retVal;
 			}
 
-            /**
-             * \brief Get the buffer size
-             * \return the size
-             */
-            size_t GetBufferSize()
-            {
-                return mSize;
-            }
+			/**
+			 * \brief Get the buffer size
+			 * \return the size
+			 */
+			size_t GetBufferSize() const
+			{
+				return mSize;
+			}
 
 		private:
 			/**
@@ -156,7 +152,7 @@ namespace TI
 			bool doSwap()
 			{
 				bool retVal = false;
-				if(mCurrentBufferLevel >= mSize)
+				if (mCurrentBufferLevel >= mSize)
 				{
 					// swap buffers
 					mCurrentBufferIndex = (mCurrentBufferIndex + 1) % 2;
@@ -175,5 +171,3 @@ namespace TI
 		};
 	}
 }
-
-#endif

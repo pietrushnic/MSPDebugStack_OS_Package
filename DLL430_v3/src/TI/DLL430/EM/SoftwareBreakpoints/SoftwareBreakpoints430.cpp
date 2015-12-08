@@ -35,7 +35,7 @@
  *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <boost/make_shared.hpp>
+#include <pch.h>
 
 #include "SoftwareBreakpoints430.h"
 #include "../Exceptions/Exceptions.h"
@@ -47,7 +47,7 @@ static const uint16_t swbpInstruction = 0x4343;
 
 SoftwareBreakpoints430::SoftwareBreakpoints430(TriggerManager430Ptr triggerManager)
 	: mTriggerManager(triggerManager)
-	, mSwbpManager(boost::make_shared<SoftwareBreakpointManager>(swbpInstruction))
+	, mSwbpManager(std::make_shared<SoftwareBreakpointManager>(swbpInstruction))
 {
 }
 
@@ -59,7 +59,7 @@ void SoftwareBreakpoints430::enable()
 		if (mTriggerManager->numAvailableBusTriggers() < 1)
 			throw EM_TriggerResourceException();
 
-		mSwbpInstructionTrigger = boost::make_shared<DataValueCondition430>(mTriggerManager, swbpInstruction, 0xffff);
+		mSwbpInstructionTrigger = std::make_shared<DataValueCondition430>(mTriggerManager, swbpInstruction, 0xffff);
 		mSwbpInstructionTrigger->addReaction(TR_BREAK);
 	}
 }
@@ -73,7 +73,7 @@ void SoftwareBreakpoints430::disable()
 
 bool SoftwareBreakpoints430::isEnabled() const
 {
-	return mSwbpInstructionTrigger;
+	return static_cast<bool>(mSwbpInstructionTrigger);
 }
 
 SoftwareBreakpointManagerPtr SoftwareBreakpoints430::getSwbpManager() const

@@ -1,38 +1,38 @@
 /*
  * JTAG_defs.h
- * 
+ *
  * <FILEBRIEF>
  *
- * Copyright (C) 2012 Texas Instruments Incorporated - http://www.ti.com/ 
- * 
- * 
- *  Redistribution and use in source and binary forms, with or without 
- *  modification, are permitted provided that the following conditions 
+ * Copyright (C) 2012 Texas Instruments Incorporated - http://www.ti.com/
+ *
+ *
+ *  Redistribution and use in source and binary forms, with or without
+ *  modification, are permitted provided that the following conditions
  *  are met:
  *
- *    Redistributions of source code must retain the above copyright 
+ *    Redistributions of source code must retain the above copyright
  *    notice, this list of conditions and the following disclaimer.
  *
  *    Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the 
- *    documentation and/or other materials provided with the   
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the
  *    distribution.
  *
  *    Neither the name of Texas Instruments Incorporated nor the names of
  *    its contributors may be used to endorse or promote products derived
  *    from this software without specific prior written permission.
  *
- *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS 
- *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT 
+ *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
  *  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT 
- *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, 
- *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT 
+ *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
  *  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
  *  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
- *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
- *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.         
+ *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
 /*========================================================================*\
@@ -86,6 +86,7 @@
 #define JTAGVERSION8D           0x8D
 #define JTAGVERSION91           0x91
 #define JTAGVERSION95           0x95
+#define JTAGVERSION98           0x98
 #define JTAGVERSION99           0x99
 
 #define F_BYTE                     8
@@ -94,15 +95,27 @@
 #define F_LONG                     32
 #define F_LONG_LONG                64
 
+#define SBW1200KHz              0x800A
 #define SBW600KHz               0x600A
 #define SBW400KHz               0x400A
 #define SBW200KHz               0x200A
 #define SBW100KHz               0x100A
 
+#define JTAG10MHz               1
+#define JTAG8MHz                2
+#define JTAG4MHz                4
+#define JTAG2MHz                8
+#define JTAG1MHz                16
+#define JTAG500KHz              32
+#define JTAG250KHz              64
+#define JTAG750KHz              128
+
 #define RSTLOW_SBW   0
 #define RSTLOW_JTAG  1
 #define RSTHIGH_SBW  2
 #define RSTHIGH_JTAG 3
+
+#define SAFE_PC_ADDRESS (0x00000004ul)
 
 /*--------------------------start if  uController_uif--------------------------*/
 
@@ -286,7 +299,6 @@
 #define STATUS_REG_V            0x0100
 
 #define WDTCTL_ADDRESS          0x120  // Watchdog Timer control register address for 1xx/2xx/4xx family
-#define WDTCTL_ADDRESS_5XX      0x15C  // Watchdog Timer control register address for 5xx family
 #define WDTPW_DEF               0x5a   // Watchdog Timer password.
 #define WDTHOLD_DEF             0x80   // Watchdog Timer hold.
 #define WDTSSEL_ACLK            0x03   // Watchdog Timer Clock Source
@@ -342,7 +354,139 @@
 //#define INFO_SEGMENT_SIZE      128      // And Information segments are 128 bytes in size.
 
 //JMB DR Requests
-#define DR_JMB_PASSWORD_EXCHANGE_REQUEST     0x1E1E  
+#define DR_JMB_PASSWORD_EXCHANGE_REQUEST     0x1E1E
 #define MAGIC_PATTERN                        0xA55A
+
+
+//********************************************************************************************************
+// MSP432
+//********************************************************************************************************
+// General purpose definitions
+#define READ      0x1
+#define WRITE     0x0
+#define MAX_RETRY 10
+#define ACK       0x2
+
+// JTAG Instruction Register definitions
+#define IR4_ABORT  0x8 // Used to force an AP abort
+#define IR4_DPACC  0xA // DP IR dpacc
+#define IR4_APACC  0xB // AP IR apacc
+#define IR4_IDCODE 0xE // JTAG-DP TAP identification
+#define IR4_BYPASS 0xF // Bypasses the device, by providing a direct path between DBGTDI and DBGTDO.
+
+// Debug Port register addresses
+#define DP_CTRL_STAT 0x04 // Control & Status
+#define DP_SELECT    0x08 // Select Register (JTAG R/W & SW W)
+#define DP_RDBUFF    0x0C // Read Buffer (Read Only)
+
+// CTRL_STAT register bits
+#define DP_CTRL_STAT_CSYSPWRUPACK 0x80000000
+#define DP_CTRL_STAT_CSYSPWRUPREQ 0x40000000
+#define DP_CTRL_STAT_CDBGPWRUPACK 0x20000000
+#define DP_CTRL_STAT_CDBGPWRUPREQ 0x10000000
+#define DP_CTRL_STAT_CDBGRSTACK   0x08000000
+#define DP_CTRL_STAT_CDBGRSTREQ   0x04000000
+#define DP_CTRL_STAT_WDATAERR     0x00000080
+#define DP_CTRL_STAT_STICKYERR    0x00000020
+
+// Access Port register addresses
+#define AP_CSW     0x00 // Control/Status word
+#define AP_TAR     0x04 // Transfer Address Register
+#define AP_DRW     0x0C // Data Read/Write Register
+#define AP_BD0     0x10 // Banked data 0
+#define AP_BD1     0x14 // Banked data 1
+#define AP_BD2     0x18 // Banked data 2
+#define AP_BD3     0x1C // Banked data 3
+#define AP_CFG     0xF4 // Configuration register
+#define AP_BASE    0xF8 // Debug Base Address register
+#define AP_IDR     0xFC // Indentification register
+
+// CSW bits
+#define AP_CSW_SIZE_MASK   0x0000000F
+#define AP_CSW_SIZE_8BIT   0x00000000 // Byte 8-bit transfer mode
+#define AP_CSW_SIZE_16BIT  0x00000001 // Halfword 16-bit transfer mode
+#define AP_CSW_SIZE_32BIT  0x00000002 // Word 32-bit transfer mode
+
+#define AP_CSW_ADDRINC_MASK   0x00000030
+#define AP_CSW_ADDRINC_OFF    0x00000000 // Auto-increment off
+#define AP_CSW_ADDRINC_SINGLE 0x00000010 // Increment single
+#define AP_CSW_ADDRINC_PACKED 0x00000020 // Increment packed
+
+#define AP_CSW_MODE_MASK    0x00000F00
+#define AP_CSW_MODE_BASIC   0x00000000 // Basic mode
+#define AP_CSW_MODE_BARRIER 0x00000001 // Barrier mode
+
+// SCS Register offsets
+#define AIRCR (armConfigSettings.scsBase + 0x00000D0C) // Application Interrupt and Reset Control Register
+#define DFSR  (armConfigSettings.scsBase + 0x00000D30) // Debug Fault Status Register
+#define DHCSR (armConfigSettings.scsBase + 0x00000DF0) // Debug Halting Control and Status Register
+#define DCRSR (armConfigSettings.scsBase + 0x00000DF4) // Debug Core Register Selector Register
+#define DCRDR (armConfigSettings.scsBase + 0x00000DF8) // Debug Core Register Data Register
+#define DEMCR (armConfigSettings.scsBase + 0x00000DFC) // Debug Exception and Monitor Control Register
+
+// AIRCR bits
+#define VECTKEY         0x05FA0000 // Vector Key. 0x05FA must be written anytime this register
+                                   // is written, otherwise the write is ignored (no bits are
+                                   // changed in the register).
+#define VECTKEYSTAT     0xFFFF0000 // Reads as 0xFA05.
+#define SYSRESETREQ     0x00000004 // Writing this bit 1 will cause a signal to be asserted to the external system to indicate a reset is requested.
+#define VECTCLRACTIVE   0x00000002 // Clears all active state information for fixed and configurable exceptions. This bit self-clears.
+#define VECTRESET       0x00000001 // Local system reset
+
+// DFSR bits
+#define EXTERNAL 0x00000010 // An asynchronous exception generated due to the assertion of EDBGRQ.
+#define VCATCH   0x00000008 // Vector catch triggered. Corresponding FSR will contain the primary cause of the exception.
+#define DWTTRAP  0x00000004 // Data Watchpoint and Trace trap. Indicates that the core halted due to at least one DWT trap event.
+#define BKPT     0x00000002 // BKPT instruction executed or breakpoint match in FPB.
+#define HALTED   0x00000001 // Halt request, including step debug command. Stopped on next instruction.
+
+// DHCSR bits
+#define DBGKEY       0xA05F0000 // Debug Key. The value 0xA05F must be written to enable write
+                                // accesses to bits [15:0], otherwise the write access will be ignored.
+#define S_RESET_ST   0x02000000 // Core reset since the last time this bit was read. This is a sticky bit, which clears on read.
+#define S_RETIRE_ST  0x01000000 // Instruction has completed (retired) since last read. This is a sticky bit, which clears on read.
+                                // This bit can be used to determine if the core is stalled on a load/store or fetch.
+#define S_LOCKUP     0x00080000 // Core is locked up due to an unrecoverable exception.
+#define S_SLEEP      0x00040000 // Core is sleeping. Must set the C_HALT bit to gain control, or wait for an interrupt
+                                // (WFI instruction response) to wake-up the system.
+#define S_HALT       0x00020000 // Core is in Debug state.
+#define S_REGRDY     0x00010000 // A handshake flag. The bit is cleared to ’0’ on a write to the
+                                // Debug Core Register Selector Register and is set to ’1’ when
+                                // the transfer to/from the Debug Core Register Data Register is complete.
+#define C_SNAPSTALL  0x00000020 // If the core is stalled on a load/store operation (see S_RETIRE_ST), setting this bit will break
+                                // the stall and force the instruction to complete. This bit can only be set if C_DEBUGEN and C_HALT are set,
+                                // and S_RETIRE_ST is clear. The bus state is UNPREDICTABLE when C_SNAPSTALL is set.
+#define C_MASKINTS   0x00000008 // Mask PendSV, SysTick and external configurable interrupts when debug is enabled. The bit does not affect NMI. When
+                                // C_DEBUGEN==0, this bit is UNKNOWN.
+#define C_STEP       0x00000004 // Step the core.
+#define C_HALT       0x00000002 // Halt the core.
+#define C_DEBUGEN    0x00000001 // Enable halting debug.
+
+// DCRSR bits
+#define REG_WnR      0x00010000 // Write = 1, Read = 0
+
+// DEMCR bits
+#define TRCENA       0x01000000 // Global enable for all features configured and controlled by the DWT and ITM blocks.
+#define MON_REQ      0x00080000 // A DebugMonitor semaphore bit.
+#define MON_STEP     0x00040000 // When MON_EN is set, this bit is used to step the core.
+#define MON_PEND     0x00020000 // Pend the DebugMonitor exception to activate when priority allows.
+#define MON_EN       0x00010000 // Enable the DebugMonitor exception.
+#define VC_HARDERR   0x00000400 // Debug trap on a HardFault exception.
+#define VC_INTERR    0x00000200 // Debug trap on a fault occurring during an exception entry or return sequence.
+#define VC_BUSERR    0x00000100 // Debug trap on a BusFault exception.
+#define VC_STATERR   0x00000080 // Debug trap on a UsageFault exception due to a state information error (for example an UNDEFINED instruction).
+#define VC_CHKERR    0x00000040 // Debug trap on a UsageFault exception due to a checking error (for example an alignment check error).
+#define VC_NOCPERR   0x00000020 // Debug trap on a UsageFault access to a Coprocessor.
+#define VC_MMERR     0x00000010 // Debug trap on a MemManage exception.
+#define VC_CORERESET 0x00000001 // Reset Vector Catch. Halt a running system when a Local Reset occurs.
+
+// FPB definitions
+#define FP_CTRL    (armConfigSettings.fpbBase + 0x00000000)         // FlashPatch control
+#define FP_REMAP   (armConfigSettings.fpbBase + 0x00000004)         // FlashPatch remapping address
+#define FP_COMP(i) (armConfigSettings.fpbBase + 0x00000008 + i * 4) // FlashPatch comparator (i) control
+
+// FP_CTRL bits
+#define KEY    0x00000002
+#define ENABLE 0x00000001
 
 #endif /* _JTAG_defs_H_ */

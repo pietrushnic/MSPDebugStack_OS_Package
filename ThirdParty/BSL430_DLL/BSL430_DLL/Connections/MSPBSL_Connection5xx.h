@@ -37,7 +37,6 @@
 */
 
 #pragma once
-#include <string>
 
 #include "MSPBSL_Connection.h"
 

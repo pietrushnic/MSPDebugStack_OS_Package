@@ -3,87 +3,63 @@
  *
  * Handles one or more device handles via JTAG.
  *
- * Copyright (C) 2007 - 2011 Texas Instruments Incorporated - http://www.ti.com/ 
- * 
- * 
- *  Redistribution and use in source and binary forms, with or without 
- *  modification, are permitted provided that the following conditions 
+ * Copyright (C) 2007 - 2011 Texas Instruments Incorporated - http://www.ti.com/
+ *
+ *
+ *  Redistribution and use in source and binary forms, with or without
+ *  modification, are permitted provided that the following conditions
  *  are met:
  *
- *    Redistributions of source code must retain the above copyright 
+ *    Redistributions of source code must retain the above copyright
  *    notice, this list of conditions and the following disclaimer.
  *
  *    Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the 
- *    documentation and/or other materials provided with the   
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the
  *    distribution.
  *
  *    Neither the name of Texas Instruments Incorporated nor the names of
  *    its contributors may be used to endorse or promote products derived
  *    from this software without specific prior written permission.
  *
- *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS 
- *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT 
+ *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
  *  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT 
- *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, 
- *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT 
+ *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
  *  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
  *  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
- *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
- *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.                                                                                                                                                                                                                                                                                                         
+ *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <pch.h>
 #include "FetHandleV3.h"
 #include "DeviceHandleManagerV3.h"
 #include "HalExecCommand.h"
-#include <map>
 
 using namespace TI::DLL430;
 
 DeviceHandleManagerV3::DeviceHandleManagerV3 (FetHandleV3* parent)
  : parent(parent)
 {
-	this->chainInfoFile = NULL;
 }
 
-DeviceHandleManagerV3::~DeviceHandleManagerV3 ()
+DeviceHandle* DeviceHandleManagerV3::createDeviceHandle(uint32_t deviceCode)
 {
-
-}
-
-DeviceChainInfoList* DeviceHandleManagerV3::getDeviceChainInfo (bool update)
-{
-	if (update)
+	DeviceHandle* handle = nullptr;
+	if (deviceCode == 0x432)
 	{
-		list.clear();
+		handle = new DeviceHandleMSP432(this->parent, deviceCode);
+	}
+	else
+	{
+		handle = new DeviceHandleV3(this->parent, deviceCode);
 	}
 
-	if (list.empty())
-	{
-		DeviceChainInfo info0("Device0",0,true,8);
-	
-		list.push_back(info0);
-	}
-
-	return &list;
-}
-
-DeviceHandleV3* DeviceHandleManagerV3::createDeviceHandle (DeviceChainInfoList::iterator& device, uint32_t deviceCode)
-{
-	DeviceHandleV3* handle = NULL;
-	uint16_t jtagId;
-  
-	if (device->isInUse() || !device->isMSP430())
-	{
-		return NULL;
-	}
-	
-	handle = new DeviceHandleV3(this->parent, &(*device), deviceCode);
-	device->setInUse(true);
-	
-	jtagId = handle->getDeviceJtagId();
+	handle->readJtagId();
 
 	return handle;
 }
@@ -91,35 +67,4 @@ DeviceHandleV3* DeviceHandleManagerV3::createDeviceHandle (DeviceChainInfoList::
 void DeviceHandleManagerV3::destroyDeviceHandle(DeviceHandle* handle)
 {
 	delete handle;
-}
-
-bool DeviceHandleManagerV3::setChainInfoFile(const char* fileName)
-{
-	this->chainInfoFile = fileName;
-	return true;
-}
-
-bool DeviceHandleManagerV3::setChainConfiguration()
-{
-	HalExecCommand cmd;
-	HalExecElement* el = new HalExecElement(ID_SetChainConfiguration);
-
-	DeviceChainInfoList::iterator it = this->list.begin();
-    for (; it != this->list.end(); ++it) {
-
-		if (!it->isMSP430())
-		{
-			el->appendInputData8((static_cast<uint8_t>(it->getLenIR())) & 0x7F);
-		}
-		else
-		{
-			if (it->isInUse())
-				el->appendInputData8(0x81);
-			else
-				el->appendInputData8(0x80);
-		}
-	}
-    el->appendInputData8(0x00);     // End of description
-	cmd.elements.push_back(el);
-	return parent->send(cmd);
 }

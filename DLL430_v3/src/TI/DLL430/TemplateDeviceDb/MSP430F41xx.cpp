@@ -3,39 +3,39 @@
  *
  * Definition MSP430F41xx devices.
  *
- * Copyright (C) 2011 Texas Instruments Incorporated - http://www.ti.com/ 
- * 
- * 
- *  Redistribution and use in source and binary forms, with or without 
- *  modification, are permitted provided that the following conditions 
+ * Copyright (C) 2011 Texas Instruments Incorporated - http://www.ti.com/
+ *
+ *
+ *  Redistribution and use in source and binary forms, with or without
+ *  modification, are permitted provided that the following conditions
  *  are met:
  *
- *    Redistributions of source code must retain the above copyright 
+ *    Redistributions of source code must retain the above copyright
  *    notice, this list of conditions and the following disclaimer.
  *
  *    Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the 
- *    documentation and/or other materials provided with the   
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the
  *    distribution.
  *
  *    Neither the name of Texas Instruments Incorporated nor the names of
  *    its contributors may be used to endorse or promote products derived
  *    from this software without specific prior written permission.
  *
- *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS 
- *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT 
+ *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
  *  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT 
- *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, 
- *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT 
+ *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
  *  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
  *  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
- *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
- *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.                                                                                                                                                                                                                                                                                                         
+ *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "MSP430F4xxx.h"
+#include <pch.h>
 
 using namespace TI::DLL430;
 using namespace TemplateDeviceDb;
@@ -46,23 +46,22 @@ typedef IdCode<0xFFFF, 0x00, 0x00, 0x00, 0x00, 0x7F, 0x00> MSP430F41xIdMask;
 typedef IdCode<0xFFFF, 0x00, 0xFF, 0xFF, 0x00, 0x00, 0x00> MSP430F413IdMask;
 typedef IdCode<0xFFFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01> MSP430F41x2IdMask;
 
-typedef Match< IdCode<0x27F4, 0x0, 0,0,0, 'W', 0x0>, MSP430F41xIdMask> MSP430F41x_Match;
-typedef Match< IdCode<0x13F4, 0x0, 0x02,0x40,0, 0x0, 0x0>, MSP430F413IdMask> MSP430F413_Match;
+typedef Match< IdCode<0x27F4, 0x0, 0, 0, 0, 'W', 0x0>, MSP430F41xIdMask> MSP430F41x_Match;
+typedef Match< IdCode<0x13F4, 0x0, 0x02, 0x40, 0, 0x0, 0x0>, MSP430F413IdMask> MSP430F413_Match;
 
 template<const unsigned int fuses>
-struct MSP430F41x2_Match : Match< IdCode<0x5241, 0x0, 0,0,0,0, fuses>, MSP430F41x2IdMask> {};
-
+struct MSP430F41x2_Match : Match< IdCode<0x5241, 0x0, 0, 0, 0, 0, fuses>, MSP430F41x2IdMask> {};
 
 
 struct MSP430F41x2_EemTimer : EemTimerImpl
 {
 	typedef EemTimerImpl::Timer Eem;
 	MSP430F41x2_EemTimer() : EemTimerImpl(
-		Eem::Empty, Eem::MCLKpin, Eem::SMCLKpin, Eem::ACLKpin, 
+		Eem::Empty, Eem::MCLKpin, Eem::SMCLKpin, Eem::ACLKpin,
 		Eem::Empty, Eem::FLASH_CTRLER, Eem::Empty, Eem::USCI0,
-		Eem::Empty, Eem::Empty, Eem::Empty, Eem::BT_RTC, 
+		Eem::Empty, Eem::Empty, Eem::Empty, Eem::BT_RTC,
 		Eem::Empty, Eem::TB3, Eem::TA3, Eem::WDT_A,
-		Eem::Empty, Eem::Empty, Eem::Empty, Eem::Empty, 
+		Eem::Empty, Eem::Empty, Eem::Empty, Eem::Empty,
 		Eem::Empty, Eem::Empty, Eem::Empty, Eem::Empty,
 		Eem::Empty, Eem::Empty, Eem::Empty, Eem::Empty,
 		Eem::Empty, Eem::Empty, Eem::Empty, Eem::Empty
@@ -78,12 +77,12 @@ typedef VoltageInfo<1800, 3600, 2200, 2700, 6000, 7000, true> MSP430F41x2_Voltag
 
 
 typedef MemoryInfo<
-	Name::information, FlashType, Mapped, Protectable, Bits16Type, 
-	Size<0x100> , Offset<0x1000>, SegmentSize<0x40>, BankSize<0x40>, Banks<4>,
+	MemoryArea::INFO, FlashType, Mapped, Protectable, Bits16Type,
+	Size<0x100>, Offset<0x1000>, SegmentSize<0x40>, BankSize<0x40>, Banks<4>,
 	NoMask, MemoryCreator<InformationFlashAccess>
 > MSP430F41x2_InfoFlashMemoryInfo;
 
-typedef Features<FLLPLUS, false, false, false, true, false, false> MSP430F413_Features;
+typedef Features<FLLPLUS, false, false, false, true, false> MSP430F413_Features;
 typedef ExtendedFeatures<false, true, false, false, true, false, false> MSP430F413_ExtFeatures;
 
 
@@ -113,22 +112,21 @@ template<
 	class ExtendedFeatures = NoExtendedFeatures
 >
 struct MSP430F41xx : Device<
-		description, 
-		ObjectId<0>,
-		DefaultBits16Type, 
-		PsaType, 
-		MatchType, 
+		description,
+		DefaultBits16Type,
+		PsaType,
+		MatchType,
 		LowEemMode,
 		VoltageType,
 		ClockInfoType,
 		FunctionMapping,
 		FuncletMapping4xx,
-		MemoryList<boost::tuple<
-			MSP430F4xxx_MainFlashMemory<FlashSize, FlashOffset>, 
-			InfoMemoryType, 
-			MSP430F4xxx_BootFlashMemoryInfo, 
+		MemoryList<std::tuple<
+			MSP430F4xxx_MainFlashMemory<FlashSize, FlashOffset>,
+			InfoMemoryType,
+			MSP430F4xxx_BootFlashMemoryInfo,
 			MSP430F4xxx_LcdMemoryInfo< LcdMemorySize >,
-			MSP430F4xxx_SystemRamInfo<RamSize>, 
+			MSP430F4xxx_SystemRamInfo<RamSize>,
 			MSP430F1_2_4xxx_peripherl16lbitMemoryInfo,
 			MSP430F1_2_4xxx_peripherl8lbitMemoryInfo<SFRmaskType>,
 			MSP430F4xxx_CPUMemoryInfo,
@@ -141,8 +139,8 @@ struct MSP430F41xx : Device<
 template<const char* description, class FlashOffset, class FlashSize, class RamSize>
 struct MSP430FW42x_F41x : MSP430F41xx<description,
 								regular,
-								MSP430F41x_Match, 
-								MSP430F4xxx_DefaultVoltageNoTestVpp, 
+								MSP430F41x_Match,
+								MSP430F4xxx_DefaultVoltageNoTestVpp,
 								MSP430F41x_ClockInfo,
 								FunctionMapping4xx,
 								FlashOffset, FlashSize, RamSize, Size<0xD>,
@@ -152,8 +150,8 @@ struct MSP430FW42x_F41x : MSP430F41xx<description,
 template<const char* description, class FlashOffset, class FlashSize, class RamSize>
 struct MSP430F41x : MSP430F41xx<description,
 								regular,
-								MSP430F413_Match, 
-								MSP430F4xxx_DefaultVoltageNoTestVpp, 
+								MSP430F413_Match,
+								MSP430F4xxx_DefaultVoltageNoTestVpp,
 								MSP430F41x_ClockInfo,
 								FunctionMappingF413,
 								FlashOffset, FlashSize, RamSize, Size<0xD>,

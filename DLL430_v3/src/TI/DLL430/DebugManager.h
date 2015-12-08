@@ -1,51 +1,41 @@
 /*
- * DebugManager.h 
+ * DebugManager.h
  *
  * Provides routines for handling a debug session.
  *
- * Copyright (C) 2007 - 2011 Texas Instruments Incorporated - http://www.ti.com/ 
- * 
- * 
- *  Redistribution and use in source and binary forms, with or without 
- *  modification, are permitted provided that the following conditions 
+ * Copyright (C) 2007 - 2011 Texas Instruments Incorporated - http://www.ti.com/
+ *
+ *
+ *  Redistribution and use in source and binary forms, with or without
+ *  modification, are permitted provided that the following conditions
  *  are met:
  *
- *    Redistributions of source code must retain the above copyright 
+ *    Redistributions of source code must retain the above copyright
  *    notice, this list of conditions and the following disclaimer.
  *
  *    Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the 
- *    documentation and/or other materials provided with the   
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the
  *    distribution.
  *
  *    Neither the name of Texas Instruments Incorporated nor the names of
  *    its contributors may be used to endorse or promote products derived
  *    from this software without specific prior written permission.
  *
- *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS 
- *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT 
+ *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
  *  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT 
- *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, 
- *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT 
+ *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
  *  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
  *  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
- *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
- *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.                                                                                                                                                                                                                                                                                                         
+ *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#if _MSC_VER > 1000
 #pragma once
-#endif
-#ifndef DLL430_DEBUGMANAGER_H
-#define DLL430_DEBUGMANAGER_H
-
-#include <stdint.h>
-
-#include <string>
-#include <vector>
-#include <map>
 
 namespace TI
 {
@@ -77,7 +67,7 @@ namespace TI
 		enum TriggerModeType {
 			Options,
 			Dma,
-            ReadWrite
+			ReadWrite
 		};
 
 		enum TraceMode {
@@ -124,9 +114,11 @@ namespace TI
 		class DebugManager
 		{
 		public:
+			virtual ~DebugManager() {}
+
 			/** \brief reestablish JTAG connection after releasing it
 			 *
-			 * Function will reconnect JTAG and resume any polling 
+			 * Function will reconnect JTAG and resume any polling
 			 *
 			 * \return true if run started successfully, else false
 			 */
@@ -152,7 +144,7 @@ namespace TI
 			 * \return true if stopped successfully, else false
 			 */
 			virtual bool stop (bool jtagWasReleased = false) = 0;
-			
+
 			/** \brief do a single step
 			 *
 			 * A SingleStep is performed on the target device. When this function returns,
@@ -168,7 +160,7 @@ namespace TI
 			 *
 			 * the returned value depends on the identification of the device
 			 * and the database
-			 * 
+			 *
 			 * \return level of clock control (1-3)
 			 */
 			virtual uint8_t getClockControl() const = 0;
@@ -176,21 +168,23 @@ namespace TI
 			/** \brief return the general clock control setting
 			 *
 			 * return the 16Bit control value
-			 * 
+			 *
 			 * \return control value
 			 */
 			virtual uint16_t getClockControlSetting() const =0;
 
-			/** \brief set the general clock control setting
+			/** \brief return the default generals clock control setting
 			 *
-			 * set the 16Bit control value
+			 * return the 16Bit control value
+			 *
+			 * \return control value
 			 */
-			virtual void setClockControlSetting(uint16_t clkcntrl)=0;
+			virtual uint16_t getGeneralClockDefaultSetting() const =0;
 
 			/** \brief return the default clock control module setting
 			 *
 			 * return the 16Bit control value
-			 * 
+			 *
 			 * \return control value
 			 */
 			virtual uint16_t getClockModuleDefaultSetting() const =0;
@@ -198,23 +192,17 @@ namespace TI
 			/** \brief return the clock control module setting
 			 *
 			 * return the 16Bit control value
-			 * 
+			 *
 			 * \return control value
 			 */
 			virtual uint16_t getClockModuleSetting() const =0;
-
-			/** \brief set the clock control module setting
-			 *
-			 * set the 16Bit control value
-			 */
-			virtual void setClockModuleSetting(uint16_t modules)=0;
 
 			/** \brief return module strings
 			 *
 			 * the returned value depends on the identification of the device
 			 * and the database
-			 * 
-			 * \param n pointer to given value filled with number of strings 
+			 *
+			 * \param n pointer to given value filled with number of strings
 			 *
 			 * \return pointer to n strings
 			 */
@@ -224,8 +212,8 @@ namespace TI
 			 *
 			 * the returned value depends on the identification of the device
 			 * and the database
-			 * 
-			 * \param n pointer to given value filled with number of strings 
+			 *
+			 * \param n pointer to given value filled with number of strings
 			 *
 			 * \return pointer to n strings
 			 */
@@ -235,7 +223,7 @@ namespace TI
 			 *
 			 * depending on the target hardware, the existing EEM-register are
 			 * set to default (0)
-			 * 
+			 *
 			 * \return true if data is successfully written to device, else false
 			 */
 			virtual bool initEemRegister() = 0;
@@ -243,7 +231,7 @@ namespace TI
 			/** \brief Enable eem polling loop
 			 *
 			 * \param mask of events to poll for
-			 * 
+			 *
 			 * \return true if successfull, otherwise false
 			 */
 			virtual bool activatePolling(uint16_t) = 0;
@@ -251,7 +239,7 @@ namespace TI
 			/** \brief Enable polling of JState register
 			 *
 			 * \param cb Callback target to handle jstate changes
-			 * 
+			 *
 			 * \return true if successfull, otherwise false
 			 */
 			virtual bool activateJStatePolling(DebugEventTarget* cb) = 0;
@@ -259,25 +247,17 @@ namespace TI
 			/** \brief Check if device is in low power mode x.5
 			 *
 			 * Queries the device and returns the current state
-			 * 
-			 * \return true if device is in LPMx.5
-			 */
-			virtual bool queryLpm5State() = 0;
-
-			/** \brief Return current low power mode x.5 state
 			 *
-			 * Returns the last reported state without actively querying
-			 * 
 			 * \return true if device is in LPMx.5
 			 */
-			virtual bool isDeviceInLpm5() = 0;
+			virtual bool queryIsInLpm5State() = 0;
 
 			/** \brief set the opcode parameter
 			 *
 			 * needed for ID_RestoreContext_ReleaseJtag and set by SET_MDB_BEFORE_RUN
-			 * 
+			 *
 			 * \param value opcode to be used by ID_RestoreContext_ReleaseJtag
-			 * 
+			 *
 			 * \return true if successfull, otherwise false
 			 */
 			virtual void setOpcode(uint16_t value)=0;
@@ -308,7 +288,7 @@ namespace TI
 			 *
 			 */
 			virtual void pausePolling()=0;
-			
+
 			/** \brief Resume all polling loops
 			 *
 			 *
@@ -338,7 +318,7 @@ namespace TI
 			 *
 			 */
 			virtual bool startStoragePolling() = 0;
-			
+
 			/** \brief Stop polling loop for state storage events on UIF
 			 *
 			 *
@@ -346,9 +326,10 @@ namespace TI
 			virtual bool stopStoragePolling() = 0;
 
 			virtual void setPollingManager(PollingManager* pollingManager) = 0;
+
+			virtual void enableLegacyCycleCounter(bool enable) = 0;
+			virtual bool legacyCycleCounterEnabled() const = 0;
 		};
 
-	};
-};
-
-#endif /* DLL430_DEBUGMANAGER_H */
+	}
+}

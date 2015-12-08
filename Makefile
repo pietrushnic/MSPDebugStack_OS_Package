@@ -1,20 +1,19 @@
-CXX:= g++
+CXXFLAGS := -fPIC -std=c++0x -fvisibility=hidden -fvisibility-inlines-hidden
+
+PCH_HEADER := ./DLL430_v3/src/TI/DLL430/pch.h
+PCH_COMPILED := ./DLL430_v3/src/TI/DLL430/pch.h.gch
 
 DEFINES := -DUNIX
 
-CXXFLAGS := -fPIC
-
-ifdef BIT32
-CXXFLAGS += -m32
-endif
-
 ifdef DEBUG
 CXXFLAGS += -g -O0
-$(info Building with debugging enables)
 else
 CXXFLAGS += -Os
 DEFINES += -DNDEBUG
 endif
+
+MAKE_PCH += -x c++-header
+USE_PCH += -include $(PCH_HEADER)
 
 export BOOST_DIR
 export BIT32
@@ -22,44 +21,85 @@ export STATIC
 export DEBUG
 
 INCLUDES := \
-	-I./Bios/include \
-	-I./HalObjectDb/include \
-	-I./DLL430_v3/include \
-	-I./DLL430_v3/include/DLL430 \
-	-I./DLL430_v3/src \
-	-I./DLL430_v3/src/TI/DLL430/EnergyTrace_TSPA \
 	-I./DLL430_v3/src/TI/DLL430 \
+	-I./DLL430_v3/include \
+	-I./DLL430_v3/src/TI/DLL430/EnergyTrace_TSPA \
+	-I./Bios/include \
 	-I./ThirdParty/include \
 	-I./ThirdParty/BSL430_DLL
 
-LIBDIRS := -L./ThirdParty/lib
-
-ifdef BOOST_DIR
-INCLUDES += -I$(BOOST_DIR)
-LIBDIRS += -L$(BOOST_DIR)/stage/lib
-endif
 
 LIBS :=
 STATIC_LIBS :=
 
-UNAME_S := $(shell sh -c 'uname -s')
-ifeq ($(UNAME_S),Darwin) # Mac OS X/MacPorts stuff
-$(info Darin)
-STATIC_LIBS :=-framework IOKit -framework CoreFoundation
-endif
-
 ifdef STATIC
-STATIC_LIBS += libboost_thread.a libboost_filesystem.a libboost_date_time.a libboost_system.a ThirdParty/lib/libbsl430.a
+STATIC_LIBS += -lboost_filesystem -lboost_system -lbsl430
 else
-LIBS += -lboost_thread -lboost_filesystem -lboost_date_time -lboost_system -lbsl430 -lusb-1.0 -lrt
+LIBS += -lboost_filesystem -lboost_system -lbsl430
 endif
 
-LIBS += -lpthread
+LIBTHIRD := ./ThirdParty/lib64
+LIBDIRS := -L$(LIBTHIRD)
 
+PLATFORM := $(shell uname -s)
+ifeq ($(PLATFORM),Linux)
+	CXX:= g++
+
+	ifdef BIT32
+	CXXFLAGS += -m32
+	LIBTHIRD = ./ThirdParty/lib
+	LIBDIRS = -L$(LIBTHIRD)
+	endif
+
+	OUTPUT := libmsp430.so
+	DEFINES += -DUNIX
+
+	ifdef STATIC
+	STATIC_LIBS += -lusb-1.0
+	else
+	LIBS += -lusb-1.0
+	endif
+
+	LIBS += -lusb-1.0 -lrt -lpthread
+
+	ifdef BOOST_DIR
+	INCLUDES += -I$(BOOST_DIR)
+	LIBDIRS += -L$(BOOST_DIR)/stage/lib
+	endif
+
+	OUTNAME := -Wl,-soname,
+	BSTATIC := -Wl,-Bstatic
+	BDYNAMIC := -Wl,-Bdynamic
+
+	HIDOBJ := $(LIBTHIRD)/hid-libusb.o
+else
+	CXX:= clang++
+
+	OUTPUT := libmsp430.dylib
+
+	ifdef STATIC
+	STATIC_LIBS += -framework CoreFoundation -framework IOKit -lhidapi
+	else
+	LIBS += -framework CoreFoundation -framework IOKit -lhidapi
+	endif
+
+	ifdef BOOST_DIR
+	INCLUDES += -I$(BOOST_DIR)/include
+	LIBDIRS += -L$(BOOST_DIR)/lib
+	endif
+
+	OUTNAME := -install_name
+	BSTATIC :=
+	BDYNAMIC :=
+
+	HIDOBJ :=
+endif
+
+
+BSLLIB := $(LIBTHIRD)/libbsl430.a
 
 
 SRC := \
-	./HalObjectDb/src/HalObjectDb.cpp \
         ./DLL430_v3/src/TI/DLL430/EEM/CycleCounter.cpp \
         $(wildcard ./DLL430_v3/src/*.cpp) \
         $(wildcard ./DLL430_v3/src/TI/DLL430/*.cpp) \
@@ -78,25 +118,27 @@ SRC := \
         $(wildcard ./DLL430_v3/src/TI/DLL430/EM/VariableWatch/*.cpp) \
         $(wildcard ./DLL430_v3/src/TI/DLL430/EnergyTrace_TSPA/*.cpp) \
         $(wildcard ./DLL430_v3/src/TI/DLL430/logging/*.cpp) \
-        $(wildcard ./DLL430_v3/src/TI/DLL430/TemplateDeviceDb/*.cpp)
+        $(wildcard ./DLL430_v3/src/TI/DLL430/TemplateDeviceDb/*.cpp) \
+        $(wildcard ./DLL430_v3/src/TI/DLL430/MSP432/*.cpp)
 
 OBJS := $(patsubst %.cpp, %.o, $(SRC))
 
-OUTPUT := libmsp430.so
+all: $(BSLLIB) $(OBJS)
+	$(CXX) $(CXXFLAGS) -shared $(OUTNAME)$(OUTPUT) -o $(OUTPUT) $(OBJS) $(HIDOBJ) $(LIBDIRS) $(BSTATIC) $(STATIC_LIBS) $(BDYNAMIC) $(LIBS)
 
-all: libbsl.a $(OBJS)
-	$(CXX) $(CXXFLAGS) -shared -o $(OUTPUT) $(OBJS) ThirdParty/lib/hid-libusb.o $(LIBDIRS) $(STATIC_LIBS)
+$(PCH_COMPILED): $(PCH_HEADER)
+	$(CXX) $(MAKE_PCH) -o $@ $< $(CXXFLAGS) $(INCLUDES) $(DEFINES)
 
-%.o: %.cpp
-	$(CXX) -c -o $@ $< $(CXXFLAGS) $(INCLUDES) $(DEFINES)
+%.o: %.cpp $(PCH_COMPILED)
+	$(CXX) -c -o $@ $< $(USE_PCH) $(CXXFLAGS) $(INCLUDES) $(DEFINES)
 
-libbsl.a:
-	$(MAKE) -C ThirdParty/BSL430_DLL
+$(BSLLIB):
+	$(MAKE) -C ./ThirdParty/BSL430_DLL
 
 install:
-	cp $(OUTPUT) /usr/lib/
+	cp $(OUTPUT) /usr/local/lib/
 
 clean:
-	$(MAKE) -C ThirdParty/BSL430_DLL clean
+	$(MAKE) -C ./ThirdParty/BSL430_DLL clean
 	@for i in $(OBJS); do rm -f $$i; done
-	@rm -f build.log
+	@rm -f $(PCH_HEADER).?ch build.log

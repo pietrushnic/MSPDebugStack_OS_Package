@@ -37,9 +37,8 @@
 */
 
 #pragma once
-#include <string>
+
 #include "Connections/MSPBSL_Connection.h"
-#include <boost/cstdint.hpp>
 
 class MSPBSL_Factory
 {

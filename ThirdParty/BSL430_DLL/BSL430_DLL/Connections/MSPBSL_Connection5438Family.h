@@ -37,7 +37,6 @@
 */
 #pragma once
 
-#include <string>
 #include "MSPBSL_Connection5xxUART.h"
 
 class MSPBSL_Connection5438Family : public MSPBSL_Connection5xxUART

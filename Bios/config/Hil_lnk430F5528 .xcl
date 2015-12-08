@@ -140,9 +140,9 @@
 // Read/write memory
 //
 
--Z(DATA)DATA16_I,DATA16_Z,DATA16_N,DATA16_HEAP+_DATA16_HEAP_SIZE=2C00-31FF
+-Z(DATA)DATA16_I,DATA16_Z,DATA16_N,DATA16_HEAP+_DATA16_HEAP_SIZE=2CA0-2FFF
 -Z(DATA)CODE_I
--Z(DATA)DATA20_I,DATA20_Z,DATA20_N,DATA20_HEAP+_DATA20_HEAP_SIZE=2C00-31FF
+-Z(DATA)DATA20_I,DATA20_Z,DATA20_N,DATA20_HEAP+_DATA20_HEAP_SIZE=2CA0-2FFF
 -Z(DATA)CSTACK+_STACK_SIZE#
 
 // -----------------------------------------------
@@ -183,7 +183,6 @@
 // Constant data
 //
 
-// Reserve space here for the BIOS's Interrupt vectors and Core version
 -Z(CONST)DATA16_C,DATA16_ID,DIFUNCT,CHECKSUM=0x18FA-0x18FB
 
 // -------------------------------------
@@ -194,22 +193,21 @@
 // Code
 //
 
-// Reserve space here for the BIOS's Interrupt vectors
--P(CODE)CODE=0x8A00-0xDFFF
+-P(CODE)CODE=8A00-DFFF
 -Z(CODE)CODE_ID
 
--h(CODE)8A00-DFFF
+-h(CODE)0x8A00-0xDFFF
 
 // ---------------------------
 // Constant data
 //
 
-// Reserve space here for the BIOS's Interrupt vectors
+
 -Z(CONST)DATA20_C,DATA20_ID=0x8A00-0xDFFF
 
 // -------------------------------------
 // Interrupt vectors
 //
 
--Z(CODE)INTVEC=08B0-08B80
--Z(CODE)RESET=18F8-18FA
+-Z(CODE)INTVEC=0x8B00-0x8B80
+-Z(CODE)RESET=0x18F8-0x18FA

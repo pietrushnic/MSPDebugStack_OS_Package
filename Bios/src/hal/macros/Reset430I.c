@@ -60,16 +60,16 @@ HAL_FUNCTION(_hal_Reset430I)
         volatile unsigned short id=0;
 
         /* Apply BSL Entry Sequence to Stop device execution */
-        EDT_BSL_EntrySequence();
+        IHIL_BSL_EntrySequence(1);
         /* Now the device should be in LPM4 */
 
-        EDT_Delay_1ms(500);
+        IHIL_Delay_1ms(500);
 
-        EDT_Open(RSTHIGH);
-        EDT_TapReset();
-        EDT_CheckJtagFuse();
+        IHIL_Open(RSTHIGH);
+        IHIL_TapReset();
+        IHIL_CheckJtagFuse();
 
-        id = EDT_Instr(IR_CNTRL_SIG_CAPTURE);
+        id = cntrl_sig_capture();
         if (id == JTAGVERSION)
         {
             STREAM_put_byte((unsigned char)0x1);

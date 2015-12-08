@@ -74,7 +74,7 @@ Version 4 work begins
 *******************************************************************************/
 
 #define USB_PI 0x30
-#define USB_PI_VERSION 0x06
+#define USB_PI_VERSION 0x10
 #define PI_VERSION (USB_PI+USB_PI_VERSION) // 0x36
 const unsigned char BSL430_PI_Version @ "BSL430_VERSION_PI" = PI_VERSION;
 /*******************************************************************************
@@ -89,49 +89,89 @@ void PI_init()
     BSL430_ReceiveBuffer = (char*)(ReceiveBuffer)+1;
     BSL430_SendBuffer = &RAM_Buf[1];
 #else
-    volatile unsigned int i;
+    volatile unsigned short timeOut = 0;
     __disable_interrupt();
 
-    SYSCTL |= SYSRIVECT;
+    // Init Leds
+    GREEN_LED_PORT_DIR |= GREEN_LED;
+    RED_LED_PORT_DIR  |= RED_LED;
+
+    GREEN_LED_PORT &= ~GREEN_LED;
+    RED_LED_PORT &= ~RED_LED;
 
     BSL430_ReceiveBuffer = (char*)(ReceiveBuffer)+1;
     BSL430_SendBuffer = &RAM_Buf[1];
 
     //Set VCore for 1.8 Volt - required by USB module!
-    PMMCTL0 = 0xA500 + 3;     	          // Set VCore to requested level 3
-    PMMCTL0_H = 0x00;                       // Lock PMM module registers for write access
+
+    // Open PMM registers for write access
+    PMMCTL0_H = 0xA5;
+
+    unsigned short level = PMMCTL0_L & (PMMCOREV1 | PMMCOREV0);
+    while(level < 4)
+	{
+        // Set SVM highside to new level and check if a VCore increase is possible
+        SVSMHCTL = SVMHE | SVSHE | (SVSMHRRL0 * level);
+        // Wait until SVM highside is settled
+        while ((PMMIFG & SVSMHDLYIFG) == 0);
+        // Clear flag
+        PMMIFG &= ~SVSMHDLYIFG;
+        // Set also SVS highside to new level
+        // Vcc is high enough for a Vcore increase
+        SVSMHCTL |= (SVSHRVL0 * level);
+        // Wait until SVM highside is settled
+        while ((PMMIFG & SVSMHDLYIFG) == 0);
+        // Clear flag
+        PMMIFG &= ~SVSMHDLYIFG;
+        //**************flow change for errata workaround ************
+        // Set VCore to new level
+        PMMCTL0_L = PMMCOREV0 * level;
+        // Set SVM, SVS low side to new level
+        SVSMLCTL = SVMLE | (SVSMLRRL0 * level)| SVSLE | (SVSLRVL0 * level);
+        // Wait until SVM, SVS low side is settled
+        while ((PMMIFG & SVSMLDLYIFG) == 0);
+        // Clear flag
+        PMMIFG &= ~SVSMLDLYIFG;
+        //**************flow change for errata workaround ************
+
+        // Increment next VCore level
+        level++;
+    }
+    // Lock PMM registers for write access
+    PMMCTL0_H = 0x00;
 
     //XT2 Startup
     XT2SEL_PORT |= XT2SEL_PINS;
-    UCSCTL6 = 0x0001; // Set XT2DRIVE_0, disable xt1, , start xt2
+    UCSCTL6 |=  XT1OFF;
 
-    __delay_cycles(800000);
+    UCSCTL6 &= ~(XT2OFF + XT2DRIVE0 + XT2DRIVE1);               // enalbe XT2 even if not used
+    while (UCSCTL7 & (DCOFFG + XT2OFFG) && timeOut++ < TIME_OUT_COUNT)
+    {
+        UCSCTL7 &= ~(DCOFFG + XT2OFFG);                         // Clear OSC flaut Flags fault flags
+        SFRIFG1 &= ~OFIFG;                                      // Clear OFIFG fault flag
+    }
+    while(timeOut >= TIME_OUT_COUNT)
+    {
+        GREEN_LED_PORT ^= GREEN_LED;
+        RED_LED_PORT ^= RED_LED;
+        __delay_cycles(800000);
+    }
 
-    UCSCTL3 = SELREF__REFOCLK;                // REFO for FLL reference
-    UCSCTL4 = SELA__REFOCLK + SELS__XT2CLK + SELM__DCOCLK;     // ACLK = REFOCLK, SMCLK = XT2, MCLK = DCO
-    UCSCTL5 = DIVA_2;                               // ACLK/4
-
-
+    UCSCTL3 = SELREF__REFOCLK;                                  // REFO for FLL reference
+    UCSCTL4 = SELA__REFOCLK + SELS__XT2CLK + SELM__DCOCLK;      // ACLK = REFOCLK, SMCLK = XT2 ?? used??, MCLK = DCO
+    UCSCTL5 = DIVA_2;                                           // ACLK/4
     __delay_cycles(800000);
 
     wUSBPLL = USBPLL_SETCLK_4_0;
 
-    UCSCTL0 = 0x000;                        // Set DCO to lowest Tap
+    UCSCTL0 = 0x000;                                            // Set DCO to lowest Tap
     UCSCTL2= FLLD__2 | ((DCO_SPEED/ACLK_SPEED) - 1);
     UCSCTL1= DCORSEL_4;
     UCSCTL4 = SELM__DCOCLKDIV + SELS__DCOCLKDIV + SELA__REFOCLK;
 
     //init USB
     USB_init();
-#ifdef MSP_FET
-    P6DIR |= BIT7;
-    P5DIR |= BIT3;
-#endif
-    P1DIR |= BIT2 + BIT3;
-#ifdef eZ_FET
 
-
-#endif
     if (USBPWRCTL & USBBGVBV)
     {
         USB_enable();
@@ -179,13 +219,9 @@ char PI_receivePacket()
         UsbHandler();
         if (bEnumerationStatus == ENUMERATION_COMPLETE) // if enumeration completed
         {
-            #ifdef MSP_FET
-                P5OUT |= BIT3; // turn on Green LED with enumeration
-            #endif
-            #ifdef eZ_FET
-                P1OUT |= BIT3; // turn on Green LED with enumeration
-            #endif
-            if (bFunctionSuspended == FALSE)    // and device not suspended
+            GREEN_LED_PORT |= GREEN_LED;                // turn on Green LED with enumeration
+
+            if (bFunctionSuspended == FALSE)            // and device not suspended
             {
                 BSL430_BufferSize = UsbReceiveHID();
             }
@@ -193,31 +229,23 @@ char PI_receivePacket()
     }
     if( BSL430_BufferSize > 0 )
     {
-        #ifdef RAM_BASED_BSL
-            #ifdef MSP_FET
-                P6OUT ^= BIT7; // Toggle RED LED with each packet RX
-            #endif
-            #ifdef eZ_FET
-                P1OUT ^= BIT2; // Toggle RED LED with each packet RX
-            #endif
-        #endif
+
+        RED_LED_PORT ^= RED_LED; // Toggle RED LED with each packet RX
 
         BSL430_BufferSize = *ReceiveBuffer;   // first byte is size
         if( (BSL430_ReceiveBuffer[0]) == USBDISCONNECT)
         {
             #ifdef RAM_BASED_BSL
                 USB_disconnect();
-                __delay_cycles(8000000);
+                __delay_cycles(8000001);
                 USB_disable();
-
-                __delay_cycles(8000000);
+                __delay_cycles(8000001);
                 UCSCTL6 |= XT2OFF;                  // Switch off XT2 oscillator
             #else
                 USBKEYPID = 0x9628;                 // set KEY and PID to 0x9628 -> access to configuration registers enabled
                 USBPWRCTL = 0;                      //~VBOFFIE+~UPLLEN;  // disable interrupt VUSBoff
                 USBCNF =    0;
                 UCSCTL6 |= XT2OFF;                  // Switch off XT2 oscillator
-                __delay_cycles(800000);
             #endif
             PMMCTL0 = PMMPW | PMMSWBOR;             // generate BOR for reseting device
         }

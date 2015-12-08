@@ -37,8 +37,6 @@
 */
 
 #pragma once
-#include <string>
-#include <boost/cstdint.hpp>
 
 class MSPBSL_PhysicalInterface;
 
@@ -66,6 +64,8 @@ protected:
 
 public:
 	MSPBSL_PacketHandler() : thePhysicalInterface(NULL) {}
+	MSPBSL_PacketHandler(const MSPBSL_PacketHandler&) = delete;
+	MSPBSL_PacketHandler& operator=(const MSPBSL_PacketHandler&) = delete;
 	virtual ~MSPBSL_PacketHandler();
 
 	virtual uint16_t TX_Packet( uint8_t* buf, uint16_t bufSize ) = 0;

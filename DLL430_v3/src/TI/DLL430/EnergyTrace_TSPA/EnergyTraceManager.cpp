@@ -51,11 +51,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifdef _MSC_VER
-#ifndef _CRT_SECURE_NO_WARNINGS
-#define _CRT_SECURE_NO_WARNINGS //disabling warnings to use secure c-function versions (e.g. strcpy_s) as this is not compatible with none MS development
-#endif
-#endif
+#include <pch.h>
+#include <float.h>
 
 #include "EnergyTraceManager.h"
 #include "EnergyTraceProcessorId7.h"
@@ -73,92 +70,98 @@ using namespace TI::DLL430;
 static const uint32_t ENERGYTRACE_BUFFER_SIZE = 12;
 
 //-------------------------------------------------------------
-EnergyTraceManager::EnergyTraceManager(FetHandleV3* parent , PollingManager* pollingManager)
+EnergyTraceManager::EnergyTraceManager(FetHandleV3* parent, PollingManager* pollingManager)
  : mParent(parent)
  , mCbx(0)
  , mPollingManager(pollingManager)
  , vcc(0)
 {
-	calibrationValues[0] = 0;
-	calibrationValues[1] = 0;
-	calibrationValues[2] = 0;
-	calibrationValues[3] = 0;
+	mPollingManager->setEnergyTraceCallback(std::bind(&EnergyTraceManager::runEvent, this, std::placeholders::_1));
+
+	if (parent->getControl()->getFetToolId() == eZ_FET_WITH_DCDC)
+	{
+		calibrationValues.resize(2);
+		const double resistors[2] = {DBL_MAX, 2200.0};
+		resistorValues = std::vector<double>(resistors, resistors+2);
+
+		// no load, Calibrate Resistor 4
+		uint16_t calResistors[] = {0, 1};
+		calibrationResistors = std::vector<uint16_t>(calResistors, calResistors + (sizeof(calResistors) / sizeof(uint16_t)));
+		timerStep = 640;
+	}
+
+	if (parent->getControl()->getFetToolId() == MSP_FET_WITH_DCDC)
+	{
+		calibrationValues.resize(5);
+		const double resistors[5] = {DBL_MAX, 1000.0 + 0.75, 162 + 0.75, 82.0 + 0.75, 51.98};//+0.75 --> R of Switch
+		resistorValues = std::vector<double>(resistors, resistors+5);
+
+		uint16_t calResistors[] = {0, 4, 2, 1, 7};
+		calibrationResistors = std::vector<uint16_t>(calResistors, calResistors + (sizeof(calResistors) / sizeof(uint16_t)));
+		timerStep = 800;
+	}
 }
 
 //-------------------------------------------------------------
 EnergyTraceManager::~EnergyTraceManager ()
 {
-	mPollingManager->setEnergyTraceCallback(NULL);
+	mPollingManager->setEnergyTraceCallback(nullptr);
 }
 
 bool EnergyTraceManager::ResetEnergyTrace()
 {
-	if(mDataProcessor)
+	std::lock_guard<std::mutex> lock(callbackMutex);
+
+	if (mDataProcessor)
 	{
 		mDataProcessor->Reset();
-		mDataProcessor->setCalibrationValues(calibrationValues, vcc);
+		mDataProcessor->setCalibrationValues(&calibrationValues[0], vcc);
 		return true;
 	}
 	return false;
 }
 
 //-------------------------------------------------------------
-bool EnergyTraceManager::startEnergyTrace(DebugEventTarget * cb, ETMode_t mode, ETCallback_mode callbackMode, DeviceHandle* devHandle)
+bool EnergyTraceManager::startEnergyTrace(DebugEventTarget* cb, ETMode_t mode, ETCallback_mode callbackMode, DeviceHandle* devHandle)
 {
-    // Reset the processor at the start of a new EnergyTrace session
-
-	mPollingManager->setEnergyTraceCallback(boost::bind(&EnergyTraceManager::runEvent, this, _1));
-
-	if(cb!=0)
+	// Reset the processor at the start of a new EnergyTrace session
+	if (cb != nullptr)
 	{
 		mCbx = cb;
 	}
-	// Event type 7 ------------------------------------------------------------------------------------
-	if(mode == ET_PROFILING_ANALOG_DSTATE)
-	{
-		mDataProcessor.reset(new EnergyTraceProcessorId7(ENERGYTRACE_BUFFER_SIZE));
-		mDataProcessor->Reset();
-		// Pass on the calibration values to the processor
-		mDataProcessor->setCalibrationValues(calibrationValues, vcc);
 
-		if((callbackMode == ET_CALLBACKS_ONLY_DURING_RUN) && (devHandle))
+	std::lock_guard<std::mutex> lock(callbackMutex);
+
+	// Event type 7 ------------------------------------------------------------------------------------
+	if (mode == ET_PROFILING_ANALOG_DSTATE)
+	{
+		mDataProcessor.reset(new EnergyTraceProcessorId7(static_cast<uint32_t>(calibrationValues.size()), ENERGYTRACE_BUFFER_SIZE));
+		// Pass on the calibration values to the processor
+		mDataProcessor->setTimerStep(timerStep);
+		mDataProcessor->setResistorValues(&resistorValues[0]);
+		mDataProcessor->setCalibrationValues(&calibrationValues[0], vcc);
+
+		if ((callbackMode == ET_CALLBACKS_ONLY_DURING_RUN) && devHandle)
 		{
-			if(!mPollingManager->startEnergyTracePolling(ET_POLLING_ANALOG_DSTATE, ET_POLLING_GATED_ON))
-			{
-				return false;
-			}
-		}
-		else
-		{
-			return false;
+			return mPollingManager->startEnergyTracePolling(ET_POLLING_ANALOG_DSTATE, ET_POLLING_GATED_ON);
 		}
 	}
 
 	// Event type 8 ---------------------------------------------------------------------------------------
-	if(mode == ET_PROFILING_ANALOG)
+	if (mode == ET_PROFILING_ANALOG)
 	{
-		mDataProcessor.reset(new EnergyTraceProcessorId8(ENERGYTRACE_BUFFER_SIZE));
-		mDataProcessor->Reset();
+		mDataProcessor.reset(new EnergyTraceProcessorId8(static_cast<uint32_t>(calibrationValues.size()), ENERGYTRACE_BUFFER_SIZE));
 		// Pass on the calibration values to the processor
-		mDataProcessor->setCalibrationValues(calibrationValues, vcc);
+		mDataProcessor->setTimerStep(timerStep);
+		mDataProcessor->setResistorValues(&resistorValues[0]);
+		mDataProcessor->setCalibrationValues(&calibrationValues[0], vcc);
 
-		if(callbackMode == ET_CALLBACKS_ONLY_DURING_RUN)
-		{
-			if(!mPollingManager->startEnergyTracePolling(ET_POLLING_ANALOG, ET_POLLING_GATED_ON))
-			{
-				return false;
-			}
-		}
-		else
-		{
-			if(!mPollingManager->startEnergyTracePolling(ET_POLLING_ANALOG, ET_POLLING_GATED_OFF))
-			{
-				return false;
-			}
-		}
+		const EtGatedMode gatedMode = (callbackMode == ET_CALLBACKS_ONLY_DURING_RUN) ? ET_POLLING_GATED_ON : ET_POLLING_GATED_OFF;
 
+		return mPollingManager->startEnergyTracePolling(ET_POLLING_ANALOG, gatedMode);
 	}
-	return true;
+
+	return false;
 }
 
 //-------------------------------------------------------------
@@ -167,7 +170,7 @@ void EnergyTraceManager::runEvent(MessageDataPtr messageData)
 	uint16_t eventMask = 0;
 	(*messageData) >> eventMask;
 
-	if(mCbx)
+	if (mCbx)
 	{
 		uint8_t numRecords = 0;
 		uint8_t sizeOfRecords = 0;
@@ -175,7 +178,9 @@ void EnergyTraceManager::runEvent(MessageDataPtr messageData)
 		(*messageData) >> numRecords;
 		(*messageData) >> sizeOfRecords;
 
-		if(this->mDataProcessor->AddData((void*)messageData->data(), numRecords * sizeOfRecords))
+		std::lock_guard<std::mutex> lock(callbackMutex);
+
+		if (this->mDataProcessor->AddData((void*)messageData->data(), numRecords * sizeOfRecords))
 		{
 			mCbx->event(DebugEventTarget::EnergyTraceData);
 		}
@@ -185,17 +190,17 @@ void EnergyTraceManager::runEvent(MessageDataPtr messageData)
 //-------------------------------------------------------------
 void* EnergyTraceManager::getEnergyTraceBuffer()
 {
-	if(mDataProcessor)
+	if (mDataProcessor)
 	{
 		return mDataProcessor->GetReadBufferPtr();
 	}
-	return NULL;
+	return nullptr;
 }
 
 //-------------------------------------------------------------
 size_t EnergyTraceManager::getEnergyTraceBufferSize()
 {
-	if(mDataProcessor)
+	if (mDataProcessor)
 	{
 		return mDataProcessor->GetReadBufferSize();
 	}
@@ -203,59 +208,50 @@ size_t EnergyTraceManager::getEnergyTraceBufferSize()
 }
 
 //-------------------------------------------------------------
-bool EnergyTraceManager::doCalibration(uint16_t vcc)
+void EnergyTraceManager::doCalibration(uint16_t vcc)
 {
-	// Initialize to default values
-
-	HalExecCommand dcdcCmd;
-	HalExecElement* el;
-
-	double time, ticks;
-
-	// Cut the power switch to the target first before doing calibration
-	el = new HalExecElement(ID_SetVcc);
-	el->appendInputData16(0);
-	el->setInputMinSize(2);
-	dcdcCmd.elements.push_back(el);
-	if (!mParent->getControl()->send(dcdcCmd))
+	if (mParent->getControl()->getFetToolId() == eZ_FET_WITH_DCDC)
 	{
-		return false;
+		calibrateResistor(vcc);
 	}
-	// send Calibration comand to dcdc Firmware
-	dcdcCmd.elements.clear();
-	el = new HalExecElement(ID_Zero, dcdcCalibrate);
-	el->setAddrFlag(false);
-	el->appendInputData16(0x0); // No Load
-	dcdcCmd.elements.push_back(el);
-	mParent->getControl()->send(dcdcCmd);
-	ticks = el->getOutputAt32(0);
-	time = el->getOutputAt32(4) * 640; // time in ns
-	calibrationValues[0] = ticks * 1000.0 * 1000.0 / time; // ticks per ms
 
-	// send Calibration comand to dcdc Firmware
-	dcdcCmd.elements.clear();
-	el = new HalExecElement(ID_Zero, dcdcCalibrate);
-	el->setAddrFlag(false);
-	el->appendInputData16(0x1); // Calibrate Resistor 4
-	dcdcCmd.elements.push_back(el);
-	mParent->getControl()->send(dcdcCmd);
-	ticks = el->getOutputAt32(0);
-	time = el->getOutputAt32(4) * 640; // time in ns
-	calibrationValues[3] = ticks * 1000.0 * 1000.0 / time; // ticks per ms
+	if (mParent->getControl()->getFetToolId() == MSP_FET_WITH_DCDC)
+	{
+		calibrateResistor(vcc);
+	}
 
 	this->vcc = vcc;
-	return true;
-}
-
-void EnergyTraceManager::pausePolling()
-{
-	mPollingManager->pausePolling();
 }
 
 //-------------------------------------------------------------
-void EnergyTraceManager::resumePolling()
+void EnergyTraceManager::calibrateResistor(uint16_t vcc)
 {
-	mPollingManager->resumePolling();
+	// send Calibration comand to dcdc Firmware
+	HalExecElement* el = new HalExecElement(ID_Zero, dcdcCalibrate);
+	el->setAddrFlag(false);
+
+	el->appendInputData16(static_cast<uint16_t>(calibrationResistors.size())); //count resistors
+
+	// now add Resistors
+	for (size_t i = 0; i < calibrationResistors.size(); i++)
+	{
+		el->appendInputData16(calibrationResistors[i]);
+	}
+	//cal. VCC
+	el->appendInputData16(vcc);
+
+	HalExecCommand dcdcCmd;
+	dcdcCmd.setTimeout(20000);
+	dcdcCmd.elements.emplace_back(el);
+	mParent->getControl()->send(dcdcCmd);
+
+	int pos = 0;
+	for (size_t i = 0; i < calibrationResistors.size(); i++, pos+=8)
+	{
+		double ticks = el->getOutputAt32(pos);
+		double time = el->getOutputAt32(pos + 4) * timerStep; // time in ns
+		calibrationValues[i] = ticks * 1000.0 * 1000.0 / time;
+	}
 }
 
 //-------------------------------------------------------------

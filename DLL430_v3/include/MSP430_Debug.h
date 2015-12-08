@@ -3,63 +3,63 @@
  *
  * API for accessing debugging functionality of MSP430 library.
  *
- * Copyright (C) 2004 - 2011 Texas Instruments Incorporated - http://www.ti.com/ 
- * 
- * 
- *  Redistribution and use in source and binary forms, with or without 
- *  modification, are permitted provided that the following conditions 
+ * Copyright (C) 2004 - 2011 Texas Instruments Incorporated - http://www.ti.com/
+ *
+ *
+ *  Redistribution and use in source and binary forms, with or without
+ *  modification, are permitted provided that the following conditions
  *  are met:
  *
- *    Redistributions of source code must retain the above copyright 
+ *    Redistributions of source code must retain the above copyright
  *    notice, this list of conditions and the following disclaimer.
  *
  *    Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the 
- *    documentation and/or other materials provided with the   
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the
  *    distribution.
  *
  *    Neither the name of Texas Instruments Incorporated nor the names of
  *    its contributors may be used to endorse or promote products derived
  *    from this software without specific prior written permission.
  *
- *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS 
- *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT 
+ *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
  *  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT 
- *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, 
- *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT 
+ *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
  *  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
  *  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
- *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
- *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.                                                                                                                                                                                                                                                                                                         
+ *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-/**            
+/**
  \file MSP430_Debug.h
- 
+
  \brief       This file contains the DLL function headers and definitions
               to support the debugging functions of the MSP430.DLL
- 
+
               The MSP430.DLL provides the following debug functionalities:
               - Read/Write CPU registers
               - Set/Clear code breakpoints
               - Single step/Run to breakpoint/Free run the CPU
               - Get CPU state
               - Access the Enhanced Emultation Module registers
- 
- \attention   The debugging functions of the DLL are made available only 
+
+ \attention   The debugging functions of the DLL are made available only
               to third party tool developers. Using the Enhanced Emulation Module
               API strictly permits the usage of the functions provided via this
               header file. The functions are only made available due to downward
               compatibility reasons.
- 
+
  \par         Project:
               MSP430 JTAG Interface (MSP430.dll)
- 
+
  \par         Developed using:
               MS Visual C++ 2003/2010
-  
+
  \par         Supported API calls:
               - MSP430_Registers()
               - MSP430_Register()
@@ -135,7 +135,7 @@ typedef enum DEVICE_REGISTERS {
 #define MASKREG(REG) (1 << REG)
 /// Device registers mask including all registers.
 #define ALL_REGS 0xffff
-	
+
 /// Run modes.
 typedef enum RUN_MODES {
 	FREE_RUN = 1, /**< Run the device. Set breakpoints (if any) are disabled */
@@ -182,77 +182,77 @@ typedef enum DEVICE_CLOCK_CONTROL {
 } DEVICE_CLOCK_CONTROL_t;
 
 #if ! defined(uController)
-/// An array of NULL terminated string pointers that point 
+/// An array of NULL terminated string pointers that point
 /// to the string descriptions for each bit of the device
 /// EEM General Clock Control register GENCLKCNTRL.
 typedef struct EEM_GCLKCTRL {
    /// MCLKCTRL0F to MCLKCTRL00 reflect the bit description strings for MCLKCTRL0
-   CHAR* GENCLKCTRLF; 
-   CHAR* GENCLKCTRLE;
-   CHAR* GENCLKCTRLD; 
-   CHAR* GENCLKCTRLC;
-   CHAR* GENCLKCTRLB; 
-   CHAR* GENCLKCTRLA;
-   CHAR* GENCLKCTRL9; 
-   CHAR* GENCLKCTRL8;
-   CHAR* GENCLKCTRL7; 
-   CHAR* GENCLKCTRL6;
-   CHAR* GENCLKCTRL5; 
-   CHAR* GENCLKCTRL4;
-   CHAR* GENCLKCTRL3; 
-   CHAR* GENCLKCTRL2;
-   CHAR* GENCLKCTRL1; 
-   CHAR* GENCLKCTRL0;
+   const char* GENCLKCTRLF;
+   const char* GENCLKCTRLE;
+   const char* GENCLKCTRLD;
+   const char* GENCLKCTRLC;
+   const char* GENCLKCTRLB;
+   const char* GENCLKCTRLA;
+   const char* GENCLKCTRL9;
+   const char* GENCLKCTRL8;
+   const char* GENCLKCTRL7;
+   const char* GENCLKCTRL6;
+   const char* GENCLKCTRL5;
+   const char* GENCLKCTRL4;
+   const char* GENCLKCTRL3;
+   const char* GENCLKCTRL2;
+   const char* GENCLKCTRL1;
+   const char* GENCLKCTRL0;
 } EemGclkCtrl_t;
 
-/// An array of NULL terminated string pointer that point 
+/// An array of NULL terminated string pointer that point
 /// to the string descriptions for each bit of the device
 /// EEM Module Clock Control registers MCLKCTRL0 and MCLKCTRL1.
 typedef struct EEM_MCLKCTRL {
 	/// MCLKCTRL0F to MCLKCTRL00 reflect the bit description strings for MCLKCTRL0
-	CHAR* MCLKCTRL0F;
-	CHAR* MCLKCTRL0E;
-	CHAR* MCLKCTRL0D;
-	CHAR* MCLKCTRL0C;
-	CHAR* MCLKCTRL0B;
-	CHAR* MCLKCTRL0A;
-	CHAR* MCLKCTRL09;
-	CHAR* MCLKCTRL08;
-	CHAR* MCLKCTRL07;
-	CHAR* MCLKCTRL06;
-	CHAR* MCLKCTRL05;
-	CHAR* MCLKCTRL04;
-	CHAR* MCLKCTRL03;
-	CHAR* MCLKCTRL02;
-	CHAR* MCLKCTRL01;
-	CHAR* MCLKCTRL00;
+	const char* MCLKCTRL0F;
+	const char* MCLKCTRL0E;
+	const char* MCLKCTRL0D;
+	const char* MCLKCTRL0C;
+	const char* MCLKCTRL0B;
+	const char* MCLKCTRL0A;
+	const char* MCLKCTRL09;
+	const char* MCLKCTRL08;
+	const char* MCLKCTRL07;
+	const char* MCLKCTRL06;
+	const char* MCLKCTRL05;
+	const char* MCLKCTRL04;
+	const char* MCLKCTRL03;
+	const char* MCLKCTRL02;
+	const char* MCLKCTRL01;
+	const char* MCLKCTRL00;
 
 	/// MCLKCTRL1F to MCLKCTRL10 reflect the bit description strings for MCLKCTRL1
-	CHAR* MCLKCTRL1F;
-	CHAR* MCLKCTRL1E;
-	CHAR* MCLKCTRL1D;
-	CHAR* MCLKCTRL1C;
-	CHAR* MCLKCTRL1B;
-	CHAR* MCLKCTRL1A;
-	CHAR* MCLKCTRL19;
-	CHAR* MCLKCTRL18;
-	CHAR* MCLKCTRL17;
-	CHAR* MCLKCTRL16;
-	CHAR* MCLKCTRL15;
-	CHAR* MCLKCTRL14;
-	CHAR* MCLKCTRL13;
-	CHAR* MCLKCTRL12;
-	CHAR* MCLKCTRL11;
-	CHAR* MCLKCTRL10;
+	const char* MCLKCTRL1F;
+	const char* MCLKCTRL1E;
+	const char* MCLKCTRL1D;
+	const char* MCLKCTRL1C;
+	const char* MCLKCTRL1B;
+	const char* MCLKCTRL1A;
+	const char* MCLKCTRL19;
+	const char* MCLKCTRL18;
+	const char* MCLKCTRL17;
+	const char* MCLKCTRL16;
+	const char* MCLKCTRL15;
+	const char* MCLKCTRL14;
+	const char* MCLKCTRL13;
+	const char* MCLKCTRL12;
+	const char* MCLKCTRL11;
+	const char* MCLKCTRL10;
 } EemMclkCtrl_t;
 #endif // end of def uController
 
 /**
  \brief     EEM (Extended) General Clock Control.
- 
+
  \full      The EEM (Extended) General Clock Control allows one to configure the behavior of the system clocks
             (i.e., ACLK, MCLK, SMCLK, TACLK) when the device is stopped by JTAG (i.e., when the device is not
-			running or being single stepped). The default behavior of the clocks is to stop	when the device 
+			running or being single stepped). The default behavior of the clocks is to stop	when the device
 			is stopped by JTAG.
 */
 
@@ -291,7 +291,7 @@ typedef struct EEM_MCLKCTRL {
  \note      Note 2. MSP430_Configure(EMULATION_MODE, <bits>); will reset the device with PUC in order to change the
             emulation mode.
 */
- 
+
 /// Bits of the EEM General Control register.
 /// Do not use with MSP430_Configure(EMULATION_MODE, <bits>);
 #define	EEM_EN          (1 << 0)
@@ -306,21 +306,21 @@ typedef struct EEM_MCLKCTRL {
 
 /// The actual name of this bit is STOPPED.
 /// Do not use with MSP430_Configure(EMULATION_MODE, <bits>);
-#define	EEM_STOPPED     (1 << 7) 
+#define	EEM_STOPPED     (1 << 7)
 
 /// (Emulate) F44x 100 pins. This is the normal device mode.
-#define EMU_MODE_F44X_100	0x0000 
+#define EMU_MODE_F44X_100	0x0000
 /// Emulate F43x 100 pins.
-#define EMU_MODE_F43X_100	0x4000 
+#define EMU_MODE_F43X_100	0x4000
 /// Emulate F4xx 64 pins.
-#define EMU_MODE_F4XX_64	0x5000 
+#define EMU_MODE_F4XX_64	0x5000
 /// Emulate F4xx 80 pins.
-#define EMU_MODE_F4XX_80	0x6000 
+#define EMU_MODE_F4XX_80	0x6000
 
 #endif /* MSP430_DEBUG_TYPES */
 
 /**
-\fn    STATUS_T MSP430_Registers(LONG registers[], LONG mask, LONG rw);
+\fn    STATUS_T MSP430_Registers(int32_t registers[], int32_t mask, int32_t rw);
 
 \brief   Read and write the device registers.
 
@@ -330,7 +330,7 @@ typedef struct EEM_MCLKCTRL {
 	        and after MSP430_State() indicates BREAKPOINT_HIT, SINGLE_STEP_COMPLETE, or STOPPED (after
 	        stopping a running device [stop = TRUE]). The register copies are written to the device prior to
 	        MSP430_Run() with FREE_RUN, SINGLE_STEP, and RUN_TO_BREAKPOINT.
- 
+
 \param   registers: The destination of registers read from the device (rw = READ),\n
                     and the source of registers written to the device (rw = WRITE).
 \param   mask:		A bit-mask which identifies which registers are read/written\n
@@ -343,16 +343,16 @@ typedef struct EEM_MCLKCTRL {
 \par     Error codes:
          PARAMETER_ERR
 */
-DLL430_SYMBOL STATUS_T WINAPI MSP430_Registers(LONG* registers, LONG mask, LONG rw);
+DLL430_SYMBOL STATUS_T WINAPI MSP430_Registers(int32_t* registers, int32_t mask, int32_t rw);
 
 #define MSP430_Read_Registers(REGISTERS, MASK) MSP430_Registers(REGISTERS, MASK, READ)
 #define MSP430_Write_Registers(REGISTERS, MASK) MSP430_Registers(REGISTERS, MASK, WRITE)
 
 /**
-\fn    STATUS_T MSP430_ExtRegisters(LONG registers[], LONG mask, LONG rw);
+\fn    STATUS_T MSP430_ExtRegisters(int32_t registers[], int32_t mask, int32_t rw);
 
 \brief   Read and write the extended device registers.
- 
+
 \param   address:   The address of the extended register area
 \param   buffer:    The destination of registers read from the device (rw = READ),\n
                     and the source of registers written to the device (rw = WRITE).
@@ -364,13 +364,13 @@ DLL430_SYMBOL STATUS_T WINAPI MSP430_Registers(LONG* registers, LONG mask, LONG 
 \par     Error codes:
          PARAMETER_ERR
 */
-DLL430_SYMBOL STATUS_T WINAPI MSP430_ExtRegisters(LONG address, CHAR * buffer, LONG count,LONG rw);
+DLL430_SYMBOL STATUS_T WINAPI MSP430_ExtRegisters(int32_t address, uint8_t* buffer, int32_t count, int32_t rw);
 
 #define MSP430_Read_ExtRegister(ADDRESS, BUFFER) MSP430_ExtRegisters(ADDRESS, BUFFER,1 ,READ)
 #define MSP430_Write_ExtRegister(ADDRESS, BUFFER) MSP430_ExtRegisters(ADDRESS, BUFFER, 1, WRITE)
 
 /**
-\fn    STATUS_T MSP430_Register(LONG* reg, LONG regNb, LONG rw);
+\fn    STATUS_T MSP430_Register(int32_t* reg, int32_t regNb, int32_t rw);
 
 \brief   Read and write only one register of the device.
 
@@ -380,7 +380,7 @@ DLL430_SYMBOL STATUS_T WINAPI MSP430_ExtRegisters(LONG address, CHAR * buffer, L
 	        and after MSP430_State() indicates BREAKPOINT_HIT, SINGLE_STEP_COMPLETE, or STOPPED (after
 	        stopping a running device [stop = TRUE]). The register copies are written to the device prior to
 	        MSP430_Run() with FREE_RUN, SINGLE_STEP, and RUN_TO_BREAKPOINT.
- 
+
 \param   reg:   The destination of the register read from the device (rw = READ),\n
                 and the source of the register written to the device (rw = WRITE).
 \param   regNb:	Number of the register to be read/written (0 - 15).
@@ -392,14 +392,14 @@ DLL430_SYMBOL STATUS_T WINAPI MSP430_ExtRegisters(LONG address, CHAR * buffer, L
 \par     Error codes:
          PARAMETER_ERR
 */
-DLL430_SYMBOL STATUS_T WINAPI MSP430_Register(LONG* reg, LONG regNb, LONG rw);
+DLL430_SYMBOL STATUS_T WINAPI MSP430_Register(int32_t* reg, int32_t regNb, int32_t rw);
 
 #define MSP430_Read_Register(REG, REGNB) MSP430_Register(REG, REGNB, READ)
 #define MSP430_Write_Register(REG, REGNB) MSP430_Register(REG, REGNB, WRITE)
 
 
 /**
-\fn    STATUS_T MSP430_Run(LONG mode, LONG releaseJTAG);
+\fn    STATUS_T MSP430_Run(int32_t mode, int32_t releaseJTAG);
 
 \brief   Run the device using the specified mode. JTAG control signals are optionally released.
 
@@ -409,7 +409,7 @@ DLL430_SYMBOL STATUS_T WINAPI MSP430_Register(LONG* reg, LONG regNb, LONG rw);
             device registers.
 \note    4. DO NOT call this function twice without stopping device's CPU in between by calling
             MSP430_State() with parameter 'stop' set to TRUE.
- 
+
 \param   mode:		  The specified run mode:
 			- FREE_RUN:          Run the device. Set breakpoints (if any) are disabled.
 			- SINGLE_STEP:       A single device instruction is executed. Interrupt processing is supported.
@@ -428,10 +428,10 @@ DLL430_SYMBOL STATUS_T WINAPI MSP430_Register(LONG* reg, LONG regNb, LONG rw);
 \n       BREAKPOINT_ERR
 \n       PARAMETER_ERR
 */
-DLL430_SYMBOL STATUS_T WINAPI MSP430_Run(LONG mode, LONG releaseJTAG);
+DLL430_SYMBOL STATUS_T WINAPI MSP430_Run(int32_t mode, int32_t releaseJTAG);
 
 /**
-\fn    STATUS_T MSP430_State(LONG* state, LONG stop, LONG* pCPUCycles);
+\fn    STATUS_T MSP430_State(int32_t* state, int32_t stop, int32_t* pCPUCycles);
 
 \brief   Determine the state of the device. The device is optionally stopped.
          During single step operations, a count of CPU cycles executed is maintained.
@@ -450,7 +450,7 @@ DLL430_SYMBOL STATUS_T WINAPI MSP430_Run(LONG mode, LONG releaseJTAG);
             device is run (MSP430_Run()) with FREE_RUN and RUN_TO_BREAKPOINT.
 \note    5. Use MSP430_State() to update the device registers before using MSP430_Registers() to read the
             device registers.
- 
+
 \param   state:		 The device state:
 			  - STOPPED:              The device is stopped.
 			  - RUNNING:              The device is running or is being single stepped.
@@ -467,11 +467,11 @@ DLL430_SYMBOL STATUS_T WINAPI MSP430_Run(LONG mode, LONG releaseJTAG);
 \n       STATE_ERR
 \n       STEP_ERR
 */
-DLL430_SYMBOL STATUS_T WINAPI MSP430_State(LONG* state, LONG stop, LONG* pCPUCycles);
+DLL430_SYMBOL STATUS_T WINAPI MSP430_State(int32_t* state, int32_t stop, int32_t* pCPUCycles);
 
 
 /**
-\fn   STATUS_T WINAPI MSP430_CcGetClockNames(LONG localDeviceId, EemGclkCtrl_t** CcClockNames)
+\fn   STATUS_T WINAPI MSP430_CcGetClockNames(int32_t localDeviceId, EemGclkCtrl_t** CcClockNames)
 
 \brief   Returns the string descriptions of the devices' EEM General Clock Control
          register GENCLKCNTRL.
@@ -486,7 +486,7 @@ DLL430_SYMBOL STATUS_T WINAPI MSP430_State(LONG* state, LONG stop, LONG* pCPUCyc
   Application example:
 
   #include "MSP430_Debug.h"
-          
+
   EemGclkCtrl_t* globalCcClockNames;
 
   MSP430_CcGetClockNames(deviceId, &globalCcClockNames);
@@ -496,12 +496,12 @@ DLL430_SYMBOL STATUS_T WINAPI MSP430_State(LONG* state, LONG stop, LONG* pCPUCyc
 \return  STATUS_OK:    The function was executed successfully.
 */
 #ifndef uController
-STATUS_T WINAPI MSP430_CcGetClockNames(LONG localDeviceId, EemGclkCtrl_t** CcClockNames);
+DLL430_SYMBOL STATUS_T WINAPI MSP430_CcGetClockNames(int32_t localDeviceId, EemGclkCtrl_t** CcClockNames);
 #endif
 
 
 /**
-\fn   STATUS_T MSP430_CcGetModuleNames(LONG localDeviceId, EemMclkCtrl_t** CcModuleNames)
+\fn   STATUS_T MSP430_CcGetModuleNames(int32_t localDeviceId, EemMclkCtrl_t** CcModuleNames)
 
 \brief   Returns the string descriptions of the devices' EEM Module Clock Control
          registers MCLKCTRL0 and MCLKCTRL1.
@@ -516,7 +516,7 @@ STATUS_T WINAPI MSP430_CcGetClockNames(LONG localDeviceId, EemGclkCtrl_t** CcClo
   Application example:
 
   #include "MSP430_Debug.h"
-          
+
   EemMclkCtrl_t* globalCcModuleNames;
 
   MSP430_CcGetModuleNames(deviceId, &globalCcModuleNames);
@@ -526,7 +526,7 @@ STATUS_T WINAPI MSP430_CcGetClockNames(LONG localDeviceId, EemGclkCtrl_t** CcClo
 \return  STATUS_OK:    The function was executed successfully.
 */
 #if ! defined(uController)
-DLL430_SYMBOL STATUS_T WINAPI MSP430_CcGetModuleNames(LONG localDeviceId, EemMclkCtrl_t** CcModuleNames);
+DLL430_SYMBOL STATUS_T WINAPI MSP430_CcGetModuleNames(int32_t localDeviceId, EemMclkCtrl_t** CcModuleNames);
 #endif
 
 

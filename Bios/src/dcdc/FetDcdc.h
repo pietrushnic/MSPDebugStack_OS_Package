@@ -51,19 +51,36 @@
 #define SDIO_POWERDOWN_KEY        (0x5a5a)
 #define SDIO_DELAY_AFTER_SENDING  (1000u)
 
+struct calibrationResistors
+{
+    unsigned long time;
+    unsigned long ticks;
+    unsigned short resistor;
+};
+typedef struct calibrationResistors calibrationResistors_t;
+
+struct calibrationValues
+{
+    unsigned short vcc;
+    calibrationResistors_t resValues[5];
+    unsigned short valid;
+};
+typedef struct calibrationValues calibrationValues_t;
+
 struct DCDC_INFOS
 {
     short (*getSubMcuVersion)(void);
     short (*getLayerVersion)(void);
-    short (*dcdcCalibrate)(unsigned short resistor, unsigned long *ticks, unsigned long *time);
+    short (*dcdcCalibrate)(unsigned short resistor[4], unsigned short resCount, unsigned short vcc);
     short (*dcdcPowerDown)(void);
     short (*dcdcSetVcc)(unsigned short vcc);
     short (*dcdcRestart)(unsigned short fetType_);
+    void  (*dcdc_getCalibrationValues)(unsigned short vcc, unsigned short resistor,  unsigned short resCount, unsigned long *ticks, unsigned long *time);
 };
 typedef struct DCDC_INFOS DCDC_INFOS_t;
 
 void dcdc_Init(DCDC_INFOS_t* dcdcInfos_Pointer);
-short dcdc_Calibrate(unsigned short resistor, unsigned long *ticks, unsigned long *time);
+short dcdc_Calibrate(unsigned short resistor[5], unsigned short resCount, unsigned short vcc);
 short dcdc_PowerDown();
 short dcdc_SetVcc(unsigned short vcc);
 short dcdc_getSubMcuVersion();
@@ -71,4 +88,5 @@ short dcdc_getLayerVersion();
 short dcdc_Restart(unsigned short fetType_);
 short dcdc_Send(unsigned int cmd, unsigned int data);
 short dcdc_Receive(unsigned int *data_read);
+void dcdc_getCalibrationValues(unsigned short vcc, unsigned short resistor, unsigned short resCount, unsigned long *ticks, unsigned long *time);
 #endif

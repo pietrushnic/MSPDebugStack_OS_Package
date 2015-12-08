@@ -3,39 +3,39 @@
  *
  * Definition MSP430F42xx devices.
  *
- * Copyright (C) 2011 Texas Instruments Incorporated - http://www.ti.com/ 
- * 
- * 
- *  Redistribution and use in source and binary forms, with or without 
- *  modification, are permitted provided that the following conditions 
+ * Copyright (C) 2011 Texas Instruments Incorporated - http://www.ti.com/
+ *
+ *
+ *  Redistribution and use in source and binary forms, with or without
+ *  modification, are permitted provided that the following conditions
  *  are met:
  *
- *    Redistributions of source code must retain the above copyright 
+ *    Redistributions of source code must retain the above copyright
  *    notice, this list of conditions and the following disclaimer.
  *
  *    Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the 
- *    documentation and/or other materials provided with the   
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the
  *    distribution.
  *
  *    Neither the name of Texas Instruments Incorporated nor the names of
  *    its contributors may be used to endorse or promote products derived
  *    from this software without specific prior written permission.
  *
- *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS 
- *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT 
+ *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
  *  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT 
- *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, 
- *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT 
+ *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
  *  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
  *  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
- *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
- *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.                                                                                                                                                                                                                                                                                                         
+ *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "MSP430F4xxx.h"
+#include <pch.h>
 
 using namespace TI::DLL430;
 using namespace TemplateDeviceDb;
@@ -47,13 +47,13 @@ typedef IdCode<0xFFFF, 0x00, 0x00, 0x00, 0x00, 0x7F, 0x00> MSP430FW42xIdMask;
 
 
 template<const unsigned int versionId, const unsigned int fuses>
-struct MSP430F42xx_Match : Match< IdCode<versionId, 0x0, 0,0,0, 'E', fuses>, MSP430F42xxIdMask> {};
+struct MSP430F42xx_Match : Match< IdCode<versionId, 0x0, 0, 0, 0, 'E', fuses>, MSP430F42xxIdMask> {};
 
 template<const unsigned int versionId, const unsigned int fuses>
-struct MSP430F42x0_Match : Match< IdCode<versionId, 0x0, 0,0,0, 'G', fuses>, MSP430F42x0IdMask> {};
+struct MSP430F42x0_Match : Match< IdCode<versionId, 0x0, 0, 0, 0, 'G', fuses>, MSP430F42x0IdMask> {};
 
 template<const unsigned int versionId>
-struct MSP430FW42x_Match : Match< IdCode<versionId, 0x0, 0,0,0,'W', 0>, MSP430FW42xIdMask> {};
+struct MSP430FW42x_Match : Match< IdCode<versionId, 0x0, 0, 0, 0, 'W', 0>, MSP430FW42xIdMask> {};
 
 
 typedef ClockInfo<GCC_STANDARD, 0x60D7, EmptyEemTimer, TAClkEemClockNames> MSP430F42xx_ClockInfo;
@@ -63,16 +63,16 @@ typedef VoltageInfo<2700, 3600, 2700, 2700, 6000, 7000, false> MSP430F42xxVoltag
 typedef VoltageInfo<1800, 3600, 2500, 2700, 6000, 7000, false> MSP430F42x0Voltage;
 
 template<class FlashOffset, class FlashSize, class RamSize, class LcdMemorySize, class SFRmask>
-struct MemoryModel : MemoryList<boost::tuple<
-			MSP430F4xxx_MainFlashMemory<FlashSize, FlashOffset>, 
-			MSP430F4xxx_InfoFlashMemoryInfo, 
-			MSP430F4xxx_BootFlashMemoryInfo, 
+struct MemoryModel : MemoryList<std::tuple<
+			MSP430F4xxx_MainFlashMemory<FlashSize, FlashOffset>,
+			MSP430F4xxx_InfoFlashMemoryInfo,
+			MSP430F4xxx_BootFlashMemoryInfo,
 			MSP430F4xxx_LcdMemoryInfo<LcdMemorySize>,
-			MSP430F4xxx_SystemRamInfo<RamSize>, 
+			MSP430F4xxx_SystemRamInfo<RamSize>,
 			MSP430F1_2_4xxx_peripherl16lbitMemoryInfo,
 			MSP430F1_2_4xxx_peripherl8lbitMemoryInfo<SFRmask>,
 			MSP430F4xxx_CPUMemoryInfo,
-			MSP430F4xxx_EEMMemoryInfo> 
+			MSP430F4xxx_EEMMemoryInfo>
 		> {};
 
 typedef MemoryModel< Offset<0xE000>, Size<0x2000>, Size<0x100>, Size<0x15>, sfrMask_f380d380c0ff> MemoryModel3;
@@ -91,11 +91,10 @@ template<
 	class MemoryModelType
 >
 struct MSP430F42xx : Device<
-		description, 
-		ObjectId<0>,
-		DefaultBits16Type, 
-		regular, 
-		MSP430F42xx_Match<versionId, fuses>, 
+		description,
+		DefaultBits16Type,
+		regular,
+		MSP430F42xx_Match<versionId, fuses>,
 		LowEemMode,
 		MSP430F42xxVoltage,
 		MSP430F42xx_ClockInfo,
@@ -130,11 +129,10 @@ template<
 	class MemoryModelType
 >
 struct MSP430F42x0 : Device<
-		description, 
-		ObjectId<0>,
-		DefaultBits16Type, 
-		regular, 
-		MSP430F42x0_Match<versionId, fuses>, 
+		description,
+		DefaultBits16Type,
+		regular,
+		MSP430F42x0_Match<versionId, fuses>,
 		LowEemMode,
 		MSP430F42x0Voltage,
 		MSP430F42xx_ClockInfo,
@@ -163,11 +161,10 @@ template<
 	class MemoryModelType
 >
 struct MSP430FW42x : Device<
-		description, 
-		ObjectId<0>,
-		DefaultBits16Type, 
-		regular, 
-		MSP430FW42x_Match<versionId>, 
+		description,
+		DefaultBits16Type,
+		regular,
+		MSP430FW42x_Match<versionId>,
 		LowEemMode,
 		MSP430F4xxx_DefaultVoltageNoTestVpp,
 		MSP430F42xx_ClockInfo,
@@ -180,7 +177,6 @@ struct MSP430FW42x : Device<
 
 
 extern const char MSP430FW429[] = "MSP430FW429";
-
 
 
 //                                        description, versionId, fuses, MemoryModel

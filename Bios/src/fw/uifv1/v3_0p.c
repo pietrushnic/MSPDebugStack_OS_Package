@@ -138,6 +138,9 @@ short HAL_Zero(unsigned char *data)
             STREAM_put_word(0x0000);
             STREAM_put_word(0x0000);
             
+            // return dummy FPGA version
+            STREAM_put_word(0x0000);
+
             STREAM_put_word(BIOS_RX_QUEUS);
             STREAM_put_word(BIOS_RX_SIZE);
             STREAM_put_long(bios_device_flags_);
@@ -530,7 +533,7 @@ short v3opRx (unsigned char *str)
     {
         if(ret_value >= 0)
         {
-            if(STREAM_out_init(str[MESSAGE_MSG_ID_POS], RESPTYP_ACKNOWLEDGE) >= 0);
+            if(STREAM_out_init(str[MESSAGE_MSG_ID_POS], RESPTYP_ACKNOWLEDGE) >= 0)
             {
                 STREAM_put_word(ret_value);
                 STREAM_flush();

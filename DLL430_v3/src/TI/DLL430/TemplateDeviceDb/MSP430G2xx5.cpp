@@ -3,39 +3,39 @@
  *
  * Definition MSP430G2xx5 devices.
  *
- * Copyright (C) 2011 Texas Instruments Incorporated - http://www.ti.com/ 
- * 
- * 
- *  Redistribution and use in source and binary forms, with or without 
- *  modification, are permitted provided that the following conditions 
+ * Copyright (C) 2011 Texas Instruments Incorporated - http://www.ti.com/
+ *
+ *
+ *  Redistribution and use in source and binary forms, with or without
+ *  modification, are permitted provided that the following conditions
  *  are met:
  *
- *    Redistributions of source code must retain the above copyright 
+ *    Redistributions of source code must retain the above copyright
  *    notice, this list of conditions and the following disclaimer.
  *
  *    Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the 
- *    documentation and/or other materials provided with the   
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the
  *    distribution.
  *
  *    Neither the name of Texas Instruments Incorporated nor the names of
  *    its contributors may be used to endorse or promote products derived
  *    from this software without specific prior written permission.
  *
- *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS 
- *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT 
+ *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
  *  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT 
- *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, 
- *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT 
+ *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
  *  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
  *  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
- *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
- *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.                                                                                                                                                                                                                                                                                                         
+ *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "MSP430F2xxx.h"
+#include <pch.h>
 
 using namespace TI::DLL430;
 using namespace TemplateDeviceDb;
@@ -45,18 +45,9 @@ typedef ClockInfo<GCC_STANDARD_I, 0x60D7, EmptyEemTimer, TAClkEemClockNames> MSP
 
 typedef IdCode<0xFFFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00> MSP430G2xx5IdMask;
 
-typedef Match< IdCode<0x5529, 0,0,0,0,0,0>, MSP430G2xx5IdMask> MSP430G2xx5_Match;
+typedef Match< IdCode<0x5529, 0, 0, 0, 0, 0, 0>, MSP430G2xx5IdMask> MSP430G2xx5_Match;
 
-typedef Features<BC_2xx, false, true, true, false, false, true> MSP430G2xx5_Features;
-
-struct FunctionMappingG2xx5 : public FunctionMappingBase
-{
-	FunctionMappingG2xx5()
-	{
-		FunctionMappingImpl::fcntMap_ = boost::assign::map_list_of
-			(ID_EemDataExchange, ID_EemDataExchangeAFE2xx);
-	}
-};
+typedef Features<BC_2xx, false, true, true, false, false> MSP430G2xx5_Features;
 
 
 template<
@@ -69,18 +60,17 @@ template<
 	class Features = DefaultFeatures
 >
 struct MSP430G2xx5 : Device<
-		description, 
-		ObjectId<0>,
-		DefaultBits16Type, 
-		regular, 
+		description,
+		DefaultBits16Type,
+		regular,
 		MatchType,
 		LowEemMode,
 		MSP430F2xxx_DefaultVoltageTestVpp,
 		MSP430G2xx5_ClockInfo,
-		FunctionMappingG2xx5,
+		FunctionMappingNone,
 		FuncletMapping1_2xx,
-		MemoryList<boost::tuple<
-			MSP430F2xxx_MainFlashMemory< Size<FlashSize>, Offset<FlashOffset> >, 
+		MemoryList<std::tuple<
+			MSP430F2xxx_MainFlashMemory< Size<FlashSize>, Offset<FlashOffset> >,
 			MSP430F2xxx_InfoFlashMemoryInfo,
 			MSP430F2xxx_BootFlashMemoryInfo,
 			MSP430F2xxx_SystemRamInfo< Size<RamSize> >,
@@ -97,6 +87,6 @@ struct MSP430G2xx5 : Device<
 extern const char MSP430G2955[] = "MSP430G2x55";
 
 
-static const DeviceRegistrator< 
-	MSP430G2xx5<MSP430G2955, MSP430G2xx5_Match, 0xDF00, 0x2100, 0x800, 0x1000, MSP430G2xx5_Features> 
+static const DeviceRegistrator<
+	MSP430G2xx5<MSP430G2955, MSP430G2xx5_Match, 0xDF00, 0x2100, 0x800, 0x1000, MSP430G2xx5_Features>
 > regMSP430G2955;

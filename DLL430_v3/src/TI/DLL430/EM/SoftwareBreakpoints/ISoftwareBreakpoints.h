@@ -35,11 +35,9 @@
  *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef DLL430_ISOFTWARE_BREAKPOINTS_430_H
-#define DLL430_ISOFTWARE_BREAKPOINTS_430_H
+#pragma once
 
-#include <stdint.h>
-#include <boost/shared_ptr.hpp>
+
 #include "SoftwareBreakpointManager.h"
 
 
@@ -56,7 +54,6 @@ public:
 	virtual SoftwareBreakpointManagerPtr getSwbpManager() const = 0;
 };
 
-typedef boost::shared_ptr<ISoftwareBreakpoints> SoftwareBreakpointsPtr;
+typedef std::shared_ptr<ISoftwareBreakpoints> SoftwareBreakpointsPtr;
 
 }}
-#endif

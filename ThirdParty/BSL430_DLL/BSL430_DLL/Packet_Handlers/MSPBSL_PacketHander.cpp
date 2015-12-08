@@ -36,6 +36,7 @@
  *
 */
 
+#include <pch.h>
 
 #include "MSPBSL_PacketHandler.h"
 #include "MSPBSL_PhysicalInterface.h"
@@ -49,7 +50,7 @@ using namespace std;
 * Destructor for this class
 *
 ******************************************************************************/
-MSPBSL_PacketHandler::~MSPBSL_PacketHandler(void)
+MSPBSL_PacketHandler::~MSPBSL_PacketHandler()
 {
 	delete thePhysicalInterface;
 }

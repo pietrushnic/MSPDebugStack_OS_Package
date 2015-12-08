@@ -49,26 +49,16 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#if _MSC_VER > 1000
 #pragma once
-#endif
 
-#ifndef ENERGY_TRACE_PROCESSOR_H
-#define ENERGY_TRACE_PROCESSOR_H
-
-#include <IDataProcessor.h>
 #include <DoubleBuffer.h>
-#include <stdint.h>
-#include <vector>
-
+#include "IDataProcessor.h"
+#include "EnergyTraceRunningAverageFilter.h"
 
 namespace TI
 {
 	namespace DLL430
 	{
-		class EnergyTraceLowPassFilter;
-		class EnergyTraceRunningAverageFilter;
-
 		class EnergyTraceProcessor : public IDataProcessor
 		{
 		public:
@@ -76,33 +66,30 @@ namespace TI
 			 * \brief Constructor creates the two buffers
 			 * \param size The desired size of the buffers
 			 */
-			EnergyTraceProcessor();
+			explicit EnergyTraceProcessor(uint32_t numCalibrationPoints);
 			~EnergyTraceProcessor();
 
+			EnergyTraceProcessor(const EnergyTraceProcessor&) = delete;
+			EnergyTraceProcessor& operator=(const EnergyTraceProcessor&) = delete;
+
+
+			void setTimerStep(uint32_t step);
+			void setResistorValues(double *resistorValues);
 			void setCalibrationValues(double *calibrationValues, uint16_t vcc);
-			static const uint32_t TIME_BASE_ns = 640;
 
 		protected:
-			static const uint32_t NUM_CALIBRATION_POINTS = 2;
+			///< \brief Calculate the correct values to use when calculating the current
+			void calculateCalibration(uint16_t vcc);
+
 			static const uint32_t minUpdateRateInMsec = 1000;
 
 			static const uint32_t SKIP_COUNTER = 5;
-			static const size_t RUNNING_AVERAGE_SIZE = 50;		///< Buffer size for running avergae filter
-
-			static const uint16_t DQ_LENGTH = 100;				// Length of double-ended queue
-			static const uint16_t SOBEL_OFFSET = 2;				// Offset for deltaN's
-			static const uint16_t SOBEL_STEP = 25;				// Threshold for Sobel step up&down detection
-
 			static const uint16_t ACCUMULATED_N_DIV_MIN = 1;
-			static const uint16_t ACCUMULATED_N_DIV_MAX = 20;
 			static const uint16_t ACCUMULATED_N_DIV_STEP_SIZE = 5;
 
-			static const uint32_t IOUT_FILTER_THRESHOLD_NA = 500*1000;	// Threshold to use IOut filter
-
+			uint32_t numCalibrationPoints;
 			uint32_t tickThreshold;								// Adaptive filter threshold
-			uint32_t deltaNThreshold;							// Adaptive filter threshold
-			double sobelStepThreshold;							// Adaptive filter threshold
-			double oneTickinMicroWsec;							// Energy equivalent of 1 tick in uWsec (uJ)
+			std::vector<double> oneTickinMicroWsec;				// Energy equivalent of 1 tick in uWsec (uJ)
 
 
 #pragma pack(1)
@@ -116,7 +103,6 @@ namespace TI
 				uint32_t energy;    ///< Energy  E in nw
 			} EnergyRecord;
 #pragma pack()
-
 
 
 #pragma pack(1)
@@ -162,19 +148,15 @@ namespace TI
 				double offset;      ///< Offset with which to calculate actual value
 			} Calibration_t;
 
-			IDataProcessor *mFilter;   ///< Low Pass Filter used to filter the current samples
-			IDataProcessor *mVoutFilter;
+			EnergyTraceRunningAverageFilter mVoutFilter;
 			bool mFilterEnable;
 			double mTimeTag_us;                  ///< The current timetag
 			uint32_t mPrevTimeTag;                 ///< Previous timetag value received from the firmware
 			uint32_t mPrevCurrentTick;           ///< Previous current value received from firmware
-			Calibration_t mCalibrationValues[NUM_CALIBRATION_POINTS]; ///< Calibration values used to calculate the current
+			std::vector<Calibration_t> mCalibrationValues; ///< Calibration values used to calculate the current
+			std::vector<double> mResistorValues; ///< Resistor values used to calculate ref currents
 			uint8_t mSkip;                       ///< First record that was recorded
-
-			///< \brief Calculate the correct values to use when calculating the current
-			void calculateCalibration(uint16_t vcc);
+			uint32_t timeBase_ns;
 		};
 	}
 }
-
-#endif // ENERGY_TRACE_PROCESSOR_H

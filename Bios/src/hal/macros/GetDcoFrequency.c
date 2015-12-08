@@ -7,35 +7,35 @@
 *
 */
 /*
- * Copyright (C) 2012 Texas Instruments Incorporated - http://www.ti.com/ 
- * 
- * 
- *  Redistribution and use in source and binary forms, with or without 
- *  modification, are permitted provided that the following conditions 
+ * Copyright (C) 2012 Texas Instruments Incorporated - http://www.ti.com/
+ *
+ *
+ *  Redistribution and use in source and binary forms, with or without
+ *  modification, are permitted provided that the following conditions
  *  are met:
  *
- *    Redistributions of source code must retain the above copyright 
+ *    Redistributions of source code must retain the above copyright
  *    notice, this list of conditions and the following disclaimer.
  *
  *    Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the 
- *    documentation and/or other materials provided with the   
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the
  *    distribution.
  *
  *    Neither the name of Texas Instruments Incorporated nor the names of
  *    its contributors may be used to endorse or promote products derived
  *    from this software without specific prior written permission.
  *
- *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS 
- *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT 
+ *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
  *  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT 
- *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, 
- *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT 
+ *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
  *  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
  *  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
- *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
+ *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
@@ -53,68 +53,93 @@
 
 static unsigned short loopDco[] =
 {
-    0x40b2, 0x5a80, 0x0120, 0xc232, 0x40f2, 0x0087, 0x0057, 0x45c2, 
-    0x0056, 0x46c2, 0x0057, 0x43c2, 0x0058, 0xea0a, 0xe909, 0x5319, 
-    0x23fe, 0x531a, 0x23fc, 0x4303, 0x3fff
+    0x40b2, 0x5a80, 0x0120, 0xc232, 0xc0f2, 0x003f, 0x0057, 0xd0f2,
+    0x0007, 0x0057, 0x45c2, 0x0056, 0x46c2, 0x0057, 0x43c2, 0x0058,
+    0xea0a, 0xe909, 0x5319, 0x23fe, 0x531a, 0x23fc, 0x4303, 0x3fff
 };
 static const unsigned short sizeLoopDco = (unsigned short)(sizeof(loopDco)/sizeof(*loopDco));
 
 static unsigned short loopFll[] =
 {
-    0x40b2, 0x5a80, 0x0120, 0xc232, 0xd072, 0x0040, 0x4032, 0x0040, 
-    0x40f2, 0x0080, 0x0052, 0x43c2, 0x0050, 0x45c2, 0x0051, 0x40f2, 
-    0x0080, 0x0053, 0x43c2, 0x0054, 0xea0a, 0xe909, 0x5319, 0x23fe, 
-    0x531a, 0x23fc, 0x4303, 0x3fff
+    0x40b2, 0x5a80, 0x0120, 0xc232, 0xd072, 0x0040, 0x4032, 0x0040,
+    0x40f2, 0x0080, 0x0052, 0x43c2, 0x0050, 0x45c2, 0x0051, 0xd0f2,
+    0x0080, 0x0053, 0xc0f2, 0x005f, 0x0054, 0xea0a, 0xe909, 0x5319,
+    0x23fe, 0x531a, 0x23fc, 0x4303, 0x3fff
 };
 static const unsigned short sizeLoopFll = (unsigned short)(sizeof(loopFll)/sizeof(*loopFll));
 
-#ifdef MSP430_UIF 
-static unsigned short Time = 0; 
+/*--------------------------------------------------------------------------------*/
+#ifdef MSP430_UIF
+    static unsigned short Time = 0;
 
-#pragma vector=TIMERA1_VECTOR
-__interrupt void TIMER_A_ISR_(void)
-{
-    Time++;
-    TACTL &= ~TAIFG;
-}
+    #pragma vector=TIMERA1_VECTOR
+    __interrupt void TIMER_A_ISR_(void)
+    {
+        Time++;
+        TACTL &= ~TAIFG;
+    }
 
-static void StartTimer()
-{
-    TACTL =  0;                                          // STOP Timer
-    TACTL &= ~CCIFG;                                     // Clear the interrupt flag  
-    TACTL =  TASSEL_2;                            // Timer is runnig at 1 Mhz
-    TACCR0 = 0x2E9;                                      // Load CCR0 with delay... (1ms delay)         
-    TAR = 0; 
-    TACTL |= TACLR + MC_1 + TAIE;                               // Start Timer
-}
+    static void StartTimer()
+    {
+        TACTL =  0;                                             // STOP Timer
+        TACTL &= ~CCIFG;                                            // Clear the interrupt flag
+        TACTL =  TASSEL_2;                                      // Timer is runnig at 1 Mhz
+        TACCR0 = 0x2E9;                                      // Load CCR0 with delay... (1ms delay)
+        TAR = 0;
+        TACTL |= TACLR + MC_1 + TAIE;                               // Start Timer
+    }
 
-static void StopTimer()
-{
-    TACTL &= ~MC_1;
-    TACTL &= ~TAIE;                               // Start Timer
-}
+    static void StopTimer()
+    {
+        TACTL &= ~MC_1;
+        TACTL &= ~TAIE;                               // Start Timer
+    }
 #endif
 
-#ifdef EZ_FET
+/*--------------------------------------------------------------------------------*/
+
+#ifdef eZ_FET
     static void StartTimer()
     {
         TB0CTL = 0;                                             // STOP Timer
-        TB0CTL = ID__8 + TBSSEL__SMCLK;                         // Timer_B source:SMCLK ,SMCLK/0 = 25 
-        TB0CCR0 = 0x9cf;                                        // Load CCR0 with delay... (1ms delay)     
-        TB0CCTL0 &= ~CCIFG;                                     // Clear the interrupt flag       
-        TB0CCTL0 |= CCIE ;  
-        TB0CTL |= TBCLR + MC__UP;                               
-       
+        TB0CTL = ID__8 + TBSSEL__SMCLK;                         // Timer_B source:SMCLK ,SMCLK/0 = 25
+        TB0CCR0 = 0x9cf;                                        // Load CCR0 with delay... (1ms delay)
+        TB0CCTL0 &= ~CCIFG;                                     // Clear the interrupt flag
+        TB0CCTL0 |= CCIE ;
+        TB0CTL |= TBCLR + MC__UP;
     }
-    
+
     static void StopTimer()
     {
         TB0CTL &= ~MC__UP;
         TB0CTL = 0;                                             // STOP Timer
         // restore timer B0 1ms delay value
-        EDT_InitTimerB0();  
+        IHIL_InitDelayTimer();
     }
 #endif
+
+/*--------------------------------------------------------------------------------*/
+
+#ifdef MSP_FET
+    static void StartTimer()
+    {
+        TA2CTL = 0;                                             // STOP Timer
+        TA2CTL = ID__8 + TASSEL__SMCLK;                         // Timer_A source:SMCLK ,SMCLK/0 = 25
+        TA2CCR0 = 0x7d8;                                        // Load CCR0 with delay... (1ms delay)
+        TA2CCTL0 &= ~CCIFG;                                     // Clear the interrupt flag
+        TA2CCTL0 |= CCIE ;
+        TA2CTL |= TACLR + MC__UP;
+    }
+
+    static void StopTimer()
+    {
+        TA2CTL &= ~MC__UP;
+        TA2CTL = 0;                                             // STOP Timer
+        // restore timer A2 1ms delay value
+        IHIL_InitDelayTimer();
+    }
+#endif
+
 
 static unsigned long (*ReadCounterRegsFunc)() = 0;
 static void (*WriteRegFunc)(int, unsigned long) = 0;
@@ -126,10 +151,9 @@ static HalFuncInOut SyncFunc = 0;
 
 static void readFromRam(unsigned short address, unsigned short* buffer, unsigned short numWords)
 {
-    decl_out
     while (numWords-- > 0)
     {
-        ReadMemWord(address, *buffer);  
+        *buffer = ReadMemWord(address);
         address += 2;
         ++buffer;
     }
@@ -139,7 +163,7 @@ static void writeToRam(unsigned short address, unsigned short* data, unsigned sh
 {
     while (numWords-- > 0)
     {
-        WriteMemWord(address, *data);  
+        WriteMemWord(address, *data);
         address += 2;
         ++data;
     }
@@ -147,11 +171,9 @@ static void writeToRam(unsigned short address, unsigned short* data, unsigned sh
 
 static void readFromRamX(unsigned short address, unsigned short* buffer, unsigned short numWords)
 {
-    decl_out
-    decl_out_long
     while (numWords-- > 0)
     {
-        ReadMemWordX(address, *buffer);  
+        *buffer = ReadMemWordX(address);
         address += 2;
         ++buffer;
     }
@@ -169,23 +191,21 @@ static void writeToRamX(unsigned short address, unsigned short* data, unsigned s
 
 static unsigned long readCounterRegisters()
 {
-    decl_out
-    unsigned short r9, r10;
+    unsigned short r9 = 0 , r10 = 0;
     unsigned long counter = 0;
 
-    ReadCpuReg_uShort(9, r9);
-    ReadCpuReg_uShort(10, r10);
+    r9 = ReadCpuReg_uShort(9);
+    r10 = ReadCpuReg_uShort(10);
     counter = r10;
     return (counter << 16) | r9;
 }
 
 static unsigned long readCounterRegistersX()
 {
-    decl_out
-    unsigned long r9, r10;
+    unsigned long r9 = 0, r10 = 0;
 
-    ReadCpuRegX(9, r9);
-    ReadCpuRegX(10, r10);
+    r9 = ReadCpuRegX(9);
+    r10 = ReadCpuRegX(10);
     return (r10 << 16) | r9;
 }
 
@@ -212,7 +232,7 @@ static void setPCX(unsigned long address)
 static void setPCJtag(unsigned long address)
 {
     SetPcJtagBug(address);
-    EDT_Tclk(1);
+    IHIL_Tclk(1);
 }
 
 
@@ -224,34 +244,36 @@ static unsigned long measureFrequency(unsigned short RamStart, unsigned short DC
     unsigned long elapseTime = 0;
     unsigned long counter = 0;
     unsigned long freq = 0;
-    #ifdef EZ_FET
+
+    #if defined(eZ_FET) || defined(MSP_FET)
     unsigned short *TimerTick = 0;
-    #endif   
+    #endif
     WriteRegFunc(5, DCO);
     WriteRegFunc(6, BCS1);
-    
-    SetPCFunc(RamStart);
-    cntrl_sig_release
-    #ifdef EZ_FET
-        STREAM_getSharedVariable(ID_SHARED_MEMORY_TYPE_TIMER_TICK, &TimerTick);    
-    #endif    
 
-    StartTimer(); // Time the delay (as we could be interrupted, etc.).  
-    
-    #ifdef EZ_FET
+    SetPCFunc(RamStart);
+    cntrl_sig_release();
+
+    #if defined(eZ_FET) || defined(MSP_FET)
+        STREAM_getSharedVariable(ID_SHARED_MEMORY_TYPE_TIMER_TICK, &TimerTick);
+    #endif
+
+    StartTimer(); // Time the delay (as we could be interrupted, etc.).
+
+    #if defined(eZ_FET) || defined(MSP_FET)
         startTime =  *(unsigned short*)TimerTick; // System timestamp (in milliseconds).
-        __delay_cycles(800000ul);  
-        stopTime =  *(unsigned short*)TimerTick;   
-    #endif  
-        
+        __delay_cycles(800000ul);
+        stopTime =  *(unsigned short*)TimerTick;
+    #endif
+
     #ifdef MSP430_UIF
         startTime = Time; // System timestamp (in milliseconds).
         __delay_cycles(240000ul); //~30ms
         stopTime = Time;
     #endif
-        
-    StopTimer();          
-    { 
+
+    StopTimer();
+    {
         StreamSafe stream_tmp;
         unsigned char DummyIn[8] = {0x20,0x01,0x80,0x5A,0,0,0,0}; // wdtAddr, wdtCtrl
         STREAM_internal_stream(DummyIn, sizeof(DummyIn), 0, 0, &stream_tmp);
@@ -267,7 +289,7 @@ static unsigned long measureFrequency(unsigned short RamStart, unsigned short DC
     // and add 31 cycles for funclet setup, then normalize to one second.
     freq = ((counter * 3 + 31) * 1000) / elapseTime;
 
-    #ifdef EZ_FET
+    #if defined(eZ_FET) || defined(MSP_FET)
         STREAM_deleteSharedVariable(ID_SHARED_MEMORY_TYPE_TIMER_TICK);
     #endif
     return freq;
@@ -283,7 +305,7 @@ short findDcoSettings(unsigned short jtagBug)
     unsigned short BackupRam[30];
     unsigned short RamStart = 0;
     unsigned long  DcoFreq = 0;
-      
+
     // get target RAM start
     if(STREAM_get_word(&RamStart) < 0)
     {
@@ -294,14 +316,14 @@ short findDcoSettings(unsigned short jtagBug)
     {
         return(HALERR_EXECUTE_FUNCLET_NO_MAXRSEL);
     }
-    
+
     if (MAXRSEL == 0xF)
     {
         BCS1 = 0x9;
     }
-    
+
     SetPCFunc(ROM_ADDR); //Prevent Ram corruption on F123/F413
-      
+
     //----------------Backup original Ram content--------------
     ReadRamFunc(RamStart, BackupRam, sizeLoopDco);
 
@@ -320,23 +342,23 @@ short findDcoSettings(unsigned short jtagBug)
         {
             WriteRamFunc(RamStart, loopDco, sizeLoopDco);
         }
-        
+
         if (DcoFreq == 0)
         {
             return (-1);
         }
-        
+
         if (DcoFreq > FlashUpperBoarder) // Check for upper limit - 10%.
         {
             if(DCO-- == 0)
             {
                 DCO = 7;
                 if (BCS1-- == 0)
-                {  
+                {
                     return (-1); // Couldn't get DCO working with correct frequency.
                 }
-            } 
-        }        
+            }
+        }
         else if (DcoFreq < FlashLowerBoarder) // Check for lower limit + 10%.
         {
             if(++DCO > 7)
@@ -350,12 +372,12 @@ short findDcoSettings(unsigned short jtagBug)
         }
         else
         {
-            break; 
+            break;
         }
     }
     while (--allowedSteps > 0);
 
-    // restore Ram content 
+    // restore Ram content
     WriteRamFunc(RamStart, BackupRam, sizeLoopDco);
 
     if (allowedSteps <= 0)
@@ -363,7 +385,7 @@ short findDcoSettings(unsigned short jtagBug)
         return (-1); // Couldn't get DCO working with correct frequency.
     }
     // measurement end
-    
+
     // return measured values
     STREAM_put_word( (DCO<<5) );
     STREAM_put_word( (0x80|BCS1) );
@@ -378,7 +400,7 @@ short findFllSettings(unsigned short jtagBug)
     unsigned short BackupRam[30];
     unsigned short RamStart = 0;
     unsigned long  DcoFreq = 0;
-      
+
     // get target RAM start
     if(STREAM_get_word(&RamStart) < 0)
     {
@@ -389,19 +411,19 @@ short findFllSettings(unsigned short jtagBug)
 
     //----------------Backup original Ram content--------------
     ReadRamFunc(RamStart, BackupRam, sizeLoopFll);
-       
+
     // ----------------Download FLL measure funclet------------
     WriteRamFunc(RamStart, loopFll, sizeLoopFll);
-   
+
     // Binary search through the available frequencies selecting the highest frequency < (476KHz - 10%).
     while (first + 1 < last)
     {
          mid = (last + first) / 2;
          reload = 0;
-         
+
         // Select DCO range from 0.23MHz to 11.2MHz. Specify frequency via Ndco. Disable Modulation. Enable DCO+.
         DcoFreq = measureFrequency(RamStart, (mid << 3), 0);
-        
+
         //Ram content will probably be corrupted after each measurement on devices with jtag bug
         //Reupload on every iteration
         if (jtagBug)
@@ -432,10 +454,10 @@ short findFllSettings(unsigned short jtagBug)
           DcoFreq = measureFrequency(RamStart, (first << 3), 0);
     }
 
-    // restore Ram content    
+    // restore Ram content
     WriteRamFunc(RamStart, BackupRam, sizeLoopDco);
 
-    if (((DcoFreq < 257000 * 5) || (DcoFreq > 476000 * 5))) 
+    if (((DcoFreq < 257000 * 5) || (DcoFreq > 476000 * 5)))
     {
         return -1;
     }
@@ -446,7 +468,7 @@ short findFllSettings(unsigned short jtagBug)
     STREAM_put_word( (first << 3) );
     STREAM_put_word(0x80);
     STREAM_put_word(0x80);
-    STREAM_put_word(0);   
+    STREAM_put_word(0);
     return 0;
 }
 

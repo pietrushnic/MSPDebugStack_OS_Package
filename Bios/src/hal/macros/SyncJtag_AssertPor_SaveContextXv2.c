@@ -7,35 +7,35 @@
 *
 */
 /*
- * Copyright (C) 2012 Texas Instruments Incorporated - http://www.ti.com/ 
- * 
- * 
- *  Redistribution and use in source and binary forms, with or without 
- *  modification, are permitted provided that the following conditions 
+ * Copyright (C) 2012 Texas Instruments Incorporated - http://www.ti.com/
+ *
+ *
+ *  Redistribution and use in source and binary forms, with or without
+ *  modification, are permitted provided that the following conditions
  *  are met:
  *
- *    Redistributions of source code must retain the above copyright 
+ *    Redistributions of source code must retain the above copyright
  *    notice, this list of conditions and the following disclaimer.
  *
  *    Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the 
- *    documentation and/or other materials provided with the   
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the
  *    distribution.
  *
  *    Neither the name of Texas Instruments Incorporated nor the names of
  *    its contributors may be used to endorse or promote products derived
  *    from this software without specific prior written permission.
  *
- *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS 
- *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT 
+ *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
  *  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT 
- *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, 
- *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT 
+ *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
  *  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
  *  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
- *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
+ *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
@@ -48,22 +48,10 @@
 #include "hw_compiler_specific.h"
 #include "HalGlobalVars.h"
 #include "error_def.h"
-#include "global_variables.h"
+
 
 extern unsigned short _hal_mclkCntrl0;
 unsigned char mclk_modules[16];
-
-static unsigned char clkModuleMapping[] =
-{
-	0x00, 0x0a, 0x1e, 0x40, 0x60,   0x8b, 0x8c, 0x8d, 0x8e, 0x8f, 
-	0x90, 0x88, 0x91, 0x92, 0x93, 	0x94, 0x95, 0x96, 0x74, 0x75, 
-	0x76, 0x77, 0x97, 0x98, 0x99, 	0x9a, 0x9b, 0x9c, 0x9d, 0x9e, 
-	0x9f, 0x28, 0x29, 0x2a, 0x2b, 	0x2c, 0x2d, 0x2e, 0x2f, 0x30,
-	0x8a, 0x8a, 0xa8, 0xa8, 0xb0,	0xb5, 0xbc, 0xbd, 0xbe, 0xbf,
-	0xc0, 0xc1, 0xd4, 0xd5, 0xd6,	0xd6, 0xd8,	0x8e, 0x8f, 0x31
-};
-
-#define CLOCK_MAPPING_TABLE_SIZE (sizeof(clkModuleMapping)/sizeof(*clkModuleMapping))
 
 /**
   SyncJtag_AssertPor_SaveContextXv2
@@ -79,122 +67,106 @@ extern DevicePowerSettings devicePowerSettings;
 
 HAL_FUNCTION(_hal_SyncJtag_AssertPor_SaveContextXv2)
 {
-    decl_out
-    decl_out_long
     unsigned short MyOut[4];
     int i;
     unsigned short address;
     unsigned short wdtVal;
-    
-    long lPASS = 0;
-    long lFAIL = 0;
-
-    unsigned short* syncWithRunVarAddress = getTargetRunningVar();
-    if(syncWithRunVarAddress)
-    {       
-        *syncWithRunVarAddress = 0x0000;  
-    } 
+    unsigned short id = cntrl_sig_capture();
+    unsigned long lOut_long = 0;
 
     // -------------------------Power mode handling start ----------------------
-    unsigned short id = EDT_Instr(IR_CNTRL_SIG_CAPTURE);  
-    //Disable Lpmx5 and power gaiting settings 
-    if(id == JTAGVERSION99)
+    //Disable Lpmx5 and power gaiting settings
+    if( id == JTAGVERSION99)
     {
-        test_reg_3V                               
-        SetReg_16Bits(0x4020);                                
-        test_reg                                  
-        SetReg_32Bits(0x00010000);     
-    } 
+        test_reg_3V();
+        SetReg_16Bits(0x40A0);
+        test_reg();
+        SetReg_32Bits(0x00010000);
+    }
     // -------------------------Power mode handling end ------------------------
     // enable clock control before sync
     // switch all functional clocks to JCK = 1 and stop them
-    eem_data_exchange32
-    SetReg_32Bits_(GENCLKCTRL + WRITE);
-    SetReg_32Bits_(MCLK_SEL3 + SMCLK_SEL3 + ACLK_SEL3 + STOP_MCLK + STOP_SMCLK + STOP_ACLK);
+    eem_data_exchange32();
+    SetReg_32Bits(GENCLKCTRL + WRITE);
+    SetReg_32Bits(MCLK_SEL3 + SMCLK_SEL3 + ACLK_SEL3 + STOP_MCLK + STOP_SMCLK + STOP_ACLK);
     // enable Emualtion Clocks
-    eem_write_control
-    SetReg_16Bits_(EMU_CLK_EN + EEM_EN);
+    eem_write_control();
+    SetReg_16Bits(EMU_CLK_EN + EEM_EN);
 
+    cntrl_sig_16bit();
+    // release RW and BYTE control signals in low byte, set TCE1 & CPUSUSP(!!) & RW
+    SetReg_16Bits(0x1501);
+
+    if(wait_for_synch())
     {
-      cntrl_sig_16bit
-      // release RW and BYTE control signals in low byte, set TCE1 & CPUSUSP(!!) & RW
-      SetReg_16Bits_(0x1501)		
-      wait_for_synch
-    }
-    if(lPASS > 0 && lFAIL == 0)
-    {    
-        unsigned short* magicPatternVarAddr  = getMagicPatternVar();
         // provide one more clock to empty the pipe
-        EDT_TCLK
+        IHIL_TCLK();
 
-        if(magicPatternVarAddr && !(*magicPatternVarAddr)) // No magic pattern executed
-        {        
-            cntrl_sig_16bit
-            // release CPUFLUSH(=CPUSUSP) signal and apply POR signal
-            SetReg_16Bits_(0x0C01)
-            EDT_Delay_1ms(40); 
-              
-            // release POR signal again
-            SetReg_16Bits_(0x0401) // disable fetch of CPU // changed from 401 to 501
-            EDT_TCLK
-            EDT_TCLK
-            EDT_TCLK
-            // TWO more to release CPU internal POR delay signals
-            EDT_TCLK
-            EDT_TCLK
-           *magicPatternVarAddr = FET_FALSE;  
-        }
-        if(magicPatternVarAddr && (*magicPatternVarAddr)) // Magic pattern executed
-        {        
-            cntrl_sig_16bit
-            // release CPUFLUSH(=CPUSUSP) signal and apply POR signal
-            SetReg_16Bits_(0x0C01)
-            EDT_Delay_1ms(40);
-              
-            // release POR signal again
-            SetReg_16Bits_(0x0401) // disable fetch of CPU // changed from 401 to 501
-            EDT_TCLK
-            // drive save address into pc
-            addr_16bit
-            SetReg_16Bits_(0x0006)
+        cntrl_sig_16bit();
+        // release CPUFLUSH(=CPUSUSP) signal and apply POR signal
+        SetReg_16Bits(0x0C01);
+        IHIL_Delay_1ms(40);
+
+        // release POR signal again
+        SetReg_16Bits(0x0401); // disable fetch of CPU // changed from 401 to 501
+
+        if(id == JTAGVERSION91 || id == JTAGVERSION99)
+        {   // Force PC so safe value memory location, JMP $
+            data_16bit();
+            IHIL_TCLK();
+            IHIL_TCLK();
+            SetReg_16Bits(SAFE_PC_ADDRESS);
             // drive safe address into pc end
-            EDT_TCLK
-            EDT_TCLK
-            // TWO more to release CPU internal POR delay signals
-            EDT_TCLK
-            EDT_TCLK
-            *magicPatternVarAddr = FET_FALSE;  
-        }        
+            IHIL_TCLK();
+
+            if(id == JTAGVERSION91)
+            {
+                IHIL_TCLK();
+            }
+
+            data_capture();
+        }
+        else
+        {
+            IHIL_TCLK();
+            IHIL_TCLK();
+            IHIL_TCLK();
+        }
+
+        // TWO more to release CPU internal POR delay signals
+        IHIL_TCLK();
+        IHIL_TCLK();
+
         // set CPUFLUSH signal
-        cntrl_sig_16bit
-        SetReg_16Bits_(0x0501)
-        EDT_TCLK
-    
+        cntrl_sig_16bit();
+        SetReg_16Bits(0x0501);
+        IHIL_TCLK();
+
         // set EEM FEATURE enable now!!!
-        eem_write_control
-        SetReg_16Bits_(EMU_FEAT_EN + EMU_CLK_EN + CLEAR_STOP);
-        
+        eem_write_control();
+        SetReg_16Bits(EMU_FEAT_EN + EMU_CLK_EN + CLEAR_STOP);
+
         // Check that sequence exits on Init State
-        cntrl_sig_capture
-        SetReg_16Bits_(0x0000);
+        cntrl_sig_capture();
+        SetReg_16Bits(0x0000);
     //    lout == 0x0301,0x3fd3
         // hold Watchdog Timer
         STREAM_get_word(&address);
         STREAM_get_word(&wdtVal);
-        
-        ReadMemWordXv2(address,MyOut[0]);
+
+        MyOut[0] = ReadMemWordXv2(address);
         wdtVal |= (MyOut[0] & 0xFF); // set original bits in addition to stop bit
         WriteMemWordXv2(address, wdtVal);
-        
+
         // Capture MAB - the actual PC value is (MAB - 4)
-        addr_capture
-        SetReg_20Bits(0)
+        addr_capture();
+        lOut_long = SetReg_20Bits(0);
         /*****************************************/
         /* Note 1495, 1637 special handling      */
         /*****************************************/
-        if(lOut_long == 0xFFFE)
+        if((lOut_long == 0xFFFE) || (id == JTAGVERSION91) || (id == JTAGVERSION99))
         {
-          ReadMemWordXv2(0xFFFE,MyOut[1]);
+          MyOut[1] = ReadMemWordXv2(0xFFFE);
           MyOut[2] = 0;
         }
         /*********************************/
@@ -210,39 +182,42 @@ HAL_FUNCTION(_hal_SyncJtag_AssertPor_SaveContextXv2)
         for(i=0; i<16; i++)
         {
           unsigned short v;
-          unsigned char clkModule = 0;
           STREAM_get_byte(&mclk_modules[i]);
-          
-          //Map received index to actual clock module
-          if ( mclk_modules[i] < CLOCK_MAPPING_TABLE_SIZE )
-          {
-              clkModule = clkModuleMapping[ mclk_modules[i] ];
-          }
 
-          if(clkModule != 0)
+          if(mclk_modules[i] != 0)
           {
             if(_hal_mclkCntrl0 & (0x0001 << i))
               v = 1;
             else
               v = 0;
-            WriteMemWordXv2(ETKEYSEL, ETKEY + clkModule);
+            WriteMemWordXv2(ETKEYSEL, ETKEY + mclk_modules[i]);
             WriteMemWordXv2(ETCLKSEL, v);
           }
         }
         // switch back system clocks to original clock source but keep them stopped
-        eem_data_exchange32
-        SetReg_32Bits_(GENCLKCTRL + WRITE);
-        SetReg_32Bits_(MCLK_SEL0 + SMCLK_SEL0 + ACLK_SEL0 + STOP_MCLK + STOP_SMCLK + STOP_ACLK);
-        // configure cycle counter
-        // Increment on all bus cycles (including DMA cycles)
-        // Start when CPU released from JTAG/EEM
-        // Stop when CPU is stopped by EEM or under JTAG control
-                     
-        SetReg_32Bits_(CCNT0CTL + WRITE);
-        SetReg_32Bits_(CCNT_RST + CCNTMODE5);
-    
+        eem_data_exchange32();
+        SetReg_32Bits(GENCLKCTRL + WRITE);
+        SetReg_32Bits(MCLK_SEL0 + SMCLK_SEL0 + ACLK_SEL0 + STOP_MCLK + STOP_SMCLK + STOP_ACLK);
+
+        // reset Vacant Memory Interrupt Flag inside SFRIFG1
+        if(id == JTAGVERSION91)
+        {
+            volatile unsigned short specialFunc = ReadMemWordXv2(0x0102);
+            if(specialFunc & 0x8)
+            {
+                SetPcXv2(0x80, SAFE_PC_ADDRESS);
+                cntrl_sig_16bit();
+                SetReg_16Bits(0x0501);
+                IHIL_Tclk(1);
+                addr_capture();
+
+                specialFunc &= ~0x8;
+                WriteMemWordXv2(0x0102, specialFunc);
+            }
+        }
+
         STREAM_put_bytes((unsigned char*)MyOut,8);
-        
+
         return 0; // retrun status OK
     }
     else

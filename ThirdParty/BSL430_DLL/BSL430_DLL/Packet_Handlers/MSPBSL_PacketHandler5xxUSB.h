@@ -37,6 +37,7 @@
 */
 
 #pragma once
+
 #include "MSPBSL_PacketHandler.h"
 
 class MSPBSL_PacketHandler5xxUSB : public MSPBSL_PacketHandler

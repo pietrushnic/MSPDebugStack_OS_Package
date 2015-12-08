@@ -35,8 +35,7 @@
  *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <algorithm>
-
+#include <pch.h>
 #include "SoftwareBreakpointManager.h"
 #include "../Exceptions/Exceptions.h"
 
@@ -67,15 +66,18 @@ void SoftwareBreakpointManager::setSoftwareTriggerAt(uint32_t address)
 	if (!(sRead && sWrite && sSync))
 		throw EM_MemoryAccessFunctionException();
 
-	uint32_t instruction[2] = {0};
+	uint8_t instruction[2] = {0};
 	if (!sRead(address, instruction, 2) || !sSync())
 		throw EM_MemoryReadErrorException();
 
-	uint32_t opCode[2] = { mTriggerOpCode & 0xFF, mTriggerOpCode >> 8};
+	const uint8_t opCode[2] = { static_cast<uint8_t>(mTriggerOpCode), static_cast<uint8_t>(mTriggerOpCode >> 8)};
 	if (!sWrite(address, opCode, 2) || !sSync())
 		throw EM_MemoryWriteErrorException();
 
-	mInstructionTable[address] = (uint16_t)((instruction[0] & 0xFF) + (instruction[1] << 8));
+	if (!verifyValueAt(address, mTriggerOpCode))
+		throw EM_MemoryWriteErrorException();
+
+	mInstructionTable[address] = (uint16_t)((instruction[0] & 0xFF) | (instruction[1] << 8));
 }
 
 void SoftwareBreakpointManager::removeSoftwareTriggerAt(uint32_t address)
@@ -83,7 +85,7 @@ void SoftwareBreakpointManager::removeSoftwareTriggerAt(uint32_t address)
 	if (!(sRead && sWrite && sSync))
 		throw EM_MemoryAccessFunctionException();
 
-	uint32_t opCodeTmp[2] = {0};
+	uint8_t opCodeTmp[2] = {0};
 	if (!sRead(address, opCodeTmp, 2) || !sSync())
 		throw EM_MemoryReadErrorException();
 
@@ -95,8 +97,11 @@ void SoftwareBreakpointManager::removeSoftwareTriggerAt(uint32_t address)
 		if (instruction == 0)
 			throw EM_InstructionEntryMissingException();
 
-		uint32_t instrTmp[2] = {instruction & 0xFF, instruction >> 8};
+		const uint8_t instrTmp[2] = {static_cast<uint8_t>(instruction), static_cast<uint8_t>(instruction >> 8)};
 		if (!sWrite(address, instrTmp, 2) || !sSync())
+			throw EM_MemoryWriteErrorException();
+
+		if (!verifyValueAt(address, instruction))
 			throw EM_MemoryWriteErrorException();
 	}
 	mInstructionTable.erase(address);
@@ -108,15 +113,15 @@ void SoftwareBreakpointManager::writeGroup(const std::vector<InstructionTable::i
 	const uint32_t start = group.front()->first;
 	const uint32_t end = group.back()->first + 2;
 
-	std::vector<uint32_t> data(end - start);
+	std::vector<uint8_t> data(end - start);
 	sRead(start, &data[0], data.size()) && sSync();
 
-	std::vector<InstructionTable::iterator>::const_iterator it = group.begin();
-	for (; it != group.end(); ++it)
+	for (const auto& entry : group)
 	{
-		data[(*it)->first - start] = (*it)->second & 0xFF;
-		data[(*it)->first - start + 1] = (*it)->second >> 8;
+		data[entry->first - start] = entry->second & 0xFF;
+		data[entry->first - start + 1] = entry->second >> 8;
 	}
+
 	sWrite(start, &data[0], data.size()) && sSync;
 }
 
@@ -129,7 +134,7 @@ void SoftwareBreakpointManager::clearSoftwareTriggers()
 	for (InstructionTable::iterator it = mInstructionTable.begin(); it != mInstructionTable.end(); ++it)
 	{
 		//Read and verify it still exists
-		uint32_t opCodeTmp[2] = {0};
+		uint8_t opCodeTmp[2] = {0};
 		if (!sRead(it->first, opCodeTmp, 2) || !sSync())
 			throw EM_MemoryReadErrorException();
 
@@ -158,14 +163,14 @@ void SoftwareBreakpointManager::clearSoftwareTriggers()
 
 uint32_t SoftwareBreakpointManager::numberOfActiveSoftwareTriggers() const
 {
-	return mInstructionTable.size();
+	return static_cast<uint32_t>(mInstructionTable.size());
 }
 
 const uint32_t opcodeSize = 2;
 
 void SoftwareBreakpointManager::patchMemoryWrite(uint32_t address, uint8_t* data, size_t size)
 {
-	const uint32_t endAddress = address + size;
+	const uint32_t endAddress = address + static_cast<uint32_t>(size);
 
 	InstructionTable::iterator it = mInstructionTable.begin();
 	const InstructionTable::const_iterator end = mInstructionTable.end();
@@ -193,7 +198,7 @@ void SoftwareBreakpointManager::patchMemoryWrite(uint32_t address, uint8_t* data
 
 void SoftwareBreakpointManager::patchMemoryRead(uint32_t address, uint8_t* data, size_t size)
 {
-	const uint32_t endAddress = address + size;
+	const uint32_t endAddress = address + static_cast<uint32_t>(size);
 
 	InstructionTable::iterator it = mInstructionTable.begin();
 	const InstructionTable::const_iterator end = mInstructionTable.end();
@@ -233,6 +238,15 @@ uint16_t SoftwareBreakpointManager::getInstructionAt(uint32_t address) const
 {
 	InstructionTable::const_iterator it = mInstructionTable.find(address);
 	return (it != mInstructionTable.end()) ? it->second : 0;
+}
+
+bool SoftwareBreakpointManager::verifyValueAt(uint32_t address, uint16_t expectedValue) const
+{
+	uint8_t actualValue[2] = { 0 };
+	if (!sRead(address, actualValue, 2) || !sSync())
+		throw EM_MemoryReadErrorException();
+
+	return (actualValue[0] | (actualValue[1] << 8)) == expectedValue;
 }
 
 void SoftwareBreakpointManager::importInstructionTable(const SoftwareBreakpointManager& swbp)

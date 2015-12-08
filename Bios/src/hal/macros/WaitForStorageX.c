@@ -7,35 +7,35 @@
 *
 */
 /*
- * Copyright (C) 2012 Texas Instruments Incorporated - http://www.ti.com/ 
- * 
- * 
- *  Redistribution and use in source and binary forms, with or without 
- *  modification, are permitted provided that the following conditions 
+ * Copyright (C) 2012 Texas Instruments Incorporated - http://www.ti.com/
+ *
+ *
+ *  Redistribution and use in source and binary forms, with or without
+ *  modification, are permitted provided that the following conditions
  *  are met:
  *
- *    Redistributions of source code must retain the above copyright 
+ *    Redistributions of source code must retain the above copyright
  *    notice, this list of conditions and the following disclaimer.
  *
  *    Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the 
- *    documentation and/or other materials provided with the   
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the
  *    distribution.
  *
  *    Neither the name of Texas Instruments Incorporated nor the names of
  *    its contributors may be used to endorse or promote products derived
  *    from this software without specific prior written permission.
  *
- *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS 
- *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT 
+ *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
  *  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT 
- *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, 
- *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT 
+ *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
  *  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
  *  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
- *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
+ *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
@@ -44,6 +44,7 @@
 #include "hal.h"
 #include "stream.h"
 #include "error_def.h"
+#include "JtagId.h"
 
 extern unsigned short lastTraceWritePos;
 
@@ -55,25 +56,19 @@ extern unsigned short lastTraceWritePos;
 
 HAL_FUNCTION(_hal_WaitForStorageX)
 {
-    decl_out
-    decl_out_long
-    
     short RetState = 2;
     unsigned short sStStorCtrl = 0;
-    
-    lOut = EDT_Instr(IR_CNTRL_SIG_CAPTURE);
-    if(lOut != JTAGVERSION && lOut != JTAGVERSION91 && lOut != JTAGVERSION95 && lOut != JTAGVERSION99)
+
+    if(!jtagIdIsValid(cntrl_sig_capture()))
     {
-        return 2;  
+        return 2;
     }
-    
-    
-    eem_data_exchange32
+
+    eem_data_exchange32();
     SetReg_32Bits(0x9F);
-    SetReg_32Bits(0);
-    
-    sStStorCtrl = (unsigned short)lOut_long;
-    
+
+    sStStorCtrl = (unsigned short)SetReg_32Bits(0);
+
     //Storage written bit
     if (sStStorCtrl & 0x100)
     {
@@ -81,7 +76,7 @@ HAL_FUNCTION(_hal_WaitForStorageX)
         if ( (sStStorCtrl & 0x6) == 0x4 )
         {
             unsigned short readPos = 0;
-            
+
             STREAM_put_word(VARIABLE_WATCH_FLAG);
 
             //Reset storage
@@ -91,26 +86,22 @@ HAL_FUNCTION(_hal_WaitForStorageX)
             for (readPos = 0; readPos < 8; ++readPos)
             {
                 //Slice bits autoincrement on reading
-            
+
                 SetReg_32Bits(0x9A);
                 SetReg_32Bits(readPos << 2);
-            
+
                 //Read MAB value
                 SetReg_32Bits(0x9D);
-                SetReg_32Bits(0);
-                
-                STREAM_put_long(lOut_long);
-                
+                STREAM_put_long(SetReg_32Bits(0));
+
                 //Read MDB value
                 SetReg_32Bits(0x9D);
-                SetReg_32Bits(0);
-
-                STREAM_put_word(lOut_long & 0xFFFF);
+                STREAM_put_word(SetReg_32Bits(0) & 0xFFFF);
             }
-            
+
             RetState = 1;
         }
-        
+
         //Trace mode
         else
         {
@@ -118,10 +109,8 @@ HAL_FUNCTION(_hal_WaitForStorageX)
             short newEntries = 0;
 
             SetReg_32Bits(0x9B);
-            SetReg_32Bits(0);
-                
-            writePos = (short)(lOut_long >> 10);
-                
+            writePos = (short)(SetReg_32Bits(0) >> 10);
+
             //store until full bit
             if (sStStorCtrl & 0x8)
             {
@@ -132,7 +121,7 @@ HAL_FUNCTION(_hal_WaitForStorageX)
                     //Enable bit will be set again with next reset from DLL
                     SetReg_32Bits(0x9E);
                     SetReg_32Bits((sStStorCtrl | 0x40) & ~0x1);
-                        
+
                     newEntries = 8 - lastTraceWritePos;
                 }
                 else if (writePos != lastTraceWritePos)
@@ -144,7 +133,7 @@ HAL_FUNCTION(_hal_WaitForStorageX)
             else
             {
                 static unsigned int noChangeSince = 0;
-    
+
                 if (writePos != lastTraceWritePos)
                 {
                     noChangeSince = 0;
@@ -154,47 +143,41 @@ HAL_FUNCTION(_hal_WaitForStorageX)
                     newEntries = (sStStorCtrl & 0x200) ? 8 : writePos;
                 }
             }
-    
+
             lastTraceWritePos = writePos;
-            
+
             if (newEntries > 0)
             {
                 unsigned short readPos = (writePos - newEntries) & 0x7;
 
                 STREAM_put_word(STATE_STORAGE_FLAG);
                 STREAM_put_word(newEntries);
-                
+
                 do
                 {
                     //Slice bits autoincrement on reading
-                
+
                     SetReg_32Bits(0x9A);
                     SetReg_32Bits(readPos << 2);
-                
+
                     //Read MAB value
                     SetReg_32Bits(0x9D);
-                    SetReg_32Bits(0);
-                    
-                    STREAM_put_long(lOut_long);
-                    
-                    //Read MDB value        
+                    STREAM_put_long(SetReg_32Bits(0));
+
+                    //Read MDB value
                     SetReg_32Bits(0x9D);
-                    SetReg_32Bits(0);    
-                    
-                    STREAM_put_word(lOut_long & 0xFFFF);
-                    
-                    //Read Ctrl value        
+                    STREAM_put_word(SetReg_32Bits(0) & 0xFFFF);
+
+                    //Read Ctrl value
                     SetReg_32Bits(0x9D);
-                    SetReg_32Bits(0);
-                    
-                    STREAM_put_word(lOut_long & 0xFFFF);
-                    
+                    STREAM_put_word(SetReg_32Bits(0) & 0xFFFF);
+
                     if (++readPos > 7)
                         readPos = 0;
 
                 } while (readPos != writePos);
-            
-                RetState = 1;      
+
+                RetState = 1;
             }
         }
     }

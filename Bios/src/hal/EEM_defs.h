@@ -42,9 +42,6 @@
 #define FALSE       0
 #define TRUE        1
 
-#define WRITE       0
-#define READ        1
-
 #define TRIGFLAG    0x8E
 #define EEMVER      0x86
 /* Definition for EEM General Clock Control Register */

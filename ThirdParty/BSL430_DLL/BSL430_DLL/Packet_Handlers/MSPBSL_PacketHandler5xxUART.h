@@ -37,7 +37,7 @@
 */
 
 #pragma once
-#include <string>
+
 #include "MSPBSL_PacketHandler.h"
 
 //UART SPECIFIC CONSTANTS and COMMANDS

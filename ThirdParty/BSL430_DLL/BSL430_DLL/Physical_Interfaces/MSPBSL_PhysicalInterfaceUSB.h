@@ -37,10 +37,10 @@
 */
 
 #pragma once
-#include <string>
-#include "MSPBSL_PhysicalInterface.h"
-#include "hidapi.h"
 
+#include <hidapi.h>
+
+#include "MSPBSL_PhysicalInterface.h"
 
 #define ENUMERATE_COMMAND    "ENUMERATE:"
 #define DE_ENUMERATE_COMMAND "CLOSE:"
@@ -54,8 +54,6 @@
 class MSPBSL_PhysicalInterfaceUSB : public MSPBSL_PhysicalInterface
 {
 public:
-
-
 	MSPBSL_PhysicalInterfaceUSB(std::string initString);
 
 	virtual ~MSPBSL_PhysicalInterfaceUSB(void);

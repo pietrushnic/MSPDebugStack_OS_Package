@@ -1,43 +1,43 @@
 /*
  * hil_jsbw.c
- * 
+ *
  * <FILEBRIEF>
  *
- * Copyright (C) 2012 Texas Instruments Incorporated - http://www.ti.com/ 
- * 
- * 
- *  Redistribution and use in source and binary forms, with or without 
- *  modification, are permitted provided that the following conditions 
+ * Copyright (C) 2012 Texas Instruments Incorporated - http://www.ti.com/
+ *
+ *
+ *  Redistribution and use in source and binary forms, with or without
+ *  modification, are permitted provided that the following conditions
  *  are met:
  *
- *    Redistributions of source code must retain the above copyright 
+ *    Redistributions of source code must retain the above copyright
  *    notice, this list of conditions and the following disclaimer.
  *
  *    Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the 
- *    documentation and/or other materials provided with the   
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the
  *    distribution.
  *
  *    Neither the name of Texas Instruments Incorporated nor the names of
  *    its contributors may be used to endorse or promote products derived
  *    from this software without specific prior written permission.
  *
- *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS 
- *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT 
+ *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
  *  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT 
- *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, 
- *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT 
+ *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
  *  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
  *  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
- *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
+ *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
 //! \ingroup MODULHIL
 //! \file hil_jsbw.c
-//! \brief 
+//! \brief
 //!
 
 #include "hw_compiler_specific.h"
@@ -54,12 +54,12 @@
 
 #define TDICTRL2     ENTDI2TDO // TO BE ADDAPTED!!!!!!!!s
 
-/*#define JSBW_TMSH    TSTCTRLOUT |= TEST;  EDT_Delay_1us(400);TGTCTRLOUT &= ~TGTRST; EDT_Delay_1us(1); TGTCTRLOUT |= TGTRST; EDT_Delay_1us(1); // TMS = 1
-#define JSBW_TMSL    TSTCTRLOUT &= ~TEST; EDT_Delay_1us(400);TGTCTRLOUT &= ~TGTRST; EDT_Delay_1us(1); TGTCTRLOUT |= TGTRST; EDT_Delay_1us(1);// TMS = 0
-#define JSBW_TDIH    TSTCTRLOUT |= TEST;  EDT_Delay_1us(400);TGTCTRLOUT &= ~TGTRST; EDT_Delay_1us(1); TGTCTRLOUT |= TGTRST;  EDT_Delay_1us(1);           // TDI = 1
-#define JSBW_TDIL    TSTCTRLOUT &= ~TEST; EDT_Delay_1us(400);TGTCTRLOUT &= ~TGTRST; EDT_Delay_1us(1);  TGTCTRLOUT |= TGTRST; EDT_Delay_1us(1);          // TDI = 0
-#define JSBW_TDOsbw  TSTCTRLOUT |= TDICTRL2; TGTCTRLOUT &= ~TGTRST; EDT_Delay_1us(1);  TGTCTRLOUT |= TGTRST; EDT_Delay_1us(1);  TSTCTRLOUT &= ~TDICTRL2;   // TDO cycle without reading TDO
-#define JSBW_TDO_RD  TSTCTRLOUT |= TDICTRL2; TGTCTRLOUT &= ~TGTRST; EDT_Delay_1us(1); tdo_bit = JTAGIN; TGTCTRLOUT |= TGTRST; EDT_Delay_1us(1);  TSTCTRLOUT &= ~TDICTRL2;  // TDO cycle with TDO read
+/*#define JSBW_TMSH    TSTCTRLOUT |= TEST;  IHIL_Delay_1us(400);TGTCTRLOUT &= ~TGTRST; IHIL_Delay_1us(1); TGTCTRLOUT |= TGTRST; IHIL_Delay_1us(1); // TMS = 1
+#define JSBW_TMSL    TSTCTRLOUT &= ~TEST; IHIL_Delay_1us(400);TGTCTRLOUT &= ~TGTRST; IHIL_Delay_1us(1); TGTCTRLOUT |= TGTRST; IHIL_Delay_1us(1);// TMS = 0
+#define JSBW_TDIH    TSTCTRLOUT |= TEST;  IHIL_Delay_1us(400);TGTCTRLOUT &= ~TGTRST; IHIL_Delay_1us(1); TGTCTRLOUT |= TGTRST;  IHIL_Delay_1us(1);           // TDI = 1
+#define JSBW_TDIL    TSTCTRLOUT &= ~TEST; IHIL_Delay_1us(400);TGTCTRLOUT &= ~TGTRST; IHIL_Delay_1us(1);  TGTCTRLOUT |= TGTRST; IHIL_Delay_1us(1);          // TDI = 0
+#define JSBW_TDOsbw  TSTCTRLOUT |= TDICTRL2; TGTCTRLOUT &= ~TGTRST; IHIL_Delay_1us(1);  TGTCTRLOUT |= TGTRST; IHIL_Delay_1us(1);  TSTCTRLOUT &= ~TDICTRL2;   // TDO cycle without reading TDO
+#define JSBW_TDO_RD  TSTCTRLOUT |= TDICTRL2; TGTCTRLOUT &= ~TGTRST; IHIL_Delay_1us(1); tdo_bit = JTAGIN; TGTCTRLOUT |= TGTRST; IHIL_Delay_1us(1);  TSTCTRLOUT &= ~TDICTRL2;  // TDO cycle with TDO read
 
 #define JSBW_TMSL_TDIL()  { JSBW_TMSL  JSBW_TDIL  JSBW_TDOsbw }
 #define JSBW_TMSH_TDIL()  { JSBW_TMSH  JSBW_TDIL  JSBW_TDOsbw }
@@ -77,13 +77,13 @@
 
 #define TDICTRL2  ENTDI2TDO // TO BE ADDAPTED!!!!!!!!s
 
-#define   JSBW_TMSH    TGTCTRLOUT |= JSBWsbwdato;  EDT_Delay_1us(400);TSTCTRLOUT |= JSBsbwclk; EDT_Delay_1us(1); TSTCTRLOUT &= ~JSBsbwclk; EDT_Delay_1us(1); // TMS = 1
-#define   JSBW_TMSL    TGTCTRLOUT &= ~JSBWsbwdato; EDT_Delay_1us(400);TSTCTRLOUT |= JSBsbwclk; EDT_Delay_1us(1); TSTCTRLOUT &= ~JSBsbwclk; EDT_Delay_1us(1);// TMS = 0
+#define   JSBW_TMSH    TGTCTRLOUT |= JSBWsbwdato;  IHIL_Delay_1us(400);TSTCTRLOUT |= JSBsbwclk; IHIL_Delay_1us(1); TSTCTRLOUT &= ~JSBsbwclk; IHIL_Delay_1us(1); // TMS = 1
+#define   JSBW_TMSL    TGTCTRLOUT &= ~JSBWsbwdato; IHIL_Delay_1us(400);TSTCTRLOUT |= JSBsbwclk; IHIL_Delay_1us(1); TSTCTRLOUT &= ~JSBsbwclk; IHIL_Delay_1us(1);// TMS = 0
 //#define   TMSLDH  TGTCTRLOUT &= ~JSBWsbwdato; TGTCTRLOUT |= JSBsbwclk; TGTCTRLOUT &= ~JSBsbwclk; TGTCTRLOUT &= ~JSBsbwclk; // TMS = 0, then TCLK immediately = 1
-#define   JSBW_TDIH    TGTCTRLOUT |= JSBWsbwdato;  EDT_Delay_1us(400);TSTCTRLOUT |= JSBsbwclk; EDT_Delay_1us(1); TSTCTRLOUT &= ~JSBsbwclk;  EDT_Delay_1us(1);           // TDI = 1
-#define   JSBW_TDIL    TGTCTRLOUT &= ~JSBWsbwdato; EDT_Delay_1us(400);TSTCTRLOUT |= JSBsbwclk; EDT_Delay_1us(1);  TSTCTRLOUT &= ~JSBsbwclk; EDT_Delay_1us(1);          // TDI = 0
-#define   JSBW_TDOsbw  TSTCTRLOUT |= TDICTRL2; TSTCTRLOUT |= JSBsbwclk; EDT_Delay_1us(1);  TSTCTRLOUT &= ~JSBsbwclk; EDT_Delay_1us(1);  TSTCTRLOUT &= ~TDICTRL2;   // TDO cycle without reading TDO
-#define   JSBW_TDO_RD  TSTCTRLOUT |= TDICTRL2; TSTCTRLOUT |= JSBsbwclk; EDT_Delay_1us(1); tdo_bit = 0; TSTCTRLOUT &= ~JSBsbwclk; EDT_Delay_1us(1);  TSTCTRLOUT &= ~TDICTRL2;  // TDO cycle with TDO read
+#define   JSBW_TDIH    TGTCTRLOUT |= JSBWsbwdato;  IHIL_Delay_1us(400);TSTCTRLOUT |= JSBsbwclk; IHIL_Delay_1us(1); TSTCTRLOUT &= ~JSBsbwclk;  IHIL_Delay_1us(1);           // TDI = 1
+#define   JSBW_TDIL    TGTCTRLOUT &= ~JSBWsbwdato; IHIL_Delay_1us(400);TSTCTRLOUT |= JSBsbwclk; IHIL_Delay_1us(1);  TSTCTRLOUT &= ~JSBsbwclk; IHIL_Delay_1us(1);          // TDI = 0
+#define   JSBW_TDOsbw  TSTCTRLOUT |= TDICTRL2; TSTCTRLOUT |= JSBsbwclk; IHIL_Delay_1us(1);  TSTCTRLOUT &= ~JSBsbwclk; IHIL_Delay_1us(1);  TSTCTRLOUT &= ~TDICTRL2;   // TDO cycle without reading TDO
+#define   JSBW_TDO_RD  TSTCTRLOUT |= TDICTRL2; TSTCTRLOUT |= JSBsbwclk; IHIL_Delay_1us(1); tdo_bit = 0; TSTCTRLOUT &= ~JSBsbwclk; IHIL_Delay_1us(1);  TSTCTRLOUT &= ~TDICTRL2;  // TDO cycle with TDO read
 
 
 #define JSBW_TMSL_TDIL()  { JSBW_TMSL  JSBW_TDIL  JSBW_TDOsbw }
@@ -172,7 +172,7 @@ unsigned long jsbw_Shift(unsigned int Format, unsigned long Data)
     {
         TDOword = ((TDOword << 16) + (TDOword >> 4)) & 0x000FFFFF;
     }
-   
+
     return(TDOword);
 }
 
@@ -261,28 +261,28 @@ void JSBW_TapReset(void)
     // In every TDI slot a TCK for the JTAG machine is generated.
     // Thus we need to get TAP in Run/Test Idle state back again.
     JSBW_TMSH_TDIH();
-    JSBW_TMSL_TDIH();      
-    EDT_Delay_1ms(10);  
+    JSBW_TMSL_TDIH();
+    IHIL_Delay_1ms(10);
 }
 
 // -----------------------------------------------------------------------------
 void JSBW_MagicPattern(void)
 {
     jsbw_IR_Shift(IR_JMB_EXCHANGE);
-    EDT_Delay_1ms(15);       
+    IHIL_Delay_1ms(15);
     jsbw_DR_Shift(16, 0x0001);
-    EDT_Delay_1ms(15);    
-    jsbw_DR_Shift(16, 0xA55A);    
-    EDT_Delay_1ms(20);        
+    IHIL_Delay_1ms(15);
+    jsbw_DR_Shift(16, 0xA55A);
+    IHIL_Delay_1ms(20);
 }
 
 // -----------------------------------------------------------------------------
 void JSBW_JtagUnlock(void)
 {
    jsbw_IR_Shift(IR_TEST_3V_REG);
-   EDT_Delay_1ms(10);  
+   IHIL_Delay_1ms(10);
    jsbw_DR_Shift(16, 0x4020);
-   EDT_Delay_1ms(10);      
+   IHIL_Delay_1ms(10);
 }
 
 void jRelease(void)
@@ -290,7 +290,7 @@ void jRelease(void)
     // drive target RST/SBWTDIO pin high
     TGTCTRLOUT |=  JSBWsbwdato;        // TDI drives target RST high
     TSTCTRLOUT &= ~ENTDI2TDO;      // enable TDI2TDO
-    EDT_Delay_1ms(1);
+    IHIL_Delay_1ms(1);
     // drive target TEST/SBWTCK pin low
     TSTCTRLOUT |= JSBsbwclk;         // TCK drives target TEST low - release Spy-Bi-Wire logic
     TGTCTRLOUT &= ~SELT;        // enable JTAG & RST pin drivers

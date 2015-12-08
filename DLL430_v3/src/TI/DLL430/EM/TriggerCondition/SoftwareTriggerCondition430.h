@@ -35,11 +35,9 @@
  *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#pragma once
 
-#ifndef DLL430_SOFTWARE_TRIGGER_CONDITION_430_H
-#define DLL430_SOFTWARE_TRIGGER_CONDITION_430_H
 
-#include <stdint.h>
 #include "ISoftwareTriggerCondition.h"
 #include "../Exceptions/Exceptions.h"
 #include "../SoftwareBreakpoints/SoftwareBreakpointManager.h"
@@ -64,5 +62,3 @@ private:
 };
 
 }}
-
-#endif

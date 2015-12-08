@@ -35,11 +35,7 @@
  *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#if _MSC_VER > 1000
 #pragma once
-#endif
-#ifndef DLL430_PIN_SEQUENCE_H
-#define DLL430_PIN_SEQUENCE_H
 
 #include <list>
 
@@ -72,5 +68,3 @@ namespace TI
 		bool sendPinSequence(const std::list<PinState>& pinStates, FetHandleV3* handle);
 	}
 }
-
-#endif

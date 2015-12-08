@@ -3,39 +3,39 @@
  *
  * Emulation manager holds and manages the different modules
  *
- * Copyright (C) 2007 - 2011 Texas Instruments Incorporated - http://www.ti.com/ 
- * 
- * 
- *  Redistribution and use in source and binary forms, with or without 
- *  modification, are permitted provided that the following conditions 
+ * Copyright (C) 2007 - 2011 Texas Instruments Incorporated - http://www.ti.com/
+ *
+ *
+ *  Redistribution and use in source and binary forms, with or without
+ *  modification, are permitted provided that the following conditions
  *  are met:
  *
- *    Redistributions of source code must retain the above copyright 
+ *    Redistributions of source code must retain the above copyright
  *    notice, this list of conditions and the following disclaimer.
  *
  *    Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the 
- *    documentation and/or other materials provided with the   
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the
  *    distribution.
  *
  *    Neither the name of Texas Instruments Incorporated nor the names of
  *    its contributors may be used to endorse or promote products derived
  *    from this software without specific prior written permission.
  *
- *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS 
- *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT 
+ *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
  *  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT 
- *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, 
- *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT 
+ *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
  *  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
  *  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
- *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
- *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.                                                                                                                                                                                                                                                                                                         
+ *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-
+#include <pch.h>
 #include "EmulationManager430.h"
 #include "../BreakpointManager/IBreakpointManager.h"
 #include "../CycleCounter/ICycleCounter.h"
@@ -45,7 +45,7 @@
 #include "../StateStorage430/StateStorage430.h"
 #include "../Exceptions/Exceptions.h"
 
-#include "../EemRegisters/EemRegisterAccess.h"
+#include "../EemRegisters/EemRegisterAccess430.h"
 
 
 using namespace TI::DLL430;
@@ -53,23 +53,7 @@ using namespace TI::DLL430;
 
 EmulationManager430::EmulationManager430()
 {
-	resetEemRegisterCache();
-}
-
-
-EmulationManager430::~EmulationManager430()
-{
-	if (mBreakpointManager)
-		mBreakpointManager->cleanup();
-
-	if (mCycleCounter)
-		mCycleCounter->cleanup();
-
-	if (mTrace)
-		mTrace->cleanup();
-
-	if (mSequencer)
-		mSequencer->cleanup();
+	resetEemRegisterCache430();
 }
 
 
@@ -145,51 +129,51 @@ SoftwareBreakpointsPtr EmulationManager430::getSoftwareBreakpoints() const
 }
 
 
-bool EmulationManager430::hasTriggerConditionManager() const 
+bool EmulationManager430::hasTriggerConditionManager() const
 {
-	return mTriggerConditionManager;
+	return static_cast<bool>(mTriggerConditionManager);
 }
 
 
-bool EmulationManager430::hasBreakpointManager() const 
+bool EmulationManager430::hasBreakpointManager() const
 {
-	return mBreakpointManager;
+	return static_cast<bool>(mBreakpointManager);
 }
 
 
-bool EmulationManager430::hasClockControl() const 
+bool EmulationManager430::hasClockControl() const
 {
-	return mClockControl;
+	return static_cast<bool>(mClockControl);
 }
 
 
-bool EmulationManager430::hasCycleCounter() const 
+bool EmulationManager430::hasCycleCounter() const
 {
-	return mCycleCounter;
+	return static_cast<bool>(mCycleCounter);
 }
 
 
-bool EmulationManager430::hasSequencer() const 
+bool EmulationManager430::hasSequencer() const
 {
-	return mSequencer;
+	return static_cast<bool>(mSequencer);
 }
 
 
-bool EmulationManager430::hasTrace() const 
+bool EmulationManager430::hasTrace() const
 {
-	return mTrace;
+	return static_cast<bool>(mTrace);
 }
 
 
-bool EmulationManager430::hasVariableWatch() const 
+bool EmulationManager430::hasVariableWatch() const
 {
-	return mVariableWatch;
+	return static_cast<bool>(mVariableWatch);
 }
 
 
 bool EmulationManager430::hasSoftwareBreakpoints() const
 {
-	return mSoftwareBreakpoints;
+	return static_cast<bool>(mSoftwareBreakpoints);
 }
 
 
@@ -211,7 +195,7 @@ void EmulationManager430::writeConfiguration() const
 
 	if (mCycleCounter)
 	{
-		//mCycleCounter->writeConfiguration();
+		mCycleCounter->writeConfiguration();
 	}
 
 	if (mTrace)
@@ -228,7 +212,7 @@ void EmulationManager430::writeConfiguration() const
 
 void EmulationManager430::rewriteConfiguration() const
 {
-	rewriteEemRegisters();
+	rewriteEemRegisters430();
 }
 
 
@@ -248,11 +232,11 @@ void EmulationManager430::onEvent(MessageDataPtr messageData)  const
 
 void EmulationManager430::writeRegister(uint32_t reg, uint32_t value) const
 {
-	writeEemRegister(reg, value, false);
+	writeEemRegister430(reg, value, false);
 }
 
 
 uint32_t EmulationManager430::readRegister(uint32_t reg) const
 {
-	return readEemRegister(reg);
+	return readEemRegister430(reg);
 }

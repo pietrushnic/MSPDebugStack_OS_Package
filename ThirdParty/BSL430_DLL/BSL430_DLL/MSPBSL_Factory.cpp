@@ -36,8 +36,7 @@
  *
 */
 
-#include <boost/date_time/posix_time/posix_time.hpp>
-#include <boost/thread.hpp>
+#include <pch.h>
 
 #include "MSPBSL_Factory.h"
 
@@ -182,21 +181,21 @@ MSPBSL_Factory::~MSPBSL_Factory(void)
 MSPBSL_Connection* MSPBSL_Factory::getMSPBSL_Connection(string initString)
 {
 	initString = MSPBSL_Factory::expandInitString( initString );
-	MSPBSL_Connection* theBSLConnection = NULL;
+	unique_ptr<MSPBSL_Connection> theBSLConnection;
 	//
 	if ( (initString.find( UART_5XX_STRING ) !=string::npos) || (initString.find( UART_FRAM_STRING ) !=string::npos)) // if it's a 5xx UART....
 	{
 		if(initString.find( BUG_SHORT_PASSWORD ) !=string::npos )           // short password means 5438
 		{
-			theBSLConnection = new MSPBSL_Connection5438Family( initString );
+			theBSLConnection.reset(new MSPBSL_Connection5438Family(initString));
 		}
 		else if(initString.find( UART_FRAM_STRING ) !=string::npos )           // FRAM Device
 		{
-			theBSLConnection = new MSPBSL_ConnectionFRAMFamily( initString );
+			theBSLConnection.reset(new MSPBSL_ConnectionFRAMFamily(initString));
 		}
 		else                                                                // otherwise, any other UART device
 		{
-			theBSLConnection = new MSPBSL_Connection5xx( initString );
+			theBSLConnection.reset(new MSPBSL_Connection5xx(initString));
 		}
 
 		MSPBSL_PhysicalInterfaceSerialUART* s  = new MSPBSL_PhysicalInterfaceSerialUART( initString ); // Parity handled in object;
@@ -206,14 +205,26 @@ MSPBSL_Connection* MSPBSL_Factory::getMSPBSL_Connection(string initString)
 	} // all 5XX UART BSLs handled
 	else if (initString.find( USB_5XX_STRING ) !=string::npos)                  // if it's a 5xx USB....
 	{
-		theBSLConnection = new MSPBSL_Connection5xxUSB( initString );
-		boost::this_thread::sleep(boost::get_system_time() + boost::posix_time::seconds(2));
-		MSPBSL_PhysicalInterfaceUSB* s  = new MSPBSL_PhysicalInterfaceUSB( initString ); // Parity handled in object;
-		MSPBSL_PacketHandler5xxUSB* p = new MSPBSL_PacketHandler5xxUSB( initString );
-		p->setPhysicalInterface( s );
+		theBSLConnection.reset(new MSPBSL_Connection5xxUSB(initString));
+		unique_ptr<MSPBSL_PhysicalInterfaceUSB> s(new MSPBSL_PhysicalInterfaceUSB(initString));
+
+		int retries = 5;
+		bool isOpen = s->physicalInterfaceCommand(ENUMERATE_COMMAND) == 0;
+		while (s && !isOpen && retries-- > 0)
+		{
+			this_thread::sleep_for(chrono::seconds(2));
+			isOpen = s->physicalInterfaceCommand(ENUMERATE_COMMAND) == 0;
+		}
+		if (!isOpen)
+		{
+			return nullptr;
+		}
+
+		MSPBSL_PacketHandler5xxUSB* p = new MSPBSL_PacketHandler5xxUSB(initString);
+		p->setPhysicalInterface(s.release());
 		theBSLConnection->setPacketHandler(p);
 	}
-	return theBSLConnection;
+	return theBSLConnection.release();
 }
 
 /**************************************************************************//**

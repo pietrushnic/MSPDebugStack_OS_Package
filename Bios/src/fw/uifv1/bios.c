@@ -7,35 +7,35 @@
 *
 */
 /*
- * Copyright (C) 2012 Texas Instruments Incorporated - http://www.ti.com/ 
- * 
- * 
- *  Redistribution and use in source and binary forms, with or without 
- *  modification, are permitted provided that the following conditions 
+ * Copyright (C) 2012 Texas Instruments Incorporated - http://www.ti.com/
+ *
+ *
+ *  Redistribution and use in source and binary forms, with or without
+ *  modification, are permitted provided that the following conditions
  *  are met:
  *
- *    Redistributions of source code must retain the above copyright 
+ *    Redistributions of source code must retain the above copyright
  *    notice, this list of conditions and the following disclaimer.
  *
  *    Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the 
- *    documentation and/or other materials provided with the   
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the
  *    distribution.
  *
  *    Neither the name of Texas Instruments Incorporated nor the names of
  *    its contributors may be used to endorse or promote products derived
  *    from this software without specific prior written permission.
  *
- *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS 
- *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT 
+ *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
  *  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT 
- *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, 
- *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT 
+ *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
  *  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
  *  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
- *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
+ *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
@@ -54,7 +54,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define CORE_VERSION 0x0011
+#define CORE_VERSION 0x0013
 
 typedef short (*HalFuncInOut)(unsigned short);
 
@@ -62,7 +62,7 @@ typedef short (*HalFuncInOut)(unsigned short);
 //! \details this words indicate a valid bios
 const unsigned short identify_[3] @ "IDENTIFY" = {0x000F,0x2112,0xFEDF};
 REQUIRED(identify_)
-//! \brief version of bios code 
+//! \brief version of bios code
 const unsigned short core_version_ @ "COREVERSION" = CORE_VERSION;
 RO_PLACEMENT_NO_INIT volatile const unsigned short safe_core_version_ @ "SAFECOREVERSION";
 
@@ -184,7 +184,7 @@ unsigned char *bios_rx_char_ptr_;
 //! \brief Flag for XON/XOFF status
 //! \li 0, TX can send
 //! \li 1, TX must not be send
-//! \details between receiving xoff and sending chars is a delay (by program flow). This 
+//! \details between receiving xoff and sending chars is a delay (by program flow). This
 //! is not a problem, because the TUSB has enougth reserve in the buffer.
 unsigned char bios_xoff_ = 0;
 
@@ -244,222 +244,132 @@ void biosInitSystem (void)
     // won't work without it
     P1DIR = 0;  P2DIR = 0;  P3DIR = 0;    // Reset all ports direction to be inputs
     P4DIR = 0;  P5DIR = 0;  P6DIR = 0;
-    
+
     P1SEL = 0;  P2SEL = 0;  P3SEL = 0;    // Reset all ports selection
     P4SEL = 0;  P5SEL = 0;  P6SEL = 0;
-    
+
     P1OUT = 0;  P2OUT = 0;  P3OUT = 0;    //!<Reset all port output registers
     P4OUT = 0;  P5OUT = 0;  P6OUT = 0;
-    
-    
+
+
     BCSCTL1 &= ~XT2OFF;      // XT2 on
-    
+
     for(j = 0; (j < 0xFF) && ((IFG1 & OFIFG) != 0); j++) // OSCFault flag still set?
     {
         IFG1 &= ~OFIFG;               // Clear OSCFault flag
         for (i = 0xFF; i > 0; i--) __no_operation();      // Time for flag to set
     }
-    if((IFG1 & OFIFG) == 0) // XT2 found, it can be only on EASY
-    { // E2
-        // drive TUSB3410 reset low
-        P4DIR |= BIT6;
-        IFG1 &= ~OFIFG;                  // Clear OSCFault flag again
-        BCSCTL2 |= SELM1 + SELS;         // MCLK = XT2, provide clock for TUSB
-        // setup TUSB3410 clock
-        P5DIR |= BIT5;
-        P5SEL |= BIT5;
-        // here setup E2 specific stuff
-        crystal_ = CRYSTAL_E2;
-        baudmod_ = BAUDMOD_E2;
-        // Port1
-        //  P1.0 -> 
-        //  P1.1 -> 
-        //  P1.2 <- 
-        //  P1.3 <- URTS
-        //  P1.4 <- UDTR
-        //  P1.5 -> UDSR
-        //  P1.6 -> UCTS
-        //  P1.7 <- 
-        // init handshake lines from MSP430 -> TUSB3410
-        P1OUT &= ~BIT5;          //!<drive both handshake signals low (BIT5 = UDSR, BIT6 = UCTS) high
-        P1OUT |= BIT6;  // set CTS to block receiving anything from TUSB (RX overflow on start up problem)
-        P1DIR |=  (BIT5+BIT6);
-        // Port2
-        //  P2.0 ->
-        //  P2.1 ->
-        //  P2.2 ->
-        //  P2.3 ->
-        //  P2.4 ->
-        //  P2.5 -> SELT
-        //  P2.6 -> TGTRST
-        //  P2.7 ->
-        P2DIR =  0;          
-        // Port3
-        //  P3.0 <-
-        //  P3.1 <-
-        //  P3.2 <-
-        //  P3.3 <-
-        //  P3.4 -> TXD
-        //  P3.5 <- RXD
-        //  P3.6 <- TXD backcannel unused, handled by TUSB3410 direct
-        //  P3.7 <- RXD backcannel unused, handled by TUSB3410 direct
-        P3SEL |=  BIT4 + BIT5;
-        P3DIR |=  BIT4;
-        // Port4
-        //  P4.0 ->
-        //  P4.1 ->
-        //  P4.2 ->
-        //  P4.3 ->
-        //  P4.4 ->
-        //  P4.5 ->
-        //  P4.6 <- RST3410
-        //  P4.7 <-
-        P4OUT |= BIT0 + BIT1 + BIT2 + BIT3 + BIT4 + BIT5;   //!<sets target TEST pin on low, disable TDI 2 TDO, enable TDI
-        P4DIR |= BIT0 + BIT1 + BIT2 + BIT3 + BIT4 + BIT5;
-        // Port5
-        //  P5.0 ->
-        //  P5.1 -> TDI
-        //  P5.2 <- TDO
-        //  P5.3 -> TCK
-        //  P5.4 <-
-        //  P5.5 -> clk3410
-        //  P5.6 <-
-        //  P5.7 <-
-        P5DIR |= BIT0 + BIT1 + BIT3;
-        bios_leds_[0].addr = &bios_led_dummy_;
-        bios_leds_[0].bit = BIT0;
-        bios_leds_[1].addr = &bios_led_dummy_;
-        bios_leds_[1].bit = BIT1;
-        for(j = 0; (j < 0xFFFF); j++)
+
+    P3OUT &= ~BIT6;
+    BCSCTL1 |= XT2OFF;      // XT2 off
+    BCSCTL1 |= XTS;           // ACLK = LFXT1 = HF XTAL
+    _BIC_SR(OSCOFF);          // turn on XT1 oscillator
+    // oscillator start, the fault flag must be at ten times valid, because the
+    // oscillator starts very slow and is for short times valid in this time,
+    // but faults again.
+    j = 0;
+    do
+    {
+        IFG1 &= ~OFIFG;
+        for (i = 0xFF; i>0; i--)
         {
             __no_operation();
         }
-        P4DIR &= ~BIT6; // release TUSB3410 reset
-        // char set to rx input for xon/xoff
-        bios_rx_char_ptr_ = &bios_rx_char_;
-        // Rts map to software (xon/xoff
-        bios_xoff_ptr_ = &bios_xoff_;
-        bios_info_hw_0_ = INFO_E2_HW_0;
-        bios_info_hw_1_ = INFO_E2_HW_1;
-        bios_device_flags_ = DEVICE_FLAG_SBW2 | DEVICE_FLAG_EASY;;
-        //  init timer b for 100hz interrupt
-        TBCCTL0 = 0;
-        TBCCR0 = crystal_ / (8 * 100) - 1;
-        TBCTL = TBSSEL_2 | ID_3 | MC_1 | TBCLR | TBIE;    // alck, div 8, up-mode, clear, irq on
-    }
-    else
-    { // U1
-        P3OUT &= ~BIT6;
-        BCSCTL1 |= XT2OFF;      // XT2 off
-        BCSCTL1 |= XTS;           // ACLK = LFXT1 = HF XTAL
-        _BIC_SR(OSCOFF);          // turn on XT1 oscillator
-        // oscillator start, the fault flag must be at ten times valid, because the
-        // oscillator starts very slow and is for short times valid in this time, 
-        // but faults again.
-        j = 0;
-        do
+        if(IFG1 & OFIFG)
         {
-            IFG1 &= ~OFIFG;
-            for (i = 0xFF; i>0; i--) 
-            {
-                __no_operation();
-            }
-            if(IFG1 & OFIFG)
-            {
-                j = 0;
-            }
-            else
-            {
-                j++;
-            }
+            j = 0;
         }
-        while (j < 10);
-        IE1 |= OFIE; // restart the oscillator on fault
-        BCSCTL2 |= SELM1+SELM0;     // HF XTAL (safe)
-        // here setup U1 specific stuff  
-        crystal_ = CRYSTAL_U1;
-        baudmod_ = 0x57; //BAUDMOD_U1;
-        // Port1
-        //  P1.0 -> MODE
-        //  P1.1 -> POWER
-        //  P1.2 <- nc
-        //  P1.3 <- nc
-        //  P1.4 <- ???
-        //  P1.5 -> UDSR
-        //  P1.6 -> UCTS
-        //  P1.7 <- MU2
-        P1OUT = ~(unsigned char)(BIT0+BIT1);          //!<switch both LEDs off (BIT0 = MODE, BIT1 = POWER)
-        P1DIR =  (BIT0+BIT1);          //!<set pins to output direction
-        // init handshake lines from MSP430 -> TUSB3410
-        P1OUT &= ~BIT5;
-        P1OUT |= BIT6;  // set CTS to block receiving anything from TUSB (RX overflow on start up problem)
-        P1DIR |=  (BIT5+BIT6);
-        // Port2
-        //  P2.0 ->
-        //  P2.1 ->
-        //  P2.2 ->
-        //  P2.3 ->
-        //  P2.4 ->
-        //  P2.5 -> SELT
-        //  P2.6 -> TGTRST
-        //  P2.7 ->
-        P2OUT |=  (BIT5+BIT6);          //!<disable JTAG drivers for TCK, TMS, TDI
-        P2DIR |=  (BIT5+BIT6);          //!<target reset high
-        // Port3
-        //  P3.0 <-
-        //  P3.1 <-
-        //  P3.2 <-
-        //  P3.3 <-
-        //  P3.4 -> TXD
-        //  P3.5 <- RXD
-        //  P3.6 <- Rst3410
-        //  P3.7 <-
-        P3SEL |=  (BIT4 + BIT5);
-        P3DIR |=  (BIT4);
-        // Port4
-        //  P4.0 -> TEST
-        //  P4.1 <-
-        //  P4.2 -> ENTDI2TDO
-        //  P4.3 -> VCCTON
-        //  P4.4 -> TDIOFF
-        //  P4.5 -> VF2TDI
-        //  P4.6 -> VF2TEST 
-        //  P4.7 <-
-        P4OUT |= (BIT0+BIT2+BIT4);   //!<sets target TEST pin on low, disable TDI 2 TDO, enable TDI
-        P4DIR |= (BIT0+BIT2+BIT3+BIT4+BIT5+BIT6);
-        // Port5
-        //  P5.0 -> TMS
-        //  P5.1 -> TDI
-        //  P5.2 <- TDO
-        //  P5.3 -> TCK
-        //  P5.4 <-
-        //  P5.5 <-
-        //  P5.6 <-
-        //  P5.7 <-
-        P5DIR |= (BIT0+BIT1+BIT3);
-        bios_leds_[0].addr = (unsigned char*)&P1OUT;
-        bios_leds_[0].bit = BIT0;
-        bios_leds_[1].addr = (unsigned char*)&P1OUT;
-        bios_leds_[1].bit = BIT1;
-        // char set to rx input for xon/xoff
-        bios_rx_char_ptr_ = &bios_rx_char_;
-        // Rts map to software (xon/xoff
-        bios_xoff_ptr_ = &bios_xoff_;
-        // sw & hw infos
-        bios_info_hw_0_ = INFO_U1_HW_0;
-        bios_info_hw_1_ = INFO_U1_HW_1;
-        bios_device_flags_ = DEVICE_FLAG_SBW2 | DEVICE_FLAG_SBW4 | DEVICE_FLAG_XONOFF;
-        //  init timer b for 100hz interrupt
-        TBCCTL0 = 0;
-        TBCCR0 = crystal_ / (8 * 100) - 1;
-        TBCTL = TBSSEL_1 | ID_3 | MC_1 | TBCLR | TBIE;    // alck, div 8, up-mode, clear, irq on
-        P3OUT |= BIT6;    // release TUSB3410
+        else
+        {
+            j++;
+        }
     }
+    while (j < 10);
+    IE1 |= OFIE; // restart the oscillator on fault
+    BCSCTL2 |= SELM1+SELM0;     // HF XTAL (safe)
+    // here setup U1 specific stuff
+    crystal_ = CRYSTAL_U1;
+    baudmod_ = 0x57; //BAUDMOD_U1;
+    // Port1
+    //  P1.0 -> MODE
+    //  P1.1 -> POWER
+    //  P1.2 <- nc
+    //  P1.3 <- nc
+    //  P1.4 <- ???
+    //  P1.5 -> UDSR
+    //  P1.6 -> UCTS
+    //  P1.7 <- MU2
+    P1OUT = ~(unsigned char)(BIT0+BIT1);          //!<switch both LEDs off (BIT0 = MODE, BIT1 = POWER)
+    P1DIR =  (BIT0+BIT1);          //!<set pins to output direction
+    // init handshake lines from MSP430 -> TUSB3410
+    P1OUT &= ~BIT5;
+    P1OUT |= BIT6;  // set CTS to block receiving anything from TUSB (RX overflow on start up problem)
+    P1DIR |=  (BIT5+BIT6);
+    // Port2
+    //  P2.0 ->
+    //  P2.1 ->
+    //  P2.2 ->
+    //  P2.3 ->
+    //  P2.4 ->
+    //  P2.5 -> SELT
+    //  P2.6 -> TGTRST
+    //  P2.7 ->
+    P2OUT |=  (BIT5+BIT6);          //!<disable JTAG drivers for TCK, TMS, TDI
+    P2DIR |=  (BIT5+BIT6);          //!<target reset high
+    // Port3
+    //  P3.0 <-
+    //  P3.1 <-
+    //  P3.2 <-
+    //  P3.3 <-
+    //  P3.4 -> TXD
+    //  P3.5 <- RXD
+    //  P3.6 <- Rst3410
+    //  P3.7 <-
+    P3SEL |=  (BIT4 + BIT5);
+    P3DIR |=  (BIT4);
+    // Port4
+    //  P4.0 -> TEST
+    //  P4.1 <-
+    //  P4.2 -> ENTDI2TDO
+    //  P4.3 -> VCCTON
+    //  P4.4 -> TDIOFF
+    //  P4.5 -> VF2TDI
+    //  P4.6 -> VF2TEST
+    //  P4.7 <-
+    P4OUT |= (BIT0+BIT2+BIT4);   //!<sets target TEST pin on low, disable TDI 2 TDO, enable TDI
+    P4DIR |= (BIT0+BIT2+BIT3+BIT4+BIT5+BIT6);
+    // Port5
+    //  P5.0 -> TMS
+    //  P5.1 -> TDI
+    //  P5.2 <- TDO
+    //  P5.3 -> TCK
+    //  P5.4 <-
+    //  P5.5 <-
+    //  P5.6 <-
+    //  P5.7 <-
+    P5DIR |= (BIT0+BIT1+BIT3);
+    bios_leds_[0].addr = (unsigned char*)&P1OUT;
+    bios_leds_[0].bit = BIT0;
+    bios_leds_[1].addr = (unsigned char*)&P1OUT;
+    bios_leds_[1].bit = BIT1;
+    // char set to rx input for xon/xoff
+    bios_rx_char_ptr_ = &bios_rx_char_;
+    // Rts map to software (xon/xoff
+    bios_xoff_ptr_ = &bios_xoff_;
+    // sw & hw infos
+    bios_info_hw_0_ = INFO_U1_HW_0;
+    bios_info_hw_1_ = INFO_U1_HW_1;
+    bios_device_flags_ = DEVICE_FLAG_SBW2 | DEVICE_FLAG_SBW4 | DEVICE_FLAG_XONOFF;
+    //  init timer b for 100hz interrupt
+    TBCCTL0 = 0;
+    TBCCR0 = crystal_ / (8 * 100) - 1;
+    TBCTL = TBSSEL_1 | ID_3 | MC_1 | TBCLR | TBIE;    // alck, div 8, up-mode, clear, irq on
+    P3OUT |= BIT6;    // release TUSB3410
     __enable_interrupt();
 }
 
 //! \brief restore Xt1 clocks
-//! \details if a ozcillator fault occur, the fault flag is cleared and the 
+//! \details if a ozcillator fault occur, the fault flag is cleared and the
 //! SMCLOCK switch back to XT1 source
 INTERRUPT(NMI_VECTOR)void nmiIsr (void)
 {
@@ -574,7 +484,7 @@ short biosLedAlternate(unsigned short time)
     {
         bios_leds_[0].mode = BIOS_LED_OFF;
         bios_leds_[1].mode = BIOS_LED_OFF;
-    }    
+    }
     ENABLE_INTERRUPT;
     return(0);
     }
@@ -601,7 +511,7 @@ INTERRUPT(TIMERB1_VECTOR) void timerB1Isr (void)
         {
             bios_global_timer_[BIOS_TIMER_TX].count--;
         }
-        // LED mode    
+        // LED mode
         DIAG_SUPPRESS(Pa082)
         if((bios_leds_[BIOS_LED_MODE].mode & BIOS_LED_ON) ^ (bios_leds_[BIOS_LED_MODE].counter > (bios_leds_[BIOS_LED_MODE].load/2)))
         {
@@ -671,9 +581,9 @@ short biosHalInterfaceInit(void)
     HalMainFunc halStartUpCode = NULL;
     unsigned char cmd[6] = {0x05, CMDTYP_EXECUTELOOP, 0, 0, 0, 0};
     unsigned char i;
-  
+
     biosHalInterfaceClear();
-    if((hal_intvec_[15] >= 0x2520) && (hal_intvec_[15] <= 0xFDD9)) 
+    if((hal_intvec_[15] >= 0x2520) && (hal_intvec_[15] <= 0xFDD9))
     {
         if(*hal_signature == 0x5137)
         {
@@ -685,7 +595,7 @@ short biosHalInterfaceInit(void)
                     irq_forward_[i] = hal_intvec_[i];
                 }
             }
-          
+
             halStartUpCode = (HalMainFunc)hal_intvec_[15]; // calls the (modified) startup code of HAL
             hal_infos_ = halStartUpCode((struct stream_funcs*)&_stream_Funcs, bios_device_flags_); // return HAL sw infos
         }
@@ -734,7 +644,7 @@ short biosHalInterfaceClear(void)
 }
 
 //! \brief main loop
-//! \details returns never. 
+//! \details returns never.
 //! \li send error messages
 //! \li execute "commands in loop", eg. voltage regulation, wait(poll) for hit breakpoints
 //! \li execute commands send from dll
@@ -745,7 +655,7 @@ void  biosmainLoop(void)
     unsigned char rx_queu_counter_tmp;
     StreamSafe stream_tmp;
     HalFuncInOut pCallAddr;
-    
+
     biosResetCts(); // release CTS line
     while(1)
     {
@@ -817,7 +727,7 @@ char biosUsbOverflow(void)
 //! \details init hardware and (software)buffers
 //! \param[in] baudrate speed in bit/s
 void biosInitCom (unsigned long baudrate)
-{ 
+{
     unsigned char i;
     DIAG_SUPPRESS(Pe550)
     unsigned char dummy;
@@ -869,7 +779,7 @@ void biosPrepareTx(unsigned int size)
 }
 
 //! \brief trigger sending of TX buffer
-//! \details to send the first char we set UTXIFG, followed char loaded by 
+//! \details to send the first char we set UTXIFG, followed char loaded by
 //! true TX buffer empty interrupt
 void biosStartTx(void)
 {
@@ -887,7 +797,7 @@ void biosUsbTxError(void)
 void biosUsbTxClear(void)
 {
     unsigned char i;
-    
+
     memset((unsigned char*)&bios_tx_record_, 0, sizeof(bios_tx_record_));
     bios_global_timer_[BIOS_TIMER_TX].count = 0;
     bios_rx_char_ = 0;
@@ -906,13 +816,13 @@ void biosUsbRxClear(void)
     unsigned char i;
     unsigned short j;
     unsigned char mark = 0;
-    
+
     if(IE1 & URXIE0)
     {
-        IE1 &= ~URXIE0;   
+        IE1 &= ~URXIE0;
         mark = 1;
     }
-    
+
     bios_rx_record_.active = 0;
     for(i = 0; i < BIOS_RX_QUEUS; i++)
     {
@@ -942,20 +852,20 @@ void biosUsbRxClear(void)
     while(j && (IFG1 & URXIFG0));
     if(mark)
     {
-        IE1   |= URXIE0;   
+        IE1   |= URXIE0;
     }
 }
 //! \brief trigger a error message
 //! \details trigger a error message and clear the RX hard and software buffers
 void biosUsbRxError(unsigned short code)
 {
-    IE1   &= ~URXIE0;   
+    IE1   &= ~URXIE0;
     biosUsbRxClear();
     bios_rx_err_code_ = code;
     bios_rx_err_set_ = 1;
     bios_rx_err_payload_ = NULL;
     bios_rx_err_id_ = 0;
-    IE1   |= URXIE0;   
+    IE1   |= URXIE0;
 }
 
 //! \brief receive char form UART
@@ -982,14 +892,14 @@ INTERRUPT(USART0RX_VECTOR)void usbRxIsr (void)
         if(bios_rx_char_ == BIOS_XON_CHAR)
         {
             // test for continue transmiting
-            if(bios_xoff_ & 0x02)  
+            if(bios_xoff_ & 0x02)
             {
                 biosStartTx();
             }
             bios_xoff_ = 0;
             goto usbRxIsrExit;
         }
-        else if (bios_rx_char_ == BIOS_XOFF_CHAR) 
+        else if (bios_rx_char_ == BIOS_XOFF_CHAR)
         {
             // block sending to TUSB
             bios_xoff_ = 1 << BIOS_HARD_RTS_BIT;
@@ -1064,8 +974,8 @@ INTERRUPT(USART0RX_VECTOR)void usbRxIsr (void)
             if(bios_rx_record_.data[bios_rx_record_.active][MESSAGE_CMDTYP_POS] == RESPTYP_ACKNOWLEDGE)
             {
                 // search for message which are waiting on a ack
-                for(unsigned char i = 0; i < BIOS_TX_QUEUS; i++) 
-                { 
+                for(unsigned char i = 0; i < BIOS_TX_QUEUS; i++)
+                {
                     DIAG_SUPPRESS(Pa082)
                     // waits a transmited message for a ACK?
                     if((bios_tx_record_.state[i] & BIOS_TX_WAIT_ON_ACK) &&
@@ -1107,7 +1017,7 @@ INTERRUPT(USART0RX_VECTOR)void usbRxIsr (void)
                 else
                 {
                     // search for message which are waiting on a ack
-                    for(unsigned char i = 0; i < BIOS_TX_QUEUS; i++) 
+                    for(unsigned char i = 0; i < BIOS_TX_QUEUS; i++)
                     {
                         DIAG_SUPPRESS(Pa082)
                         if(((bios_tx_record_.state[i] & (BIOS_TX_WAIT_ON_ACK | BIOS_TX_TO_SEND)) == (BIOS_TX_WAIT_ON_ACK | BIOS_TX_TO_SEND)) &&
@@ -1115,7 +1025,7 @@ INTERRUPT(USART0RX_VECTOR)void usbRxIsr (void)
                             (bios_tx_record_.data[i][3] == bios_rx_record_.data[bios_rx_record_.active][4]))
                         DIAG_DEFAULT(Pa082)
                         {
-                            // only reset the wait_on_ack flag, 
+                            // only reset the wait_on_ack flag,
                             //! \todo add a resend function
                             bios_tx_record_.state[i] &= ~BIOS_TX_WAIT_ON_ACK;
                             break;
@@ -1143,7 +1053,7 @@ INTERRUPT(USART0RX_VECTOR)void usbRxIsr (void)
                     bios_rx_record_.active = 0;
                 }
             }
-        }         
+        }
         else
         {
             // set a crc error
@@ -1161,7 +1071,7 @@ INTERRUPT(USART0RX_VECTOR)void usbRxIsr (void)
         bios_rx_record_.count[bios_rx_record_.active] = 0;
         bios_rx_record_.crc[1] = 0;
     }
-    usbRxIsrExit:  
+    usbRxIsrExit:
     biosResetCts(); // release TUSB RX
 }
 
@@ -1181,7 +1091,7 @@ INTERRUPT(USART0TX_VECTOR)void usbTxIsr (void)
     while(!(bios_tx_record_.state[bios_tx_record_.cannel_to_send] & BIOS_TX_TO_SEND))
     {
         bios_tx_record_.cannel_to_send++;
-        if(bios_tx_record_.cannel_to_send >= BIOS_TX_QUEUS) 
+        if(bios_tx_record_.cannel_to_send >= BIOS_TX_QUEUS)
         {
             bios_tx_record_.cannel_to_send = 0;
         }
@@ -1192,7 +1102,7 @@ INTERRUPT(USART0TX_VECTOR)void usbTxIsr (void)
     }
     // test on chars in software TX buffer
     DIAG_SUPPRESS(Pa082)
-    if(bios_tx_record_.send_counter[bios_tx_record_.cannel_to_send] < bios_tx_record_.count[bios_tx_record_.cannel_to_send]) 
+    if(bios_tx_record_.send_counter[bios_tx_record_.cannel_to_send] < bios_tx_record_.count[bios_tx_record_.cannel_to_send])
     {
         // send char from software buffer
         USB_WRITE = bios_tx_record_.data[bios_tx_record_.cannel_to_send][bios_tx_record_.send_counter[bios_tx_record_.cannel_to_send]++];
@@ -1200,21 +1110,21 @@ INTERRUPT(USART0TX_VECTOR)void usbTxIsr (void)
     else
     {
         // no char to send in actual TX software buffer
-        // we don't clear TX software buffer, reset only flags. If need we can 
+        // we don't clear TX software buffer, reset only flags. If need we can
         // send the buffer again. (resending in not implemented)
         bios_tx_record_.state[bios_tx_record_.cannel_to_send] &= ~BIOS_TX_TO_SEND;
-        bios_tx_record_.send_counter[bios_tx_record_.cannel_to_send] = 0;    
+        bios_tx_record_.send_counter[bios_tx_record_.cannel_to_send] = 0;
         first_cannel = bios_tx_record_.cannel_to_send;
         if(!(bios_tx_record_.state[bios_tx_record_.cannel_to_send] & BIOS_TX_WAIT_ON_ACK))
         {
             bios_global_timer_[BIOS_TIMER_TX].count = 0;
         }
-        // search in TX software buffer for data to send. If no data found, it was the 
+        // search in TX software buffer for data to send. If no data found, it was the
         // last TX buffer empty interrupt.
         do
         {
             bios_tx_record_.cannel_to_send++;
-            if(bios_tx_record_.cannel_to_send >= BIOS_TX_QUEUS) 
+            if(bios_tx_record_.cannel_to_send >= BIOS_TX_QUEUS)
             {
                 bios_tx_record_.cannel_to_send = 0;
             }

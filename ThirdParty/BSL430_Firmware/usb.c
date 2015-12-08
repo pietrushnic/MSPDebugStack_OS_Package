@@ -146,7 +146,7 @@ VOID USB_init(VOID)
 
     // configuration of USB module
     USBKEYPID  = 0x9628;            // set KEY and PID to 0x9628 -> access to configuration registers enabled
-    USBPWRCTL = 0;					// Workaround for USB9
+    USBPWRCTL = 0;                  // Workaround for USB9
     __no_operation();               // for workaround USB9
     USBPWRCTL  = VUSBEN + SLDOEN + SLDOAON /*+ VBOFFIE + VBONIE*/; // keep primary and secondary LDO (3.3 and 1.8 V) enabled
     USBPHYCTL  = PUSEL;             // use DP and DM as USB terminals (not needed because an external PHY is connected to port 9)
@@ -168,12 +168,14 @@ VOID USB_enable()
     //Wait some time till PLL is settled
     do {
         USBPLLIR    =     0x0000;       // make sure no interrupts can occur on PLL-module
-        for (i =0; i < 100; i++);
-        //IntDelay();
+
+        __delay_cycles(1001);           // For lowest code size use a cycle count that is 3*n + 2
+                                        // where n is any integer greater than 4 (IAR uses other
+                                        // instructions when n is less than 5).
         if (j++ > 1000)
             return ;
     }while (USBPLLIR != 0);
-	USBCNF |= USB_EN;                   // enable USB module
+    USBCNF |= USB_EN;                   // enable USB module
 }
 
 //----------------------------------------------------------------------------

@@ -61,10 +61,12 @@ extern __no_init BYTE bStatusAction;
 
 VOID UsbHandler(VOID)
 {
+    unsigned int localUSBIFG = USBIFG;
+
     //Check if the setup interrupt is pending.
     //We need to check it before other interrupt requests,
     //to work around that the Setup Int has lower prio then Input Endp0
-    if (USBIFG & SETUPIFG)
+    if (localUSBIFG & SETUPIFG)
         SetupPacketInterruptHandler();
     else if (USBPWRCTL & VBONIFG)
         PWRVBUSonHandler();
@@ -72,11 +74,11 @@ VOID UsbHandler(VOID)
         PWRVBUSoffHandler();
     else if (USBIEPIFG & BIT0) // IEPIFG0 flag = BIT0
         IEP0InterruptHandler();
-    else if (USBIFG & RSTRIFG)
+    else if (localUSBIFG & RSTRIFG)
         USB_reset();
-    else if (USBIFG & SUSRIFG)
+    else if (localUSBIFG & SUSRIFG)
         USB_suspend();
-    else if (USBIFG & RESRIFG)
+    else if (localUSBIFG & RESRIFG)
         USB_resume();
 }
 
@@ -91,17 +93,24 @@ VOID SetupPacketInterruptHandler(VOID)
     // NAK both input and output endpoints
     tEndPoint0DescriptorBlock.bOEPBCNT = EPBCNT_NAK;
 
-  usbProcessNewSetupPacket:
+    usbProcessNewSetupPacket:
 
     bStatusAction = STATUS_ACTION_NOTHING;
 
     // clear out return data buffer
-    abUsbRequestReturnData[0] = 0x00;
-    abUsbRequestReturnData[1] = 0x00;
+    *((unsigned int*)abUsbRequestReturnData) = 0x0000;
 
     // decode and process the request
     usbDecodeAndProcessUsbRequest();
-    USBIFG &= ~SETUPIFG;                        // clear the interrupt bit
+    // Workaround for BUG2145
+    asm("mov.w   #0x80,R4");
+    asm("bic.w   R4,&0920h");
+    asm("bic.w   R4,&0922h");
+
+    USBIFG &= ~SETUPIFG; // clear the interrupt bit
+    // Workaround for BUG2145
+    asm("bis.w   R4,&0920h");
+    asm("bis.w   R4,&0922h");
 
     // check if there is another setup packet pending
     // if it is, abandon current one by NAKing both data endpoint 0
@@ -115,16 +124,16 @@ VOID SetupPacketInterruptHandler(VOID)
 //----------------------------------------------------------------------------
 VOID IntDelay(VOID)
 {
-    __delay_cycles(36000);   // delay for 8000 cycles ~1 ms at 8 MHz
+    __delay_cycles(36002);   // delay for 8000 cycles ~1 ms at 8 MHz
 }
 
 //----------------------------------------------------------------------------
 VOID PWRVBUSoffHandler(VOID)
 {
-    IntDelay();	//delay before reset. Needed to avoid the device started again
-				// after it loosing power
+    IntDelay(); //delay before reset. Needed to avoid the device started again
+                // after it loosing power
 
-	//reset device if USB cable plagged off
+    //reset device if USB cable plagged off
     PMMCTL0 = PMMPW | PMMSWBOR; // generate BOR for reseting device
 }
 

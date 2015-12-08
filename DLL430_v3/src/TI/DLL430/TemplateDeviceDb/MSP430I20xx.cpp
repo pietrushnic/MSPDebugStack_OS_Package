@@ -35,23 +35,36 @@
  *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "MSP430F2xxx.h"
+#include <pch.h>
 
 using namespace TI::DLL430;
 using namespace TemplateDeviceDb;
 using namespace TemplateDeviceDb::Memory;
 
-typedef ClockInfo<GCC_STANDARD_I,0x60D7, EmptyEemTimer, TAClkEemClockNames> MSP430I20xx_ClockInfo;
+
+struct i20xxClockNames : EemClocksImpl
+{
+	typedef EemClocksImpl::Clocks Clock;
+	i20xxClockNames() : EemClocksImpl(
+		Clock::Empty, Clock::Empty, Clock::Empty, Clock::Empty,
+		Clock::Empty, Clock::Empty, Clock::Empty, Clock::Empty,
+		Clock::Empty, Clock::Empty, Clock::TACLK, Clock::Empty,
+		Clock::Empty, Clock::Empty, Clock::ACLK, Clock::Empty
+		)
+	{}
+};
+
+typedef ClockInfo<GCC_STANDARD_I, 0x60D7, EmptyEemTimer, i20xxClockNames> MSP430I20xx_ClockInfo;
 
 template<class FlashSizeType, class OffsetType>
 struct MSP430I20xx_MainFlashMemory : MemoryInfo<
-				Name::main, FlashType, Mapped, NotProtectable, Bits16Type,
-				FlashSizeType , OffsetType, SegmentSize<0x400>, BankSize<0x10000>, Banks<1>,
+				MemoryArea::MAIN, FlashType, Mapped, NotProtectable, Bits16Type,
+				FlashSizeType, OffsetType, SegmentSize<0x400>, BankSize<0x10000>, Banks<1>,
 				NoMask> {};
 
 typedef MemoryInfo<
-	Name::information, FlashType, Mapped, NotProtectable, Bits16Type,
-	Size<0x400> , Offset<0x1000>, SegmentSize<0x400>, BankSize<0x400>, Banks<1>,
+	MemoryArea::INFO, FlashType, Mapped, NotProtectable, Bits16Type,
+	Size<0x400>, Offset<0x1000>, SegmentSize<0x400>, BankSize<0x400>, Banks<1>,
 	NoMask, MemoryCreator<InformationFlashAccess>
 > MSP430I20xx_InfoFlashMemoryInfo;
 
@@ -63,7 +76,7 @@ extern const uint8_t sfrMaskData_430I[SFR_MASK_SIZE] = {0xff, 0xff, 0xff, 0xff, 
 typedef MemoryMask<sfrMaskData_430I, sizeof(sfrMaskData_430I)> sfrMask_430I;
 
 template<class FlashOffset, class FlashSize>
-struct MemoryModel : MemoryList<boost::tuple<
+struct MemoryModel : MemoryList<std::tuple<
 			MSP430I20xx_MainFlashMemory<FlashSize, FlashOffset>,
 			MSP430I20xx_InfoFlashMemoryInfo,
 			MSP430F2xxx_BootFlashMemoryInfo,
@@ -80,7 +93,6 @@ template<
 >
 struct MSP430I20xx_type : Device<
 		description,
-		ObjectId<0>,
 		DefaultBits16Type,
 		regular,
 		MSP430I20xx_Match,

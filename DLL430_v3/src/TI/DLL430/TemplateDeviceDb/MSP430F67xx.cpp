@@ -3,56 +3,57 @@
  *
  * Definition MSP430F67xx devices.
  *
- * Copyright (C) 2011 Texas Instruments Incorporated - http://www.ti.com/ 
- * 
- * 
- *  Redistribution and use in source and binary forms, with or without 
- *  modification, are permitted provided that the following conditions 
+ * Copyright (C) 2011 Texas Instruments Incorporated - http://www.ti.com/
+ *
+ *
+ *  Redistribution and use in source and binary forms, with or without
+ *  modification, are permitted provided that the following conditions
  *  are met:
  *
- *    Redistributions of source code must retain the above copyright 
+ *    Redistributions of source code must retain the above copyright
  *    notice, this list of conditions and the following disclaimer.
  *
  *    Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the 
- *    documentation and/or other materials provided with the   
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the
  *    distribution.
  *
  *    Neither the name of Texas Instruments Incorporated nor the names of
  *    its contributors may be used to endorse or promote products derived
  *    from this software without specific prior written permission.
  *
- *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS 
- *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT 
+ *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
  *  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT 
- *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, 
- *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT 
+ *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
  *  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
  *  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
- *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
- *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.                                                                                                                                                                                                                                                                                                         
+ *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <pch.h>
 #include "UsbTypes.h"
 
 using namespace TI::DLL430;
 using namespace TemplateDeviceDb;
 using namespace TemplateDeviceDb::Memory;
 
-const ClockPair F67xxTimerTA2_3 = {"Timer3_A2", 11};
+const ClockPair F67xxTimerTA2_3 = {"Timer3_A2", 0x88};
 
 struct MSP430F67xx_EemTimer : EemTimerImpl
 {
 	typedef EemTimerImpl::Timer Eem;
 	MSP430F67xx_EemTimer()
 		  : EemTimerImpl(
-			Eem::Empty, Eem::Empty, Eem::Empty,	Eem::SD24B, 
-			Eem::ADC10_A,Eem::RTC,	Eem::eUSCIB0,Eem::eUSCIA1,
-			Eem::eUSCIA0,Eem::Empty, Eem::Empty, Eem::TA3_0,
+			Eem::Empty, Eem::Empty, Eem::Empty,	Eem::SD24B,
+			Eem::ADC10_A, Eem::RTC,	Eem::eUSCIB0, Eem::eUSCIA1,
+			Eem::eUSCIA0, Eem::Empty, Eem::Empty, Eem::TA3_0,
 			Eem::TA2_1, Eem::TA2_2, F67xxTimerTA2_3, Eem::WDT_A,
-			Eem::Empty, Eem::Empty, Eem::Empty, Eem::Empty, 
+			Eem::Empty, Eem::Empty, Eem::Empty, Eem::Empty,
 			Eem::Empty, Eem::Empty, Eem::Empty, Eem::Empty,
 			Eem::Empty, Eem::Empty, Eem::Empty, Eem::Empty,
 			Eem::Empty, Eem::Empty, Eem::Empty, Eem::Empty)
@@ -64,38 +65,38 @@ typedef ClockInfo<GCC_EXTENDED, 0x2407, MSP430F67xx_EemTimer, EmptyEemClockNames
 
 
 typedef MemoryInfo<
-		Name::main, FlashType, Mapped, NotProtectable, Bits16Type, 
-		Size<0x4000> , Offset<0xC000>, SegmentSize<0x200>, 
+		MemoryArea::MAIN, FlashType, Mapped, NotProtectable, Bits16Type,
+		Size<0x4000>, Offset<0xC000>, SegmentSize<0x200>,
 		BankSize<0x8000>, Banks<1>, NoMask
 > MainFlash_16k;
 
 typedef MemoryInfo<
-		Name::main, FlashType, Mapped, NotProtectable, Bits16Type, 
-		Size<0x8000> , Offset<0x8000>, SegmentSize<0x200>, 
+		MemoryArea::MAIN, FlashType, Mapped, NotProtectable, Bits16Type,
+		Size<0x8000>, Offset<0x8000>, SegmentSize<0x200>,
 		BankSize<0x8000>, Banks<1>, NoMask
 > MainFlash_32k;
 
 typedef MemoryInfo<
-		Name::main, FlashType, Mapped, NotProtectable, Bits16Type, 
-		Size<0xC000> , Offset<0x4000>, SegmentSize<0x200>, 
+		MemoryArea::MAIN, FlashType, Mapped, NotProtectable, Bits16Type,
+		Size<0xC000>, Offset<0x4000>, SegmentSize<0x200>,
 		BankSize<0x8000>, Banks<2>, NoMask
 > MainFlash_48k;
 
 typedef MemoryInfo<
-		Name::main, FlashType, Mapped, NotProtectable, Bits16Type, 
-		Size<0x10000> , Offset<0x4000>, SegmentSize<0x200>, 
+		MemoryArea::MAIN, FlashType, Mapped, NotProtectable, Bits16Type,
+		Size<0x10000>, Offset<0x4000>, SegmentSize<0x200>,
 		BankSize<0x8000>, Banks<2>, NoMask
 > MainFlash_64k;
 
 typedef MemoryInfo<
-		Name::main, FlashType, Mapped, NotProtectable, Bits16Type, 
-		Size<0x18000> , Offset<0x4000>, SegmentSize<0x200>, 
+		MemoryArea::MAIN, FlashType, Mapped, NotProtectable, Bits16Type,
+		Size<0x18000>, Offset<0x4000>, SegmentSize<0x200>,
 		BankSize<0x8000>, Banks<3>, NoMask
 > MainFlash_96k;
 
 typedef MemoryInfo<
-		Name::main, FlashType, Mapped, NotProtectable, Bits16Type, 
-		Size<0x20000> , Offset<0x4000>, SegmentSize<0x200>, 
+		MemoryArea::MAIN, FlashType, Mapped, NotProtectable, Bits16Type,
+		Size<0x20000>, Offset<0x4000>, SegmentSize<0x200>,
 		BankSize<0x8000>, Banks<4>, NoMask
 > MainFlash_128k;
 
@@ -114,35 +115,27 @@ template<
 	class RamInfo
 >
 struct MSP430F67xx : Device<
-							description, 
-							ObjectId<0>,
+							description,
 							DefaultBits20Type,
-							enhanced, 
-							MSP430F5xxx_Match<versionId>, 
+							enhanced,
+							MSP430F5xxx_Match<versionId>,
 							SmallEemMode,
 							MSP430F5xxx_DefaultVoltageTestVpp,
 							ClockInfo,
 							FunctionMappingXv2,
 							FuncletMappingXv2,
-							MemoryList<boost::tuple<
+							MemoryList<std::tuple<
 								MainFlashInfo,
-								MSP430F5xxx_InfoFlashMemoryInfo, 
-								MSP430F5xxx_BootFlashMemoryInfo, 
+								MSP430F5xxx_InfoFlashMemoryInfo,
+								MSP430F5xxx_BootFlashMemoryInfo,
 								MSP430F5xxx_BootCodeMemoryInfo,
 								RamInfo,
-								MSP430F5xxx_peripherl16lbitMemoryInfo, 
-								MSP430F5xxx_CPUMemoryInfo, 
+								MSP430F5xxx_peripherl16lbitMemoryInfo,
+								MSP430F5xxx_CPUMemoryInfo,
 								MSP430F5xxx_EEMMemoryInfo
 							> >, //until C++0x, the space between the brackets is important
 							MSP430F5xxx_Features,
-							MSP430F5xxx_ExtFeatures,
-							PowerSettings<
-								0x0, // Test reg mask
-								0x0, // Test reg value to enable LPMx.5 
-								0x0, // Test reg value to disable LPMx.5 
-								0x4020,	  // 3V Test reg mask 
-								0x4020,	  // 3V Test reg value to enable LPMx.5 
-								0x4020>	  // 3V Test reg value to disable LPMx.5 
+							MSP430F5xxx_ExtFeatures
 						> {};
 
 
@@ -161,6 +154,9 @@ extern const char MSP430F6733[] = "MSP430F6733";
 extern const char MSP430F6734[] = "MSP430F6734";
 extern const char MSP430F6735[] = "MSP430F6735";
 extern const char MSP430F6736[] = "MSP430F6736";
+
+extern const char MSP430F67641[] = "MSP430F67641";
+extern const char MSP430F67621[] = "MSP430F67621";
 
 
 static const DeviceRegistrator<
@@ -220,20 +216,60 @@ static const DeviceRegistrator<
 	MSP430F67xx<MSP430F6733, 0x8065, F67xx_ClockInfo, MainFlash_64k, SystemRam_4k>
 > regMSP430F6733;
 
+static const DeviceRegistrator<
+	MSP430F67xx<MSP430F67641, 0x8239, F67xx_ClockInfo, MainFlash_128k, SystemRam_8k>
+> regMSP430F67641;
+
+static const DeviceRegistrator<
+	MSP430F67xx<MSP430F67621, 0x8238, F67xx_ClockInfo, MainFlash_64k, SystemRam_4k>
+> regMSP430F67621;
 
 
-const ClockPair F6779eUSCIB1 = {"eUSCIB1", 59};
+extern const char MSP430F6720A[] = "MSP430F6720A";
+extern const char MSP430F6721A[] = "MSP430F6721A";
+extern const char MSP430F6723A[] = "MSP430F6723A";
+extern const char MSP430F6724A[] = "MSP430F6724A";
+extern const char MSP430F6725A[] = "MSP430F6725A";
+extern const char MSP430F6726A[] = "MSP430F6726A";
+
+extern const char MSP430F6730A[] = "MSP430F6730A";
+extern const char MSP430F6731A[] = "MSP430F6731A";
+extern const char MSP430F6733A[] = "MSP430F6733A";
+extern const char MSP430F6734A[] = "MSP430F6734A";
+extern const char MSP430F6735A[] = "MSP430F6735A";
+extern const char MSP430F6736A[] = "MSP430F6736A";
+
+extern const char MSP430F67641A[] = "MSP430F67641A";
+extern const char MSP430F67621A[] = "MSP430F67621A";
+
+static const DeviceRegistrator< MSP430F67xx<MSP430F6736A, 0x8286, F67xx_ClockInfo, MainFlash_128k, SystemRam_8k> > regMSP430F6736A;
+static const DeviceRegistrator< MSP430F67xx<MSP430F6735A, 0x8285, F67xx_ClockInfo, MainFlash_128k, SystemRam_4k> > regMSP430F6735A;
+static const DeviceRegistrator< MSP430F67xx<MSP430F6734A, 0x8284, F67xx_ClockInfo, MainFlash_96k, SystemRam_4k> > regMSP430F6734A;
+static const DeviceRegistrator< MSP430F67xx<MSP430F6733A, 0x8283, F67xx_ClockInfo, MainFlash_64k, SystemRam_4k> > regMSP430F6733A;
+static const DeviceRegistrator< MSP430F67xx<MSP430F6731A, 0x8281, F67xx_ClockInfo, MainFlash_32k, SystemRam_2k> > regMSP430F6731A;
+static const DeviceRegistrator< MSP430F67xx<MSP430F6730A, 0x8280, F67xx_ClockInfo, MainFlash_16k, SystemRam_1k> > regMSP430F6730A;
+
+static const DeviceRegistrator< MSP430F67xx<MSP430F6726A, 0x827C, F67xx_ClockInfo, MainFlash_128k, SystemRam_8k> > regMSP430F6726A;
+static const DeviceRegistrator< MSP430F67xx<MSP430F6725A, 0x827B, F67xx_ClockInfo, MainFlash_128k, SystemRam_4k> > regMSP430F6725A;
+static const DeviceRegistrator< MSP430F67xx<MSP430F6724A, 0x827A, F67xx_ClockInfo, MainFlash_96k, SystemRam_4k> > regMSP430F6724A;
+static const DeviceRegistrator< MSP430F67xx<MSP430F6723A, 0x8279, F67xx_ClockInfo, MainFlash_64k, SystemRam_4k> > regMSP430F6723A;
+static const DeviceRegistrator< MSP430F67xx<MSP430F6721A, 0x8277, F67xx_ClockInfo, MainFlash_32k, SystemRam_2k> > regMSP430F6721A;
+static const DeviceRegistrator< MSP430F67xx<MSP430F6720A, 0x8276, F67xx_ClockInfo, MainFlash_16k, SystemRam_1k> > regMSP430F6720A;
+
+static const DeviceRegistrator< MSP430F67xx<MSP430F67641A, 0x8288, F67xx_ClockInfo, MainFlash_128k, SystemRam_8k> > regMSP430F67641A;
+static const DeviceRegistrator< MSP430F67xx<MSP430F67621A, 0x8287, F67xx_ClockInfo, MainFlash_64k, SystemRam_4k> > regMSP430F67621A;
+
 
 struct MSP430F6779_EemTimer : EemTimerImpl
 {
 	typedef EemTimerImpl::Timer Eem;
 	MSP430F6779_EemTimer()
 		  : EemTimerImpl(
-			Eem::AES, Eem::eUSCIA3,Eem::eUSCIA2,Eem::SD24B, 
-			Eem::ADC10_A,Eem::RTC,	Eem::eUSCIB0,Eem::eUSCIA1,
-			Eem::eUSCIA0,F6779eUSCIB1,Eem::COMP_B, Eem::TA3_0,
+			Eem::AES, Eem::eUSCIA3, Eem::eUSCIA2, Eem::SD24B,
+			Eem::ADC10_A, Eem::RTC,	Eem::eUSCIB0, Eem::eUSCIA1,
+			Eem::eUSCIA0, Eem::eUSCIB1, Eem::COMP_B, Eem::TA3_0,
 			Eem::TA2_1, Eem::TA2_2, F67xxTimerTA2_3, Eem::WDT_A,
-			Eem::Empty, Eem::Empty, Eem::Empty, Eem::Empty, 
+			Eem::Empty, Eem::Empty, Eem::Empty, Eem::Empty,
 			Eem::Empty, Eem::Empty, Eem::Empty, Eem::Empty,
 			Eem::Empty, Eem::Empty, Eem::Empty, Eem::Empty,
 			Eem::Empty, Eem::Empty, Eem::Empty, Eem::Empty)
@@ -248,11 +284,11 @@ struct MSP430F67791_EemTimer : EemTimerImpl
 	typedef EemTimerImpl::Timer Eem;
 	MSP430F67791_EemTimer()
 		  : EemTimerImpl(
-			Eem::Empty, Eem::eUSCIA3,Eem::eUSCIA2,Eem::SD24B, 
-			Eem::ADC10_A,Eem::RTC,	Eem::eUSCIB0,Eem::eUSCIA1,
-			Eem::eUSCIA0,F6779eUSCIB1,Eem::COMP_B, Eem::TA3_0,
+			Eem::Empty, Eem::eUSCIA3, Eem::eUSCIA2, Eem::SD24B,
+			Eem::ADC10_A, Eem::RTC,	Eem::eUSCIB0, Eem::eUSCIA1,
+			Eem::eUSCIA0, Eem::eUSCIB1, Eem::COMP_B, Eem::TA3_0,
 			Eem::TA2_1, Eem::TA2_2, F67xxTimerTA2_3, Eem::WDT_A,
-			Eem::Empty, Eem::Empty, Eem::Empty, Eem::Empty, 
+			Eem::Empty, Eem::Empty, Eem::Empty, Eem::Empty,
 			Eem::Empty, Eem::Empty, Eem::Empty, Eem::Empty,
 			Eem::Empty, Eem::Empty, Eem::Empty, Eem::Empty,
 			Eem::Empty, Eem::Empty, Eem::Empty, Eem::Empty)
@@ -262,23 +298,23 @@ struct MSP430F67791_EemTimer : EemTimerImpl
 typedef ClockInfo<GCC_EXTENDED, 0x2407, MSP430F67791_EemTimer, EmptyEemClockNames> F67791_ClockInfo;
 
 typedef MemoryInfo<
-		Name::main, FlashType, Mapped, NotProtectable, Bits16Type, 
-		Size<0x80000> , Offset<0xC000>, SegmentSize<0x200>, 
+		MemoryArea::MAIN, FlashType, Mapped, NotProtectable, Bits16Type,
+		Size<0x80000>, Offset<0xC000>, SegmentSize<0x200>,
 		BankSize<0x20000>, Banks<4>, NoMask
 > MainFlash6779_512k;
 
 typedef MemoryInfo<
-		Name::main, FlashType, Mapped, NotProtectable, Bits16Type, 
-		Size<0x40000> , Offset<0xC000>, SegmentSize<0x200>, 
+		MemoryArea::MAIN, FlashType, Mapped, NotProtectable, Bits16Type,
+		Size<0x40000>, Offset<0xC000>, SegmentSize<0x200>,
 		BankSize<0x20000>, Banks<2>, NoMask
 > MainFlash6779_256k;
 
 typedef MemoryInfo<
-		Name::main, FlashType, Mapped, NotProtectable, Bits16Type, 
-		Size<0x20000> , Offset<0xC000>, SegmentSize<0x200>, 
+		MemoryArea::MAIN, FlashType, Mapped, NotProtectable, Bits16Type,
+		Size<0x20000>, Offset<0xC000>, SegmentSize<0x200>,
 		BankSize<0x20000>, Banks<1>, NoMask
 > MainFlash6779_128k;
- 
+
 typedef MSP430F5xxx_SystemRamInfo< Size<0x8000> > SystemRam_32k;
 typedef MSP430F5xxx_SystemRamInfo< Size<0x4000> > SystemRam_16k;
 
@@ -291,35 +327,27 @@ template<
 	class RamInfo
 >
 struct MSP430F6779x : Device<
-							description, 
-							ObjectId<0>,
+							description,
 							DefaultBits20Type,
-							enhanced, 
-							MSP430F5xxx_Match<versionId>, 
+							enhanced,
+							MSP430F5xxx_Match<versionId>,
 							LargeEemMode,
 							MSP430F5xxx_DefaultVoltageTestVpp,
 							ClockInfo,
 							FunctionMappingXv2,
 							FuncletMappingXv2,
-							MemoryList<boost::tuple<
+							MemoryList<std::tuple<
 								MainFlashInfo,
-								MSP430F5xxx_InfoFlashMemoryInfo, 
-								MSP430F5xxx_BootFlashMemoryInfo, 
+								MSP430F5xxx_InfoFlashMemoryInfo,
+								MSP430F5xxx_BootFlashMemoryInfo,
 								MSP430F5xxx_BootCodeMemoryInfo,
 								RamInfo,
-								MSP430F5xxx_peripherl16lbitMemoryInfo, 
-								MSP430F5xxx_CPUMemoryInfo, 
+								MSP430F5xxx_peripherl16lbitMemoryInfo,
+								MSP430F5xxx_CPUMemoryInfo,
 								MSP430F5xxx_EEMMemoryInfo
 							> >, //until C++0x, the space between the brackets is important
 							MSP430F5xxx_Features,
-							MSP430F5xxx_ExtFeatures,
-							PowerSettings<
-								0x0, // Test reg mask
-								0x0, // Test reg value to enable LPMx.5 
-								0x0, // Test reg value to disable LPMx.5 
-								0x4020,	  // 3V Test reg mask 
-								0x4020,	  // 3V Test reg value to enable LPMx.5 
-								0x4020>	  // 3V Test reg value to disable LPMx.5 
+							MSP430F5xxx_ExtFeatures
 						> {};
 
 
@@ -342,6 +370,25 @@ extern const char MSP430F6746[] = "MSP430F6746";
 extern const char MSP430F6745[] = "MSP430F6745";
 
 
+extern const char MSP430F6779A[] = "MSP430F6779A";
+extern const char MSP430F6778A[] = "MSP430F6778A";
+extern const char MSP430F6777A[] = "MSP430F6777A";
+extern const char MSP430F6776A[] = "MSP430F6776A";
+extern const char MSP430F6775A[] = "MSP430F6775A";
+
+extern const char MSP430F6769A[] = "MSP430F6769A";
+extern const char MSP430F6768A[] = "MSP430F6768A";
+extern const char MSP430F6767A[] = "MSP430F6767A";
+extern const char MSP430F6766A[] = "MSP430F6766A";
+extern const char MSP430F6765A[] = "MSP430F6765A";
+
+extern const char MSP430F6749A[] = "MSP430F6749A";
+extern const char MSP430F6748A[] = "MSP430F6748A";
+extern const char MSP430F6747A[] = "MSP430F6747A";
+extern const char MSP430F6746A[] = "MSP430F6746A";
+extern const char MSP430F6745A[] = "MSP430F6745A";
+
+
 extern const char MSP430F67791[] = "MSP430F67791";
 extern const char MSP430F67781[] = "MSP430F67781";
 extern const char MSP430F67771[] = "MSP430F67771";
@@ -360,6 +407,24 @@ extern const char MSP430F67471[] = "MSP430F67471";
 extern const char MSP430F67461[] = "MSP430F67461";
 extern const char MSP430F67451[] = "MSP430F67451";
 
+
+extern const char MSP430F67791A[] = "MSP430F67791A";
+extern const char MSP430F67781A[] = "MSP430F67781A";
+extern const char MSP430F67771A[] = "MSP430F67771A";
+extern const char MSP430F67761A[] = "MSP430F67761A";
+extern const char MSP430F67751A[] = "MSP430F67751A";
+
+extern const char MSP430F67691A[] = "MSP430F67691A";
+extern const char MSP430F67681A[] = "MSP430F67681A";
+extern const char MSP430F67671A[] = "MSP430F67671A";
+extern const char MSP430F67661A[] = "MSP430F67661A";
+extern const char MSP430F67651A[] = "MSP430F67651A";
+
+extern const char MSP430F67491A[] = "MSP430F67491A";
+extern const char MSP430F67481A[] = "MSP430F67481A";
+extern const char MSP430F67471A[] = "MSP430F67471A";
+extern const char MSP430F67461A[] = "MSP430F67461A";
+extern const char MSP430F67451A[] = "MSP430F67451A";
 
 
 static const DeviceRegistrator<
@@ -423,6 +488,66 @@ static const DeviceRegistrator<
 > regMSP430F6745;
 
 
+static const DeviceRegistrator<
+	MSP430F6779x<MSP430F6779A, 0x8224, F6779_ClockInfo, MainFlash6779_512k, SystemRam_32k>
+> regMSP430F6779A;
+
+static const DeviceRegistrator<
+	MSP430F6779x<MSP430F6778A, 0x8223, F6779_ClockInfo, MainFlash6779_512k, SystemRam_16k>
+> regMSP430F6778A;
+
+static const DeviceRegistrator<
+	MSP430F6779x<MSP430F6777A, 0x8222, F6779_ClockInfo, MainFlash6779_256k, SystemRam_32k>
+> regMSP430F6777A;
+
+static const DeviceRegistrator<
+	MSP430F6779x<MSP430F6776A, 0x8221, F6779_ClockInfo, MainFlash6779_256k, SystemRam_16k>
+> regMSP430F6776A;
+
+static const DeviceRegistrator<
+	MSP430F6779x<MSP430F6775A, 0x8220, F6779_ClockInfo, MainFlash6779_128k, SystemRam_16k>
+> regMSP430F6775A;
+
+static const DeviceRegistrator<
+	MSP430F6779x<MSP430F6769A, 0x821F, F6779_ClockInfo, MainFlash6779_512k, SystemRam_32k>
+> regMSP430F6769A;
+
+static const DeviceRegistrator<
+	MSP430F6779x<MSP430F6768A, 0x821E, F6779_ClockInfo, MainFlash6779_512k, SystemRam_16k>
+> regMSP430F6768A;
+
+static const DeviceRegistrator<
+	MSP430F6779x<MSP430F6767A, 0x821D, F6779_ClockInfo, MainFlash6779_256k, SystemRam_32k>
+> regMSP430F6767A;
+
+static const DeviceRegistrator<
+	MSP430F6779x<MSP430F6766A, 0x821C, F6779_ClockInfo, MainFlash6779_256k, SystemRam_16k>
+> regMSP430F6766A;
+
+static const DeviceRegistrator<
+	MSP430F6779x<MSP430F6765A, 0x821B, F6779_ClockInfo, MainFlash6779_128k, SystemRam_16k>
+> regMSP430F6765A;
+
+static const DeviceRegistrator<
+	MSP430F6779x<MSP430F6749A, 0x821A, F6779_ClockInfo, MainFlash6779_512k, SystemRam_32k>
+> regMSP430F6749A;
+
+static const DeviceRegistrator<
+	MSP430F6779x<MSP430F6748A, 0x8219, F6779_ClockInfo, MainFlash6779_512k, SystemRam_16k>
+> regMSP430F6748A;
+
+static const DeviceRegistrator<
+	MSP430F6779x<MSP430F6747A, 0x8218, F6779_ClockInfo, MainFlash6779_256k, SystemRam_32k>
+> regMSP430F6747A;
+
+static const DeviceRegistrator<
+	MSP430F6779x<MSP430F6746A, 0x8217, F6779_ClockInfo, MainFlash6779_256k, SystemRam_16k>
+> regMSP430F6746A;
+
+static const DeviceRegistrator<
+	MSP430F6779x<MSP430F6745A, 0x8216, F6779_ClockInfo, MainFlash6779_128k, SystemRam_16k>
+> regMSP430F6745A;
+
 
 static const DeviceRegistrator<
 	MSP430F6779x<MSP430F67791, 0x81A5, F67791_ClockInfo, MainFlash6779_512k, SystemRam_32k>
@@ -483,3 +608,64 @@ static const DeviceRegistrator<
 static const DeviceRegistrator<
 	MSP430F6779x<MSP430F67451, 0x8197, F67791_ClockInfo, MainFlash6779_128k, SystemRam_16k>
 > regMSP430F67451;
+
+
+static const DeviceRegistrator<
+	MSP430F6779x<MSP430F67451A, 0x8225, F67791_ClockInfo, MainFlash6779_128k, SystemRam_16k>
+> regMSP430F67451A;
+
+static const DeviceRegistrator<
+	MSP430F6779x<MSP430F67461A, 0x8226, F67791_ClockInfo, MainFlash6779_256k, SystemRam_16k>
+> regMSP430F67461A;
+
+static const DeviceRegistrator<
+	MSP430F6779x<MSP430F67471A, 0x8227, F67791_ClockInfo, MainFlash6779_256k, SystemRam_32k>
+> regMSP430F67471A;
+
+static const DeviceRegistrator<
+	MSP430F6779x<MSP430F67481A, 0x8228, F67791_ClockInfo, MainFlash6779_512k, SystemRam_16k>
+> regMSP430F67481A;
+
+static const DeviceRegistrator<
+	MSP430F6779x<MSP430F67491A, 0x8229, F67791_ClockInfo, MainFlash6779_512k, SystemRam_32k>
+> regMSP430F67491A;
+
+static const DeviceRegistrator<
+	MSP430F6779x<MSP430F67651A, 0x822A, F67791_ClockInfo, MainFlash6779_128k, SystemRam_16k>
+> regMSP430F67651A;
+
+static const DeviceRegistrator<
+	MSP430F6779x<MSP430F67661A, 0x822B, F67791_ClockInfo, MainFlash6779_256k, SystemRam_16k>
+> regMSP430F67661A;
+
+static const DeviceRegistrator<
+	MSP430F6779x<MSP430F67671A, 0x822C, F67791_ClockInfo, MainFlash6779_256k, SystemRam_32k>
+> regMSP430F67671A;
+
+static const DeviceRegistrator<
+	MSP430F6779x<MSP430F67681A, 0x822D, F67791_ClockInfo, MainFlash6779_512k, SystemRam_16k>
+> regMSP430F67681A;
+
+static const DeviceRegistrator<
+	MSP430F6779x<MSP430F67691A, 0x822E, F67791_ClockInfo, MainFlash6779_512k, SystemRam_32k>
+> regMSP430F67691A;
+
+static const DeviceRegistrator<
+	MSP430F6779x<MSP430F67751A, 0x822F, F67791_ClockInfo, MainFlash6779_128k, SystemRam_16k>
+> regMSP430F67751A;
+
+static const DeviceRegistrator<
+	MSP430F6779x<MSP430F67761A, 0x8230, F67791_ClockInfo, MainFlash6779_256k, SystemRam_16k>
+> regMSP430F67761A;
+
+static const DeviceRegistrator<
+	MSP430F6779x<MSP430F67771A, 0x8231, F67791_ClockInfo, MainFlash6779_256k, SystemRam_32k>
+> regMSP430F67771A;
+
+static const DeviceRegistrator<
+	MSP430F6779x<MSP430F67781A, 0x8232, F67791_ClockInfo, MainFlash6779_512k, SystemRam_16k>
+> regMSP430F67781A;
+
+static const DeviceRegistrator<
+	MSP430F6779x<MSP430F67791A, 0x8233, F67791_ClockInfo, MainFlash6779_512k, SystemRam_32k>
+> regMSP430F67791A;

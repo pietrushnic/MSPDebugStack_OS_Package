@@ -349,7 +349,7 @@ __program_start:
         XRSEGCSTART
         PUBLIC  ?cstart_call_main
 
-        EXTERN  uart_Init
+        EXTERN  COM_BASE_Init
         EXTERN  exit
 
 ?cstart_call_main:
@@ -367,9 +367,9 @@ __program_start:
         popx   R5
         popx   R4   
         
-        //XCALL   #_hil_startUp        
-        movx.a  #uart_Init, PC      
-        MOV     saved_stack,SP             
+        //XCALL   #_hil_startUp
+        movx.a  #COM_BASE_Init, PC
+        MOV     saved_stack,SP
         //XRET                            // indicates that the normal
         //XCALL   #exit
 

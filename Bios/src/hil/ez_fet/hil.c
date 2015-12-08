@@ -54,7 +54,7 @@
 #include "arch.h"
 #include "edt.h"
 #include "hilDelays.h"
-//#include "HilGlobalVars.h"
+#include "error_def.h"
 #include "JTAG_defs.h"
 
 #define HIL_VERSION        0x000B             // fist hil version for ezFET
@@ -72,6 +72,7 @@ unsigned short bVccOn;  // Target Vcc is switched off by default
                         // dependant on calls to _hil_SetVcc()
 
 unsigned short setPCclockBeforeCapture;
+unsigned short jtagReleased;
 
 // function prototypes for map initialization
 // common HIL configuration methods
@@ -81,27 +82,17 @@ short _hil_GetVcc(double* Vcc, double* ExtVcc);
 short _hil_SetProtocol(unsigned short protocol_id);
 void  _hil_SetPsaSetup(unsigned short enhanced);
 void  _hil_SetPsaTCLK(unsigned short tclkValue);
-/*unsigned short _hil_GetTimeStamp(void);
-
-unsigned short _hil_GetIMeasure(void);   // Get Current measurement ticks
-unsigned char _hil_GetDCDCStatus(void); // Get the status of the DCDC Sub MCU*/
 
 short _hil_Open( unsigned char state );
 short _hil_Close( void );
 short IccMonitor_Process(unsigned short flags); // flags: to be compatible with HIL calls
 void  _hil_EntrySequences(unsigned char states);
 
-void  _hil_SetJtagBits(unsigned char output);
-unsigned char _hil_GetJtagBits(void);
-
-void  _hil_SetTgtCtrlBits(unsigned char);
-unsigned char _hil_GetTgtCtrlBits(void);
-
-void  _hil_SetTestBits(unsigned char);
-unsigned char _hil_GetTestBits(void);
-
 void _hil_SetReset(unsigned char value);
 void _hil_SetTest(unsigned char value);
+void _hil_SetTMS(unsigned char value);
+void _hil_SetTCK(unsigned char value);
+void _hil_SetTDI(unsigned char value);
 
 void _hil_SetJtagSpeed(unsigned short jtagSpeed, unsigned short sbwSpeed);
 void _hil_ConfigureSetPc (unsigned short PCclockBeforeCapture);
@@ -132,14 +123,32 @@ extern unsigned short _hil_2w_SetReg_XBits16_Dma(unsigned short Data);
 extern unsigned long _hil_2w_SetReg_XBits20_Dma(unsigned long Data);
 extern unsigned long _hil_2w_SetReg_XBits32_Dma(unsigned long Data);
 extern unsigned long long _hil_2w_SetReg_XBits64_Dma(unsigned long long Data);
-extern unsigned long long _hil_2w_SetReg_XBits8_64(unsigned long long Data, unsigned short loopCount);
+extern unsigned long long _hil_2w_SetReg_XBits8_64_Dma(unsigned long long Data, unsigned short loopCount, unsigned short JStateVersion);
 extern void  _hil_2w_Tclk_Dma(unsigned char state);
 extern void  _hil_2w_StepPsa_Dma(unsigned long length);
 extern void  _hil_2w_StepPsaTclkHigh_Dma(unsigned long length);
 extern short _hil_2w_BlowFuse_Dma(unsigned char targetHasTestVpp);
 extern void  _hil_2w_ConfigureSpeed_Dma(unsigned short speed);
+void _hil_2w_StepPsa_Dma_Xv2(unsigned long length);
 extern unsigned char _hil_2w_GetPrevInstruction_Dma();
 extern unsigned char DMA_TMSL_TDIL[];
+
+short _hil_dummy_TapReset(void) {return 0;}
+short _hil_dummy_CheckJtagFuse(void){return 0;}
+unsigned short _hil_dummy_EnumChain(void){return 0;}
+unsigned char _hil_dummy_Instr(unsigned char Instruction){return 0;}
+unsigned char _hil_dummy_SetReg_XBits08(unsigned char Data){return 0;}
+unsigned short _hil_dummy_SetReg_XBits16(unsigned short Data){return 0;}
+unsigned long _hil_dummy_SetReg_XBits20(unsigned long Data){return 0;}
+unsigned long _hil_dummy_SetReg_XBits32(unsigned long Data){return 0;}
+unsigned long long _hil_dummy_SetReg_XBits64(unsigned long long Data){return 0;}
+unsigned long long _hil_dummy_SetReg_XBits8_64(unsigned long long Data, unsigned short loopCount, unsigned short JStateVersion){return 0;}
+void _hil_dummy_Tclk(unsigned char state){return;}
+void _hil_dummy_StepPsa(unsigned long length){return;}
+void _hil_dummy_StepPsaTclkHigh(unsigned long length){return;}
+short _hil_dummy_BlowFuse(unsigned char targetHasTestVpp){return 0;}
+void _hil_dummy_StepPsa_Xv2(unsigned long length){return;}
+unsigned char _hil_dummy_GetPrevInstruction(){return 0;}
 
 // PSA distinct methods
 void _hil_EnhancedPsaSetup(unsigned long address);
@@ -148,7 +157,7 @@ void _hil_EnhancedPsaEnd(void);
 void _hil_PsaEnd(void);
 void _hil_Release(void);
 void _hil_initTimerB0(void);
-void _hil_BSL_EntrySequence(void);
+void _hil_BSL_EntrySequence(unsigned short dummy);
 static void _hil_Connect(unsigned char state);
 
 extern void initJtagSbw2Dma(struct jtag tmp);
@@ -215,6 +224,10 @@ void TCLK()
     TCLKset0();
     TCLKset1();
 }
+
+#define CAL_ADC_GAIN_FACTOR  *((unsigned short *)0x1A16)
+#define CAL_ADC_OFFSET  *((short *)0x1A18)
+
 /*----------------------------------------------------------------------------
    This function performs a single AD conversion on the selected pin.
    Uses internal reference 2500mV (VR+ = VREF+).
@@ -223,11 +236,17 @@ void TCLK()
 */
 static float ConvertAD(short channel)
 {
+    volatile unsigned long notCalibratedAdc = 0;
+
     ADC12CTL0  &= ~ADC12ENC;              // Disable conversion, write controls
     ADC12MCTL0  = ADC12SREF_1 + channel;  // select Vref and analog channel Ax
     ADC12CTL0  |= ADC12ENC;               // Enable conversions
     ADC12CTL0  |= ADC12SC;                // Start conversions
     while ((ADC12IFG & BIT0) == 0);       // wait until conversion is done
+
+    notCalibratedAdc = ADC12MEM0;
+    notCalibratedAdc = ((notCalibratedAdc * CAL_ADC_GAIN_FACTOR) / 32768) + (long)CAL_ADC_OFFSET;
+
     return(((float)ADC12MEM0* A_VREFPLUS) / ADC_CONV_RANGE);      // return conversion result from MEM0 value in mv
 }
 
@@ -304,8 +323,9 @@ void _hil_Init_Stand_Alone( void )
 
    // Configure ADC12
    // select channel and do conversion
-   ADC12CTL0 = ADC12ON + ADC12SHT02;     	// Turn on ADC12, set sampling time
-   ADC12CTL1 = ADC12SHP;                        // Use sampling timer
+   ADC12CTL0 = ADC12ON + ADC12SHT0_10 + ADC12REF2_5V + ADC12REFON + ADC12MSC;         // Turn on ADC12, set sampling time
+   ADC12CTL1 = ADC12SHP + ADC12CONSEQ_1 + ADC12SSEL_3 + ADC12DIV_7;                   // Use sampling timer
+
    ADC12MCTL0  = ADC12SREF_1 + 0;               // select Vref and analog channel A0
    __delay_cycles((15*90));
    ADC12CTL0 |= ADC12ENC;                       // Enable conversion
@@ -328,7 +348,6 @@ static void _hil_initEdtCommenMethods()
     _edt_Common_Methods.GetVcc = _hil_GetVcc;
 
     _edt_Common_Methods.SetProtocol = _hil_SetProtocol;
-    _edt_Common_Methods.SetPsaSetup = _hil_SetPsaSetup;
     _edt_Common_Methods.SetPsaTCLK = _hil_SetPsaTCLK;
 
     _edt_Common_Methods.Open = _hil_Open;
@@ -341,22 +360,16 @@ static void _hil_initEdtCommenMethods()
 
     _edt_Common_Methods.EntrySequences = _hil_EntrySequences;
 
-    _edt_Common_Methods.SetJtagBits = _hil_SetJtagBits;
-    _edt_Common_Methods.GetJtagBits = _hil_GetJtagBits;
-
-    _edt_Common_Methods.SetTgtCtrlBits = _hil_SetTgtCtrlBits;
-    _edt_Common_Methods.GetTgtCtrlBits = _hil_GetTgtCtrlBits;
-
-    _edt_Common_Methods.GetTestBits = _hil_GetTestBits;
-    _edt_Common_Methods.SetTestBits = _hil_SetTestBits;
-
     _edt_Common_Methods.SetReset = _hil_SetReset;
     _edt_Common_Methods.SetTest  = _hil_SetTest;
+    _edt_Common_Methods.SetTMS = _hil_SetTMS;
+    _edt_Common_Methods.SetTCK  = _hil_SetTCK;
+    _edt_Common_Methods.SetTDI  = _hil_SetTDI;
 
     _edt_Common_Methods.SetJtagSpeed = _hil_SetJtagSpeed;
 
     _edt_Common_Methods.ConfigureSetPc = _hil_ConfigureSetPc;
-    _edt_Common_Methods.initTimerB0 = _hil_initTimerB0;
+    _edt_Common_Methods.initDelayTimer = _hil_initTimerB0;
 
     _edt_Common_Methods.BSL_EntrySequence = _hil_BSL_EntrySequence;
 }
@@ -402,7 +415,7 @@ void _hil_initTimerB0(void)
 }
 
 // -----------------------------------------------------------------------------
-void _hil_BSL_EntrySequence(void)
+void _hil_BSL_EntrySequence(unsigned short dummy)
 {
     // set Default state of RST and TST
     (*_Jtag.Out) |= _Jtag.TST;
@@ -477,11 +490,9 @@ short _hil_Init( void )
     DMACTL2 = 0;
     DMACTL1 = 0;
 
-    /********************* Temporary Hack *********************/
     // Turn on the power switch
     P2DIR |= (BIT0|BIT1);
     P2OUT |= BIT0;
-    /********************* Temporary Hack *********************/
 
     // set default debug protocol to JTAG
     gprotocol_id = SPYBIWIRE;
@@ -490,6 +501,7 @@ short _hil_Init( void )
     // initialize function pointers to distinct functions
     _hil_SetProtocol(SPYBIWIRE);
 
+    jtagReleased = 1;
     return 0;
 }
 
@@ -542,27 +554,10 @@ short _hil_GetVBus(float* VccVBus)
 short _hil_GetVcc(double* Vcc, double* ExtVcc)
 {
     float VccTmp = 0;
-    // check if external target voltage is applied
-    //P6DIR |= BIT0;
-/*    VccTmp = ConvertAD(A_VCCTARGET);
-    VccTmp = (VccTmp * (R27 + R28)) / R28;
+    VccTmp = ((ConvertAD(A_VCCOUT)) * (R29 + R30)) / R30;
     VccTmp = VccTmp * 1000; // change to mV
-    if(VccTmp > 600)// more than 600mV
-    {
-        // if we detect external voltage do not start debugging
-        *ExtVcc = VccTmp;
-        *Vcc = 0;
-    }
-    else*/
-    //{
-        // With the ezFET we do not have the option of external power!
-        // if no voltage is applied check if the tool supplies the device with
-        // correct voltage 3.6 v
-        VccTmp = ((ConvertAD(A_VCCOUT)) * (R29 + R30)) / R30;
-        VccTmp = VccTmp * 1000; // change to mV
-        *Vcc = VccTmp;
-        *ExtVcc = 0;
-    //}
+    *Vcc = VccTmp;
+    *ExtVcc = 0;
     return 0;
 }
 // -----------------------------------------------------------------------------
@@ -570,120 +565,94 @@ short _hil_SetProtocol(unsigned short protocol_id)
 {
     short ret_value = 0;
 
-    if(protocol_id == SPYBIWIRE || protocol_id == SPYBIWIREJTAG)
+    if(protocol_id == SPYBIWIRE)
     {
         gprotocol_id = SPYBIWIRE;
         _Jtag = _Jtag_Target;
         initJtagSbw2Dma(_Jtag);
         _hil_2w_ConfigureSpeed_Dma(hil_sbw2Speed_);
     }
-    /*else if(protocol_id == SPYBIWIREJTAG) // DEBUG
-    {
-         gprotocol_id = SPYBIWIREJTAG;
-        _Jtag = _Jtag_Target;
-        initJtagSbw4(_Jtag);              // DEBUG
-    }*/
     else if(protocol_id == SPYBIWIRE_SUBMCU)
     {
-        gprotocol_id = 1;
+        gprotocol_id = SPYBIWIRE;
         _Jtag = _Jtag_SubMcu;
         initJtagSbw2Dma(_Jtag);
         _hil_2w_ConfigureSpeed_Dma(SBW400KHz);
+    }
+    else if(protocol_id == SPYBIWIREJTAG)
+    {
+        ret_value = HALERR_START_JTAG_PROTOCOL_UNKNOWN;
+        _edt_Distinct_Methods.TapReset  = _hil_dummy_TapReset;
+        _edt_Distinct_Methods.CheckJtagFuse = _hil_dummy_CheckJtagFuse;
+        _edt_Distinct_Methods.Instr = _hil_dummy_Instr;
+        _edt_Distinct_Methods.SetReg_XBits08 = _hil_dummy_SetReg_XBits08;
+        _edt_Distinct_Methods.SetReg_XBits16 = _hil_dummy_SetReg_XBits16;
+        _edt_Distinct_Methods.SetReg_XBits20 = _hil_dummy_SetReg_XBits20;
+        _edt_Distinct_Methods.SetReg_XBits32 = _hil_dummy_SetReg_XBits32;
+        _edt_Distinct_Methods.SetReg_XBits64 = _hil_dummy_SetReg_XBits64;
+        _edt_Distinct_Methods.SetReg_XBits8_64 = _hil_dummy_SetReg_XBits8_64;
+        _edt_Distinct_Methods.Tclk = _hil_dummy_Tclk;
+        _edt_Distinct_Methods.GetPrevInstruction = _hil_dummy_GetPrevInstruction;
+        _edt_Distinct_Methods.StepPsa = _hil_dummy_StepPsa;
+        _edt_Distinct_Methods.BlowFuse = _hil_dummy_BlowFuse;
+        return ret_value;
     }
     else
     {
         ret_value = -1;
     }
-    //if(protocol_id == SPYBIWIRE || protocol_id == SPYBIWIRE_SUBMCU )
-    //{
-        // load DMA1 with size just default
-        DMA1CTL = ( DMADT0 | DMASRCINCR1 | DMASRCINCR0 | DMASRCBYTE | DMADSTBYTE);
-        DMA1DA =  (_Jtag.Out); //JTAGOUT;       // set destination address
-        DMA2CTL = ( DMADT0 | DMASRCINCR1 | DMASRCINCR0 | DMASRCBYTE | DMADSTBYTE);
-        DMA2DA =  (_Jtag.Out); //JTAGOUT;       // set destination address
+    // load DMA1 with size just default
+    DMA1CTL = ( DMADT0 | DMASRCINCR1 | DMASRCINCR0 | DMASRCBYTE | DMADSTBYTE);
+    DMA1DA =  (_Jtag.Out); //JTAGOUT;       // set destination address
+    DMA2CTL = ( DMADT0 | DMASRCINCR1 | DMASRCINCR0 | DMASRCBYTE | DMADSTBYTE);
+    DMA2DA =  (_Jtag.Out); //JTAGOUT;       // set destination address
 
-        _edt_Distinct_Methods.TapReset =            _hil_2w_TapReset_Dma;
-        _edt_Distinct_Methods.CheckJtagFuse =       _hil_2w_CheckJtagFuse_Dma;
-        _edt_Distinct_Methods.EnumChain =           _hil_2w_EnumChain_Dma;
-        _edt_Distinct_Methods.Instr =               _hil_2w_Instr_Dma;
-        _edt_Distinct_Methods.SetReg_XBits08 =      _hil_2w_SetReg_XBits08_Dma;
-        _edt_Distinct_Methods.SetReg_XBits16 =      _hil_2w_SetReg_XBits16_Dma;
-        _edt_Distinct_Methods.SetReg_XBits20 =      _hil_2w_SetReg_XBits20_Dma;
-        _edt_Distinct_Methods.SetReg_XBits32 =      _hil_2w_SetReg_XBits32_Dma;
-        _edt_Distinct_Methods.SetReg_XBits64 =      _hil_2w_SetReg_XBits64_Dma;
-        _edt_Distinct_Methods.SetReg_XBits8_64 =    _hil_2w_SetReg_XBits8_64;
-        _edt_Distinct_Methods.Tclk =                _hil_2w_Tclk_Dma;
-        _edt_Distinct_Methods.GetPrevInstruction =  _hil_2w_GetPrevInstruction_Dma;
+    _edt_Distinct_Methods.TapReset =            _hil_2w_TapReset_Dma;
+    _edt_Distinct_Methods.CheckJtagFuse =       _hil_2w_CheckJtagFuse_Dma;
+    _edt_Distinct_Methods.Instr =               _hil_2w_Instr_Dma;
+    _edt_Distinct_Methods.SetReg_XBits08 =      _hil_2w_SetReg_XBits08_Dma;
+    _edt_Distinct_Methods.SetReg_XBits16 =      _hil_2w_SetReg_XBits16_Dma;
+    _edt_Distinct_Methods.SetReg_XBits20 =      _hil_2w_SetReg_XBits20_Dma;
+    _edt_Distinct_Methods.SetReg_XBits32 =      _hil_2w_SetReg_XBits32_Dma;
+    _edt_Distinct_Methods.SetReg_XBits64 =      _hil_2w_SetReg_XBits64_Dma;
+    _edt_Distinct_Methods.SetReg_XBits8_64 =    _hil_2w_SetReg_XBits8_64_Dma;
+    _edt_Distinct_Methods.Tclk =                _hil_2w_Tclk_Dma;
+    _edt_Distinct_Methods.GetPrevInstruction =  _hil_2w_GetPrevInstruction_Dma;
 
-        if(!gTclkHighWhilePsa)
-        {
-            _edt_Distinct_Methods.StepPsa = _hil_2w_StepPsa_Dma;
-        }
-        else
-        {
-            _edt_Distinct_Methods.StepPsa = _hil_2w_StepPsaTclkHigh_Dma;
-        }
-        _edt_Distinct_Methods.BlowFuse = _hil_2w_BlowFuse_Dma;
-
-        DMA2SA = (unsigned char*)DMA_TMSL_TDIL;
-    /*}
-    else // DEBUG
+    if(gTclkHighWhilePsa == 1)
     {
-        _edt_Distinct_Methods.TapReset = _hil_4w_TapReset;
-        _edt_Distinct_Methods.CheckJtagFuse = _hil_4w_CheckJtagFuse;
-        _edt_Distinct_Methods.EnumChain = _hil_4w_EnumChain;
-        _edt_Distinct_Methods.Instr = _hil_4w_Instr;
-        _edt_Distinct_Methods.SetReg_XBits08 = _hil_4w_SetReg_XBits08;
-        _edt_Distinct_Methods.SetReg_XBits16 = _hil_4w_SetReg_XBits16;
-        _edt_Distinct_Methods.SetReg_XBits20 = _hil_4w_SetReg_XBits20;
-        _edt_Distinct_Methods.SetReg_XBits32 = _hil_4w_SetReg_XBits32;
-        _edt_Distinct_Methods.SetReg_XBits64 = _hil_4w_SetReg_XBits64;
-        _edt_Distinct_Methods.Tclk = _hil_4w_Tclk;
-        if(!gTclkHighWhilePsa)
-        {
-            _edt_Distinct_Methods.StepPsa = _hil_4w_StepPsa;
-        }
-        else
-        {
-            _edt_Distinct_Methods.StepPsa = _hil_4w_StepPsaTclkHigh;
-        }
-        _edt_Distinct_Methods.BlowFuse = _hil_4w_BlowFuse;
-
-    }// DEBUG*/
-
-    return(ret_value);
-}
-
-void _hil_SetPsaSetup(unsigned short enhancedPsa)
-{
-    if(enhancedPsa)
+        _edt_Distinct_Methods.StepPsa = _hil_2w_StepPsaTclkHigh_Dma;
+    }
+    else if(gTclkHighWhilePsa == 2)
     {
-        _edt_Distinct_Methods.SetupPsa = _hil_EnhancedPsaSetup;
-        _edt_Distinct_Methods.EndPsa = _hil_EnhancedPsaEnd;
+        _edt_Distinct_Methods.StepPsa = _hil_2w_StepPsa_Dma_Xv2;
     }
     else
     {
-        _edt_Distinct_Methods.SetupPsa = _hil_PsaSetup;
-        _edt_Distinct_Methods.EndPsa = _hil_PsaEnd;
+        _edt_Distinct_Methods.StepPsa = _hil_2w_StepPsa_Dma;
     }
+
+    _edt_Distinct_Methods.BlowFuse = _hil_2w_BlowFuse_Dma;
+
+    DMA2SA = (unsigned char*)DMA_TMSL_TDIL;
+
+    jtagReleased = 0;
+    return(ret_value);
 }
 
 void _hil_SetPsaTCLK(unsigned short tclkValue)
 {
-    if(tclkValue)
-    {
-        gTclkHighWhilePsa = 1;
-    }
-    else
-    {
-        gTclkHighWhilePsa = 0;
-    }
+    gTclkHighWhilePsa = tclkValue;
 
     if(gprotocol_id == SPYBIWIRE)
     {
-        if(gTclkHighWhilePsa)
+        if(gTclkHighWhilePsa == 1)
         {
             _edt_Distinct_Methods.StepPsa = _hil_2w_StepPsaTclkHigh_Dma;
+        }
+        else if(gTclkHighWhilePsa == 2)
+        {
+            _edt_Distinct_Methods.StepPsa = _hil_2w_StepPsa_Dma_Xv2;
         }
         else
         {
@@ -694,147 +663,264 @@ void _hil_SetPsaTCLK(unsigned short tclkValue)
 
 void _hil_Release(void)
 {
-    (*_Jtag.Out) |= _Jtag.RST;
-    (*_Jtag.Out) &= ~_Jtag.TST;
-    _hil_Delay_1ms(50);
+    if(!jtagReleased)
+    {
+        (*_Jtag.Out) |= _Jtag.RST;
+        (*_Jtag.Out) &= ~_Jtag.TST;
+        _hil_Delay_1ms(50);
 
-    (*_Jtag.DIRECTION) &= ( ~_Jtag.TST );
-    (*_Jtag.DIRECTION) &= ( ~_Jtag.RST );
+        (*_Jtag.DIRECTION) &= ( ~_Jtag.TST );
+        (*_Jtag.DIRECTION) &= ( ~_Jtag.RST );
 
-    _hil_Delay_1ms(5);
+        _hil_Delay_1ms(5);
+
+        _edt_Distinct_Methods.TapReset  = _hil_dummy_TapReset;
+        _edt_Distinct_Methods.CheckJtagFuse = _hil_dummy_CheckJtagFuse;
+        _edt_Distinct_Methods.Instr = _hil_dummy_Instr;
+        _edt_Distinct_Methods.SetReg_XBits08 = _hil_dummy_SetReg_XBits08;
+        _edt_Distinct_Methods.SetReg_XBits16 = _hil_dummy_SetReg_XBits16;
+        _edt_Distinct_Methods.SetReg_XBits20 = _hil_dummy_SetReg_XBits20;
+        _edt_Distinct_Methods.SetReg_XBits32 = _hil_dummy_SetReg_XBits32;
+        _edt_Distinct_Methods.SetReg_XBits64 = _hil_dummy_SetReg_XBits64;
+        _edt_Distinct_Methods.SetReg_XBits8_64 = _hil_dummy_SetReg_XBits8_64;
+        _edt_Distinct_Methods.Tclk = _hil_dummy_Tclk;
+        _edt_Distinct_Methods.GetPrevInstruction = _hil_dummy_GetPrevInstruction;
+        _edt_Distinct_Methods.StepPsa = _hil_dummy_StepPsa;
+        _edt_Distinct_Methods.BlowFuse = _hil_dummy_BlowFuse;
+
+        jtagReleased = 1;
+    }
 }
 
-#define qDriveJTAG(){    (*_Jtag.Out) |= (_Jtag.TCK + _Jtag.TMS + _Jtag.TDI + _Jtag.RST + _Jtag.TST);\
-                         (*_Jtag.DIRECTION) |= (_Jtag.TCK + _Jtag.TMS + _Jtag.TDI);                  \
-                         (*_Jtag.DIRECTION) |= (_Jtag.TST + _Jtag.RST);                              \
-                         (*_Jtag.DIRECTION) &= (~_Jtag.TDO);                                         \
-                     }
+INLINE(forced)
+void qDriveJTAG()
+{
+    (*_Jtag.Out) |= (_Jtag.TCK + _Jtag.TMS + _Jtag.TDI + _Jtag.RST + _Jtag.TST);
+    (*_Jtag.DIRECTION) |= (_Jtag.TCK + _Jtag.TMS + _Jtag.TDI);
+    (*_Jtag.DIRECTION) |= (_Jtag.TST + _Jtag.RST);
+    (*_Jtag.DIRECTION) &= (~_Jtag.TDO);
+}
 
-#define qDriveSbw(){    (*_Jtag.Out) |= _Jtag.RST;                                                   \
-                        (*_Jtag.Out) &= ~_Jtag.TST;                                                  \
-                        (*_Jtag.DIRECTION) |= ( _Jtag.TST +  _Jtag.RST);                             \
-                    }
 
-void _hil_EntrySequences(unsigned char states)
+INLINE(forced)
+void qDriveSbw()
+{
+    (*_Jtag.Out) |= _Jtag.RST;
+    (*_Jtag.Out) &= ~_Jtag.TST;
+    (*_Jtag.DIRECTION) |= ( _Jtag.TST +  _Jtag.RST);
+}
+
+/*-------------RstLow_JTAG----------------
+            ________           __________
+Test ______|        |_________|
+                          _______________
+Rst_____________________|
+----------------------------------------*/
+
+INLINE(forced)
+static void _hil_EntrySequences_RstLow_JTAG()
 {
     TSTset0();    //1
     _hil_Delay_1ms(4); // reset TEST logic
 
-    if(states == RSTLOW_SBW || states == RSTLOW_JTAG)
-    {
-        RSTset0();    //2
-    }
-    else
-    {
-        RSTset1();    //2
-    }
+    RSTset0();    //2
 
     TSTset1();    //3
     _hil_Delay_1ms(20); // activate TEST logic
 
     // phase 1
-    if(states == RSTLOW_JTAG || states == RSTHIGH_JTAG)
-    {
-        RSTset0();    //4
-    }
-    else
-    {
-        RSTset1();    //4
-    }
+    RSTset0();    //4
     _hil_Delay_1us(60);
 
     // phase 2 -> TEST pin to 0, no change on RST pin
-    if(states == RSTLOW_SBW || states == RSTHIGH_SBW)
-    { // for Spy-Bi-Wire
-        _DINT_FET();
-        (*_Jtag.Out) &= ~_Jtag.TST; //5
-    }
-    else
-    {   // for 4-wire JTAG clear Test pin
-        TSTset0();  //5
-    }
+    // for 4-wire JTAG clear Test pin
+    TSTset0();  //5
 
     // phase 3
-    if(states == RSTLOW_JTAG)
-    {
-        RSTset0();  //6
-    }
+    RSTset0();  //6
     _hil_Delay_1us(1);
 
     // phase 4 -> TEST pin to 1, no change on RST pin
-    if(states == RSTLOW_SBW || states == RSTHIGH_SBW)
-    { // for Spy-Bi-Wire
-        (*_Jtag.Out) |= _Jtag.TST;  //7
-        _EINT_FET();
-    }
-    else
-    { // for 4-wire JTAG
-        TSTset1();//7
-    }
+    // for 4-wire JTAG
+    TSTset1();//7
     _hil_Delay_1us(60);
 
     // phase 5
-    if(states == RSTHIGH_JTAG)
-    {
-         RSTset1();
-    }
     _hil_Delay_1ms(5);
 }
 
-// -----------------------------------------------------------------------------
-void _hil_PsaSetup(unsigned long StartAddr)
+/*-------------RstHigh_JTAG--------------
+            ________           __________
+Test ______|        |_________|
+         _______                   ______
+Rst____|       |_________________|
+----------------------------------------*/
+
+INLINE(forced)
+static void _hil_EntrySequences_RstHigh_JTAG()
 {
-    data_16bit
-    TCLKset1();
-    SetReg_16Bits_(MOV_IMM_PC)
-    TCLKset0();
-    TCLKset1();
-    SetReg_16Bits_(StartAddr - 2)
-    TCLKset0();
-    TCLKset1();
-    TCLKset0();
-    TCLKset1();
-    TCLKset0();
-    addr_capture
-    SetReg_16Bits_(0x0000);
+    TSTset0();    //1
+    _hil_Delay_1ms(4); // reset TEST logic
+
+    RSTset1();    //2
+
+    TSTset1();    //3
+    _hil_Delay_1ms(20); // activate TEST logic
+
+    // phase 1
+    RSTset0();    //4
+    _hil_Delay_1us(60);
+
+    // phase 2 -> TEST pin to 0, no change on RST pin
+    // for 4-wire JTAG clear Test pin
+    TSTset0();  //5
+
+    // phase 3
+    _hil_Delay_1us(1);
+
+    // phase 4 -> TEST pin to 1, no change on RST pin
+    // for 4-wire JTAG
+    TSTset1();//7
+    _hil_Delay_1us(60);
+
+    // phase 5
+    RSTset1();
+    _hil_Delay_1ms(5);
 }
 
-// -----------------------------------------------------------------------------
-void _hil_EnhancedPsaSetup(unsigned long StartAddr )
+/*-------------RstHigh_SBW---------------
+            ________           __________
+Test ______|        |_________|
+        _________________________________
+Rst____|
+----------------------------------------*/
+INLINE(forced)
+static void _hil_EntrySequences_RstHigh_SBW()
 {
-    SetPc(StartAddr - 4);
-    halt_cpu;
-    TCLKset0();
-    data_16bit
-    SetReg_16Bits_(StartAddr - 2)
+    TSTset0();    //1
+    _hil_Delay_1ms(4); // reset TEST logic
+
+    RSTset1();    //2
+
+    TSTset1();    //3
+    _hil_Delay_1ms(20); // activate TEST logic
+
+    // phase 1
+    RSTset1();    //4
+    _hil_Delay_1us(60);
+
+    // phase 2 -> TEST pin to 0, no change on RST pin
+    // for Spy-Bi-Wire
+    _DINT_FET();
+    (*_Jtag.Out) &= ~_Jtag.TST; //5
+
+    // phase 3
+    _hil_Delay_1us(1);
+
+    // phase 4 -> TEST pin to 1, no change on RST pin
+    // for Spy-Bi-Wire
+    (*_Jtag.Out) |= _Jtag.TST;  //7
+    _EINT_FET();
+    _hil_Delay_1us(60);
+
+    // phase 5
+    _hil_Delay_1ms(5);
 }
 
-// -----------------------------------------------------------------------------
-void _hil_PsaEnd(void)
+/*-------------RstLow_SBW----------------
+            ________           __________
+Test ______|        |_________|
+               __________________________
+Rst__________|
+----------------------------------------*/
+INLINE(forced)
+static void _hil_EntrySequences_RstLow_SBW()
 {
-    // Intentionally does nothing
+    TSTset0();    //1
+    _hil_Delay_1ms(4); // reset TEST logic
+
+    RSTset0();    //2
+
+    TSTset1();    //3
+    _hil_Delay_1ms(20); // activate TEST logic
+
+    // phase 1
+    RSTset1();    //4
+    _hil_Delay_1us(60);
+
+    // phase 2 -> TEST pin to 0, no change on RST pin
+    // for Spy-Bi-Wire
+    _DINT_FET();
+    (*_Jtag.Out) &= ~_Jtag.TST; //5
+
+    // phase 3
+    _hil_Delay_1us(1);
+
+    // phase 4 -> TEST pin to 1, no change on RST pin
+    // for Spy-Bi-Wire
+    (*_Jtag.Out) |= _Jtag.TST;  //7
+    _EINT_FET();
+    _hil_Delay_1us(60);
+
+    // phase 5
+    _hil_Delay_1ms(5);
 }
 
-// -----------------------------------------------------------------------------
-void _hil_EnhancedPsaEnd(void)
+void _hil_EntrySequences(unsigned char states)
 {
-    decl_out
-    decl_isInstrLoad
+    switch(gprotocol_id)
+    {
+    case SPYBIWIRE:
+        if (states == RSTLOW)
+        {
+            _hil_EntrySequences_RstLow_SBW();
+        }
+        if (states == RSTHIGH)
+        {
+            _hil_EntrySequences_RstHigh_SBW();
+        }
+        break;
 
-    release_cpu;
-    isInstrLoad;
+    case SPYBIWIREJTAG:
+        if (states == RSTLOW)
+        {
+            _hil_EntrySequences_RstLow_JTAG();
+        }
+        if (states == RSTHIGH)
+        {
+            _hil_EntrySequences_RstHigh_JTAG();
+        }
+        break;
+
+    default:
+        if (states == RSTLOW)
+        {
+            RSTset0();
+            TSTset1();
+        }
+        if (states == RSTHIGH)
+        {
+            TSTset1();
+        }
+        break;
+    }
 }
 
 // -----------------------------------------------------------------------------
 static void _hil_Connect(unsigned char state)
 {
+    if(jtagReleased)
+    {
+        _hil_SetProtocol(gprotocol_id);
+    }
+
     if(state == RSTHIGH)
     {
         if(gprotocol_id == SPYBIWIRE)
         {
             qDriveSbw();
             _hil_Delay_1ms(1);
-            _hil_EntrySequences(RSTHIGH_SBW);
+            _hil_EntrySequences_RstHigh_SBW();
         }
         else
         {
@@ -842,7 +928,7 @@ static void _hil_Connect(unsigned char state)
             _hil_Delay_1ms(1);
             if(gprotocol_id == SPYBIWIREJTAG)
             {
-                _hil_EntrySequences(RSTHIGH_JTAG);
+                _hil_EntrySequences_RstHigh_JTAG();
             }
             else
             {
@@ -856,7 +942,7 @@ static void _hil_Connect(unsigned char state)
         {
             qDriveSbw();
             _hil_Delay_1ms(1);
-            _hil_EntrySequences(RSTLOW_SBW);
+            _hil_EntrySequences_RstLow_SBW();
         }
         else
         {
@@ -864,7 +950,7 @@ static void _hil_Connect(unsigned char state)
             _hil_Delay_1ms(1);
             if(gprotocol_id == SPYBIWIREJTAG)
             {
-                _hil_EntrySequences(RSTLOW_JTAG);
+                _hil_EntrySequences_RstLow_JTAG();
             }
             else
             {
@@ -872,6 +958,7 @@ static void _hil_Connect(unsigned char state)
             }
         }
     }
+    jtagReleased = 0;
 }
 
 // -----------------------------------------------------------------------------
@@ -924,43 +1011,6 @@ void testVpp(unsigned char mode)
     return;
 }
 
-// -----------------------------------------------------------------------------
-void _hil_SetJtagBits(unsigned char output)
-{
-    //Only RST pin exists and won't be set through this function
-    return;
-}
-
-// -----------------------------------------------------------------------------
-unsigned char _hil_GetJtagBits(void)
-{
-    return ((*_Jtag.Out) & _Jtag.RST) ? 0x40 : 0x00;
-}
-
-// -----------------------------------------------------------------------------
-void _hil_SetTgtCtrlBits(unsigned char output)
-{
-    (*_Jtag.Out) = output;
-}
-
-// -----------------------------------------------------------------------------
-unsigned char _hil_GetTgtCtrlBits(void)
-{
-    return (*_Jtag.Out);
-}
-
-// -----------------------------------------------------------------------------
-void _hil_SetTestBits(unsigned char output)
-{
-    //Only TST pin exists and won't be set through this function
-    return;
-}
-
-// -----------------------------------------------------------------------------
-unsigned char _hil_GetTestBits(void)
-{
-    return ((*_Jtag.Out) & _Jtag.TST) ? 0x01 : 0x00;
-}
 
 // -----------------------------------------------------------------------------
 void _hil_SetReset(unsigned char value)
@@ -986,5 +1036,21 @@ void _hil_SetTest(unsigned char value)
     {
         TSTset0();
     }
+}
+
+// -----------------------------------------------------------------------------
+void _hil_SetTMS(unsigned char value)
+{
+  //this function is not use
+}
+
+void _hil_SetTCK(unsigned char value)
+{
+  //this function is not use
+}
+
+void _hil_SetTDI(unsigned char value)
+{
+  //this function is not use
 }
 /* EOF */

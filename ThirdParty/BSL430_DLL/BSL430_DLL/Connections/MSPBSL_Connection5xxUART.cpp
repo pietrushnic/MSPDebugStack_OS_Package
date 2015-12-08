@@ -36,6 +36,8 @@
  *
 */
 
+#include <pch.h>
+
 #include "MSPBSL_Connection5xxUART.h"
 #include "MSPBSL_PacketHandler.h"
 #include "MSPBSL_PhysicalInterfaceSerialUART.h"

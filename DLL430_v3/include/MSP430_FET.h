@@ -3,50 +3,50 @@
  *
  * API for maintaing MSP-FET430UIF (TI USB FET) hardware and firmware.
  *
- * Copyright (C) 2004 - 2011 Texas Instruments Incorporated - http://www.ti.com/ 
- * 
- * 
- *  Redistribution and use in source and binary forms, with or without 
- *  modification, are permitted provided that the following conditions 
+ * Copyright (C) 2004 - 2011 Texas Instruments Incorporated - http://www.ti.com/
+ *
+ *
+ *  Redistribution and use in source and binary forms, with or without
+ *  modification, are permitted provided that the following conditions
  *  are met:
  *
- *    Redistributions of source code must retain the above copyright 
+ *    Redistributions of source code must retain the above copyright
  *    notice, this list of conditions and the following disclaimer.
  *
  *    Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the 
- *    documentation and/or other materials provided with the   
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the
  *    distribution.
  *
  *    Neither the name of Texas Instruments Incorporated nor the names of
  *    its contributors may be used to endorse or promote products derived
  *    from this software without specific prior written permission.
  *
- *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS 
- *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT 
+ *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
  *  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT 
- *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, 
- *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT 
+ *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
  *  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
  *  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
- *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
- *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.                                                                                                                                                                                                                                                                                                         
+ *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-/**            
+/**
  \file MSP430_FET.h
- 
+
  \brief       This file contains the DLL function headers and definitions
               to maintain the MSP-FET430UIF (TI USB FET) hardware and firmware.
- 
+
  \par         Project:
               MSP-FET430UIF (TI USB FET) Maintenance API
- 
+
  \par         Developed using:
               MS Visual C++ 2003/2010
- 
+
  \par         Supported API calls:
               - MSP430_FET_SelfTest()
               - MSP430_FET_SetSignals()
@@ -80,10 +80,10 @@ extern "C" {
 		 See enumeration UPDATE_STATUS_MESSAGES for details on possible
 		 notify messages.
 */
-typedef void (* DLL430_FET_NOTIFY_FUNC) (UINT MsgId,
-                                         ULONG wParam,
-                                         ULONG lParam,
-                                         LONG clientHandle);
+typedef void (* DLL430_FET_NOTIFY_FUNC) (uint32_t MsgId,
+                                         uint32_t wParam,
+                                         uint32_t lParam,
+                                         int32_t clientHandle);
 
 /// Status messages during USB FET firmware update
 typedef enum UPDATE_STATUS_MESSAGES {
@@ -102,7 +102,7 @@ typedef enum UPDATE_STATUS_MESSAGES {
 
 
 /**
-\fn   STATUS_T MSP430_FET_GetFwVersion(LONG* version);
+\fn   STATUS_T MSP430_FET_GetFwVersion(int32_t* version);
 
 \brief   Returns the version number of the MSP430-FET430UIF USB FET firmware.
 
@@ -118,10 +118,10 @@ typedef enum UPDATE_STATUS_MESSAGES {
 \n       INTERFACE_SUPPORT_ERR
 \n		 INTERNAL_ERR
 */
-DLL430_SYMBOL STATUS_T WINAPI MSP430_FET_GetFwVersion(LONG* version);
+DLL430_SYMBOL STATUS_T WINAPI MSP430_FET_GetFwVersion(int32_t* version);
 
 /**
-\fn   STATUS_T WINAPI MSP430_FET_GetHwVersion(BYTE** version, LONG* count);
+\fn   STATUS_T WINAPI MSP430_FET_GetHwVersion(uint8_t** version, int32_t* count);
 
 \brief   Returns the version number of the MSP430-FET430UIF USB FET hardware.
 
@@ -153,20 +153,20 @@ DLL430_SYMBOL STATUS_T WINAPI MSP430_FET_GetFwVersion(LONG* version);
 \n		 INTERNAL_ERR
 \n       INTERFACE_SUPPORT_ERR
 */
-DLL430_SYMBOL STATUS_T WINAPI MSP430_FET_GetHwVersion(BYTE** version, LONG* count);
+DLL430_SYMBOL STATUS_T WINAPI MSP430_FET_GetHwVersion(uint8_t** version, int32_t* count);
 
 /**
-\fn   STATUS_T MSP430_FET_FwUpdate(CHAR* lpszFileName,
+\fn   STATUS_T MSP430_FET_FwUpdate(const char* lpszFileName,
 					DLL430_FET_NOTIFY_FUNC callback,
-					LONG clientHandle);
+					int32_t clientHandle);
 
 \brief   Synchronizes the firmware version of the MSP-FET430UIF (TI USB FET)
          with the version of the Dll.
 
 \note    1. MSP430_Initialize() must have been called prior to calling this function.
-\note	 2. When calling MSP430_FET_FwUpdate() in response the MSP430_Initialize() 
+\note	 2. When calling MSP430_FET_FwUpdate() in response the MSP430_Initialize()
 			returning a version of -3, the file CDC.log must exist
-			in the directory of the executed binary and the content must be the string "True" 
+			in the directory of the executed binary and the content must be the string "True"
 			without a newline. This file signals that a CDC driver is installed and prevents
 			the update from making the MSP-FET430UIF unusable.
 \note    3. The actual firmware update of the MSP-FET430UIF might require a long time
@@ -195,9 +195,9 @@ DLL430_SYMBOL STATUS_T WINAPI MSP430_FET_GetHwVersion(BYTE** version, LONG* coun
 \par     Error codes:
          COMM_ERR
 */
-DLL430_SYMBOL STATUS_T WINAPI MSP430_FET_FwUpdate(CHAR* lpszFileName,
+DLL430_SYMBOL STATUS_T WINAPI MSP430_FET_FwUpdate(const char* lpszFileName,
                                            DLL430_FET_NOTIFY_FUNC callback,
-                                           LONG clientHandle);
+                                           int32_t clientHandle);
 
 #if defined(__cplusplus)
 }

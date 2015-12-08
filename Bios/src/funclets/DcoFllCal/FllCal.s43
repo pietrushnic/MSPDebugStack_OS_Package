@@ -56,8 +56,8 @@
       mov.b   #80h    ,&SCFQCTL                 ;D/FN_x.
       mov.b   #0      ,&SCFI0                   ;N(dco).
       mov.b   valSCFI1,&SCFI1                   ;N(dco).
-      mov.b   #80h    ,&FLL_CTL0
-      mov.b   #0      ,&FLL_CTL1 
+      bis.b   #80h,&FLL_CTL0
+      bic.b   #5fh,&FLL_CTL1
       
       xor     R10,R10                           ;Clear R10.
       xor     R9,R9                             ;Clear R9.

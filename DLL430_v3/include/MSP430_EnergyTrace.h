@@ -3,41 +3,41 @@
  *
  * API for accessing Energy Trace functionality of MSP430 library.
  *
- * Copyright (C) 2004 - 2013 Texas Instruments Incorporated - http://www.ti.com/ 
- * 
- * 
- *  Redistribution and use in source and binary forms, with or without 
- *  modification, are permitted provided that the following conditions 
+ * Copyright (C) 2004 - 2013 Texas Instruments Incorporated - http://www.ti.com/
+ *
+ *
+ *  Redistribution and use in source and binary forms, with or without
+ *  modification, are permitted provided that the following conditions
  *  are met:
  *
- *    Redistributions of source code must retain the above copyright 
+ *    Redistributions of source code must retain the above copyright
  *    notice, this list of conditions and the following disclaimer.
  *
  *    Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the 
- *    documentation and/or other materials provided with the   
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the
  *    distribution.
  *
  *    Neither the name of Texas Instruments Incorporated nor the names of
  *    its contributors may be used to endorse or promote products derived
  *    from this software without specific prior written permission.
  *
- *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS 
- *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT 
+ *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
  *  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT 
- *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, 
- *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT 
+ *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
  *  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
  *  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
- *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
- *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.                                                                                                                                                                                                                                                                                                         
+ *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
 #include "MSP430.h"
 
-/* 
+/*
 Record format
 -------------
 
@@ -58,7 +58,7 @@ The eventID defines the number of arguments following the header.
   eventID = 8 : I & V & E values,       32 bits current, 16 bits voltage, 32 bits energy                    (default type for ET_PROFILING_ANALOG)
   eventID = 9 : S & I & V values,	    64 bits state, 32 bits current, 16 bits voltage
 
-  
+
 Recommended initialisation settings & sequence
 ----------------------------------------------
 
@@ -71,11 +71,11 @@ EnergyTraceSetup = {  ET_PROFILING_ANALOG_DSTATE,         // Gives callbacks of 
                       ET_CALLBACKS_ONLY_DURING_RUN }      // Callbacks are sent only when target MCU is executing code
 
 Recommended sequence
-                      MSP430_Initialize() 
+                      MSP430_Initialize()
                       MSP430_VCC(XYZ)
                       MSP430_Configure(INTERFACE_MODE, XYZ)
                       MSP430_OpenDevice("","",0,0x00000000,0x00000000)
-                      MSP430_EnableEnergyTrace(EnergyTraceSetup, EnergyTraceCallbacks, Handle)    
+                      MSP430_EnableEnergyTrace(EnergyTraceSetup, EnergyTraceCallbacks, Handle)
                       MSP430_Run(RUN_TO_BREAKPOINT, 0) or MSP430_Run(FREE_RUN, 0)
                       ..
                       <process EnergyTraceCallbacks>
@@ -83,7 +83,7 @@ Recommended sequence
                       MSP430_State(State,1,CPUCycles)
                       MSP430_DisableEnergyTrace(Handle)
                       MSP430_Close(0)
-                      
+
 2. For MSP430 microcontrollers without JSTATE register
 
 EnergyTraceSetup = {  ET_PROFILING_ANALOG,                // Gives callbacks of with eventID 8
@@ -93,9 +93,9 @@ EnergyTraceSetup = {  ET_PROFILING_ANALOG,                // Gives callbacks of 
                       ET_CALLBACKS_ONLY_DURING_RUN }      // Callbacks are sent only when target MCU is executing code
 
 Recommended sequence
-                      MSP430_Initialize() 
+                      MSP430_Initialize()
                       MSP430_VCC(XYZ)
-                      MSP430_EnableEnergyTrace(EnergyTraceSetup, EnergyTraceCallbacks, Handle)    
+                      MSP430_EnableEnergyTrace(EnergyTraceSetup, EnergyTraceCallbacks, Handle)
                       MSP430_Run(RUN_TO_BREAKPOINT, 0) or MSP430_Run(FREE_RUN, 0) or MSP430_Run(FREE_RUN, 1)
                       ..
                       <process EnergyTraceCallbacks>
@@ -111,17 +111,17 @@ EnergyTraceSetup = {  ET_PROFILING_ANALOG,                // Gives callbacks of 
                       ET_ALL,                             // N/A
                       ET_EVENT_WINDOW_100,                // N/A
                       ET_CALLBACKS_CONTINUOUS }           // Callbacks are continuously
-                      
+
 Recommended sequence
-                      MSP430_Initialize() 
+                      MSP430_Initialize()
                       MSP430_VCC(XYZ)
-                      MSP430_EnableEnergyTrace(EnergyTraceSetup, EnergyTraceCallbacks, Handle)    
+                      MSP430_EnableEnergyTrace(EnergyTraceSetup, EnergyTraceCallbacks, Handle)
                       ..
                       <process EnergyTraceCallbacks>
                       ..
                       MSP430_DisableEnergyTrace(Handle)
                       MSP430_Close(0)
-                      
+
 Optional
 --------
 To enable higher resolution current sampling, set "MSP430_Configure(ENERGYTRACE_CURRENTDRIVE, 1)" before calling "MSP430_VCC(XYZ)".
@@ -131,7 +131,7 @@ To enable higher resolution current sampling, set "MSP430_Configure(ENERGYTRACE_
 #ifndef _MSP430_ENERGYTRACE_H_
 #define _MSP430_ENERGYTRACE_H_
 
-#ifdef __cplusplus 
+#ifdef __cplusplus
 extern "C" {
 #endif
 
@@ -162,9 +162,9 @@ typedef enum ETProfiling_samplingFreq
 
 // EnergyTrace recording format selector
 typedef enum ETProfilingDState_recFormat
-{ 
+{
 	// defines how much Device State information is reported.
-	// For Wolverine the Device State is the content of the 
+	// For Wolverine the Device State is the content of the
 	// JTAG Device State Register (64bits in total)
 	// Comment below are true for Wolverine, but might differ for newer devices in the future.
 	// The record format needs to be synchronized with the information in the device specific XML files.
@@ -175,7 +175,7 @@ typedef enum ETProfilingDState_recFormat
 
 // EnergyTrace event-triggered profiling window size
 typedef enum ETEvent_window
-{ 
+{
 	// the number of samples (plus/minus) around the event trigger which will be pushed
 	// to the debugger (actually the size of the ringbuffer for analog measurement)
 	ET_EVENT_WINDOW_25,   // 25 samples of current and voltage
@@ -188,11 +188,11 @@ typedef enum ETEvent_window
 
 // EnergyTrace callback mode
 typedef enum ETCallback_mode
-{ 
+{
 	// Callbacks can be sent either continuous (e.g. for analog sampling)
 	// or only when the target MCU is executing code (e.g. run to breakpoint or free run)
 	ET_CALLBACKS_CONTINUOUS,        // Callbacks are sent after MSP430_EnableEnergyTrace is called
-	ET_CALLBACKS_ONLY_DURING_RUN,   // Callbacks are sent after MSP430_EnableEnergyTrace is called 
+	ET_CALLBACKS_ONLY_DURING_RUN,   // Callbacks are sent after MSP430_EnableEnergyTrace is called
                                     // and the target MCU is executing code
 } ETCallback_mode_t;
 
@@ -210,7 +210,7 @@ typedef struct EnergyTraceSetup_tag
 
     // Generic
     ETCallback_mode_t                   ETCallback;     // callback style
-  
+
 } EnergyTraceSetup;
 
 typedef enum EnergyTraceEventID_tag
@@ -226,7 +226,7 @@ typedef enum EnergyTraceEventID_tag
     ET_EVENT_ALL              = 9,
 } EnergyTraceEventID;
 
-typedef void( *PushDataFn )( void* pContext, const BYTE* pBuffer, ULONG nBufferSize );
+typedef void( *PushDataFn )( void* pContext, const uint8_t* pBuffer, uint32_t nBufferSize );
 
 // Currently implemented error messages (in order of priority, since several errors could be present in parallel)
 // "Unsupported debugger"				  Debugger does not support analog or dstate profiling
@@ -244,7 +244,7 @@ typedef struct EnergyTraceCallbacks_tag
 	// Called to push new data to the client
 	PushDataFn pPushDataFn;
 
-	// Called when an error has occurred 
+	// Called when an error has occurred
 	ErrorOccurredFn pErrorOccurredFn;
 
 } EnergyTraceCallbacks;
@@ -255,7 +255,7 @@ typedef void* EnergyTraceHandle;
 // Returns a handle that can be used to disable profiling
 // If this returns an error, then MSP430_Error_Number()/MSP430_Error_String() can fetch
 // the error message
-DLL430_SYMBOL STATUS_T WINAPI MSP430_EnableEnergyTrace( 
+DLL430_SYMBOL STATUS_T WINAPI MSP430_EnableEnergyTrace(
 	const EnergyTraceSetup* setup, 			// in
 	const EnergyTraceCallbacks* callbacks, 	// in
 	EnergyTraceHandle* handle ); 			// out

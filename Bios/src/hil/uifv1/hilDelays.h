@@ -40,5 +40,5 @@
 //! \brief 
 //!
 
-extern void _hil_Delay_1us(unsigned short usecs);
-extern void _hil_Delay_1ms(unsigned short msecs);
+void _hil_Delay_1us(unsigned short);
+void _hil_Delay_1ms(unsigned short);

@@ -35,7 +35,8 @@
  *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
 */
-#include <boost/asio.hpp> // include boost
+
+#include <pch.h>
 
 #include "MSPBSL_PacketHandler5xxUART.h"
 #include "MSPBSL_CRCEngine.h"

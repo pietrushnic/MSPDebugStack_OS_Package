@@ -36,7 +36,7 @@
  *
 */
 
-#include <boost/asio.hpp> // include boost
+#include <pch.h>
 
 #include "MSPBSL_CRCEngine.h"
 #include "MSPBSL_PhysicalInterfaceSerialUART.h"

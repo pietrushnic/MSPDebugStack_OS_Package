@@ -36,13 +36,10 @@
  *
 */
 
-#include <boost/asio.hpp> // include boost
-#include <boost/thread/thread.hpp>
-#include <iostream>
+#include <pch.h>
 
 #include <MSPBSL_PhysicalInterfaceSerialUART.h>
 #include "MSPBSL_TestResetControl.h"
-
 
 using namespace std;
 using namespace boost::asio;
@@ -59,9 +56,9 @@ int baudRate;
 
 #ifdef _WIN32
 //  ->  \\.\com12  -> "\\\\.\\COM1"
-	char *PORT = "COM1";
+	const char *PORT = "COM1";
 #else
-    char *PORT = "dev/ttyS3";
+	const char *PORT = "dev/ttyS3";
 #endif
 
 /***************************************************************************//**
@@ -166,6 +163,7 @@ MSPBSL_PhysicalInterfaceSerialUART::MSPBSL_PhysicalInterfaceSerialUART(string in
 ******************************************************************************/
 MSPBSL_PhysicalInterfaceSerialUART::~MSPBSL_PhysicalInterfaceSerialUART(void)
 {
+	delete port;
 }
 
 /***************************************************************************//**
@@ -195,27 +193,27 @@ void MSPBSL_PhysicalInterfaceSerialUART::invokeBSL(uint16_t method)
     
 	port->set_option(RESETControl(LOW_SIGNAL));
 	port->set_option(TESTControl(LOW_SIGNAL));
-	boost::this_thread::sleep(boost::posix_time::milliseconds(10)); 
+	this_thread::sleep_for(chrono::milliseconds(10));
 	port->set_option(TESTControl(HIGH_SIGNAL));
-	boost::this_thread::sleep(boost::posix_time::milliseconds(10)); 
+	this_thread::sleep_for(chrono::milliseconds(10));
 	port->set_option(TESTControl(LOW_SIGNAL));
-	boost::this_thread::sleep(boost::posix_time::milliseconds(10)); 
+	this_thread::sleep_for(chrono::milliseconds(10));
 	port->set_option(TESTControl(HIGH_SIGNAL));
-	boost::this_thread::sleep(boost::posix_time::milliseconds(10)); 
+	this_thread::sleep_for(chrono::milliseconds(10));
 	if( method == STANDARD_INVOKE )
 	{
 	  port->set_option(RESETControl(HIGH_SIGNAL));
-	  boost::this_thread::sleep(boost::posix_time::milliseconds(10)); 
+	  this_thread::sleep_for(chrono::milliseconds(10));
 	  port->set_option(TESTControl(LOW_SIGNAL));
 	}
 	else if ( method == BSL_XXXX_INVOKE )
 	{
 	  port->set_option(TESTControl(LOW_SIGNAL));
-	  boost::this_thread::sleep(boost::posix_time::milliseconds(10)); 
+	  this_thread::sleep_for(chrono::milliseconds(10));
 	  port->set_option(RESETControl(HIGH_SIGNAL));
 	}
 	
-	boost::this_thread::sleep(boost::posix_time::milliseconds(250)); 
+	this_thread::sleep_for(chrono::milliseconds(250));
 	
 }
 

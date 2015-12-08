@@ -51,38 +51,74 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <EnergyTraceProcessorId8.h>
-#include "EnergyTraceLowPassFilter.h"
-#include "EnergyTraceRunningAverageFilter.h"
+#include <pch.h>
+#include <limits>
+#include "EnergyTraceProcessorId8.h"
 
 
 using namespace TI::DLL430;
 using namespace std;
 
-EnergyTraceProcessorId8::EnergyTraceProcessorId8(size_t dataSize)
-	: mBuffer(dataSize)
-	,mPrevCurrent(0)
-	,mEnergyMicroWsec(0)
+
+EnergyTraceProcessorId8::EnergyTraceProcessorId8(uint32_t calibrationPoints, size_t dataSize)
+	: EnergyTraceProcessor(calibrationPoints)
+	, mBuffer(dataSize)
+	, mPrevCurrent(0)
+	, mEnergyMicroWsec(0)
 {
 	Reset();
+
+#ifdef ETLOG
+	filePtr = fopen("etlog.csv", "a");
+
+	filePtrCalls = fopen("calls.csv", "a");
+	LogCalls("call, mAccumulatedN, mAccumulatedNMin, currents[range], current, ticks, deltaTicks");
+#endif
 }
 
 EnergyTraceProcessorId8::~EnergyTraceProcessorId8()
-{}
-
-void EnergyTraceProcessorId8::Reset(void)
 {
-    mBuffer.Reset();
-    mFilter->Reset();
-	mVoutFilter->Reset();
+#ifdef ETLOG
+		if (filePtr) fclose(filePtr);
+		if (filePtrCalls) fclose(filePtrCalls);
+#endif
+}
+
+
+#ifdef ETLOG
+
+void EnergyTraceProcessorId8::LogCalls(char * str)
+{
+	if (filePtrCalls)
+	{
+		fprintf(filePtrCalls, "%s\n", str);
+		fflush(filePtrCalls);
+	}
+}
+
+void EnergyTraceProcessorId8::Log(char * str)
+{
+	if (filePtr)
+	{
+		fprintf(filePtr, "%s\n", str);
+		fflush(filePtr);
+	}
+}
+#endif
+
+
+void EnergyTraceProcessorId8::Reset()
+{
+	mBuffer.Reset();
+	mVoutFilter.Reset();
 	mAccumulatedT = 0;
 	mAccumulatedN = 0;
-	mCurrent = 0;
-	mCurrentValid = false;
 	mEnergyMicroWsec = 0;
 	mEnergyMicroWsecAdder = 0;
+	mAccumulatedNDiv = 1;
+	mCurrent = 0;
+	mCurrentValid = false;
 	mPrevTimeTag = 0;
-	mAccumulatedNDiv =1;
 
 	mSkip = SKIP_COUNTER;
 }
@@ -90,10 +126,11 @@ void EnergyTraceProcessorId8::Reset(void)
 bool EnergyTraceProcessorId8::AddData(void *data, size_t size)
 {
 	bool retVal = false;
+
 	// Process the stream and store it in the buffer
 	EnergyTraceRecordEt8_t *pRecord = (EnergyTraceRecordEt8_t *)data;
 
-	uint32_t numEntries = size/sizeof(*pRecord);
+	size_t numEntries = size/sizeof(*pRecord);
 	while (numEntries--)
 	{
 		// ----------------------------------------------------
@@ -103,7 +140,7 @@ bool EnergyTraceProcessorId8::AddData(void *data, size_t size)
 			--mSkip;
 			mPrevCurrentTick = pRecord->currentTicks;
 			mPrevTimeTag = pRecord->TimeStamp;
-			mVoutFilter->Reset();
+			mVoutFilter.Reset();
 			mTimeTag_us = 0;
 			mCurrent = 0;
 			if (mSkip == 0)
@@ -115,22 +152,41 @@ bool EnergyTraceProcessorId8::AddData(void *data, size_t size)
 			mEnergyMicroWsec = 0;
 			mEnergyMicroWsecAdder = 0;
 			mAccumulatedNDiv = 1;
+
+#ifdef ETLOG
+			LogCalls("RESET");
+
+			sprintf(logStr, "calvalues, numCalibrationPoints, actPoint, threshold, refCurrent, gradient, offset");
+			LogCalls(logStr);
+
+			for (unsigned int i = 0; i<numCalibrationPoints; i++)
+			{
+				sprintf(logStr, "cal values, %d, %d, %lf, %lf, %lf, %lf",
+					numCalibrationPoints, i, mCalibrationValues[i].threshold, mCalibrationValues[i].refCurrent,
+					mCalibrationValues[i].gradient, mCalibrationValues[i].offset);
+				LogCalls(logStr);
+			}
+
+#endif
 			return false;
 		}
 		EnergyRecordEt8 newRecord;
 
+
 		// ----------------------------------------------------------------------------------
 		// Calculate timestamp in usec and passed time between this and last sample
-		double deltaT = (double)(pRecord->TimeStamp - mPrevTimeTag) * TIME_BASE_ns / 1000.00; // Convert to micro-seconds
+		double deltaT = (double)(pRecord->TimeStamp - mPrevTimeTag) * timeBase_ns / 1000.00; // Convert to micro-seconds
 
+		//------- Current calculation-----------------------------------------------------------
 		uint32_t deltaN = pRecord->currentTicks - mPrevCurrentTick;
 
-		if(pRecord->TimeStamp  < mPrevTimeTag)
+		const size_t uint32Max = numeric_limits<uint32_t>::max();
+		if ((pRecord->TimeStamp <= mPrevTimeTag) && (mPrevTimeTag - pRecord->TimeStamp < uint32Max / 2))
 		{
 			return false;
 		}
 
-		if(pRecord->currentTicks  < mPrevCurrentTick)
+		if (pRecord->currentTicks < mPrevCurrentTick)
 		{
 			return false;
 		}
@@ -139,10 +195,10 @@ bool EnergyTraceProcessorId8::AddData(void *data, size_t size)
 
 		// ----------------------------------------------------------------------------------
 		// Average voltage
-		if(mFilterEnable)
+		if (mFilterEnable)
 		{
-			mVoutFilter->AddData(&VOut, sizeof(VOut));
-			newRecord.voltage = *((uint32_t *)mVoutFilter->GetReadBufferPtr());
+			mVoutFilter.AddData(&VOut, sizeof(VOut));
+			newRecord.voltage = *((uint32_t *)mVoutFilter.GetReadBufferPtr());
 		}
 		else
 		{
@@ -151,51 +207,65 @@ bool EnergyTraceProcessorId8::AddData(void *data, size_t size)
 
 		//------- Current calculation-----------------------------------------------------------
 		// Setup integrators
-		double mAccumulatedTMin = 1000;
-		double mAccumulatedNMin = (double)tickThreshold/mAccumulatedNDiv;
+		const double mAccumulatedTMin = 1000;
+		const double mAccumulatedNMin = (double)tickThreshold/mAccumulatedNDiv;
 
 		// Add up samples-------------------------------------------------------------------------------
 		mAccumulatedT += deltaT;
 		mAccumulatedN += deltaN;
 
-		if (mCurrentValid || ((mAccumulatedT > mAccumulatedTMin) && (mAccumulatedN > mAccumulatedNMin))) // Calculate sample every 1000usec, need to have at least 1 tick
+		uint32_t range = 0;
+
+		if ((mAccumulatedT > mAccumulatedTMin) && (mAccumulatedN > mAccumulatedNMin)) // Calculate sample every 1000usec, need to have at least 1 tick
 		{
+
+			//Determine left side of range the value lies in
 			double normalizedN = (double)mAccumulatedN / mAccumulatedT * 1000.00; // Normalized ticks per 1msec
-			if (normalizedN < mCalibrationValues[0].threshold)
+
+			// Calculate current for all calibration points
+			double currents[5] = {0};
+			for (unsigned int i=0; i<numCalibrationPoints-1; i++)
 			{
-				mCurrent = 0; // Clamp negative values to 0uA -- avoid undershoot
+				currents[i] = ((normalizedN - mCalibrationValues[i].offset) * mCalibrationValues[i].gradient) + mCalibrationValues[i].refCurrent;
 			}
-			else
+
+			// Select current for the actual range
+			while ((range < numCalibrationPoints - 2) && (normalizedN > mCalibrationValues[range+1].threshold))
 			{
-				mCurrent = (uint32_t)((normalizedN - mCalibrationValues[0].offset) / mCalibrationValues[0].gradient);
+				range++;
 			}
+
+			if (currents[range] < 0)
+			{
+				currents[range] = 0;
+			}
+			mCurrent = (unsigned int) currents[range];
+
 			//------- Current calculation-----------------------------------------------------------
-			if ((double)deltaN/deltaT*1000 > mCalibrationValues[1].threshold/5) // High current (larger than 1.6mA/5) -- average less
+			if (mAccumulatedNDiv > ACCUMULATED_N_DIV_MIN)
 			{
-					if (mAccumulatedNDiv < ACCUMULATED_N_DIV_MAX)
-					{
-						mAccumulatedNDiv += ACCUMULATED_N_DIV_STEP_SIZE;
-					}
+				mAccumulatedNDiv -= ACCUMULATED_N_DIV_STEP_SIZE;
 			}
-			else // Low current -- average more
-			{
-					if (mAccumulatedNDiv > ACCUMULATED_N_DIV_MIN)
-					{
-						mAccumulatedNDiv -= ACCUMULATED_N_DIV_STEP_SIZE;
-					}
-			}
-			if (mAccumulatedNMin<1)
-			{
-				mAccumulatedNMin = 1;
-			}
+
+#ifdef ETLOG
+			sprintf(logStr, "CURRENT calculation, %u, %lf, %lf, %u, %u, %u", mAccumulatedN, mAccumulatedNMin, currents[range], mCurrent, pRecord->currentTicks, deltaN);
+			LogCalls(logStr);
+#endif
 
 			mAccumulatedT = 0;
 			mAccumulatedN = 0;
 			mCurrentValid = false;
 		}
+#ifdef ETLOG
+		else
+		{
+			sprintf(logStr, "NO calcution,  %u, %lf, %lf, %u, %u, %u", mAccumulatedN, mAccumulatedNMin, 0.0, mCurrent, pRecord->currentTicks, deltaN);
+			LogCalls(logStr);
 
+		}
+#endif
 		// ----------------------------------------------------------------------------------
-		// Round current to next 100nA
+		//round current to next 100nA
 		mCurrent = ((mCurrent + 50) / 100) * 100;
 
 		// ----------------------------------------------------------------------------------
@@ -208,12 +278,19 @@ bool EnergyTraceProcessorId8::AddData(void *data, size_t size)
 		mEnergyMicroWsecAdder += (double)deltaN - ((double)mCalibrationValues[0].threshold*(deltaT/1000));
 		if (mEnergyMicroWsecAdder > 0) // Only increase energy
 		{
-			mEnergyMicroWsec += mEnergyMicroWsecAdder * oneTickinMicroWsec * 10;
+			mEnergyMicroWsec += mEnergyMicroWsecAdder * oneTickinMicroWsec[range] * 10;
 			mEnergyMicroWsecAdder = 0;
 		}
 		newRecord.energy = (uint32_t)mEnergyMicroWsec;
 
 		newRecord.current = mCurrent;
+
+#ifdef ETLOG
+		// For debug
+		sprintf(logStr, "%lf, %d, %lf, %d, %d, %d", mTimeTag_us, VOut, mEnergyMicroWsec, mCurrent, pRecord->currentTicks, deltaN);
+		Log(logStr);
+#endif
+
 		retVal |= mBuffer.AddData(newRecord); // Add the current record to the double buffer
 
 		// Store the current state
@@ -226,13 +303,13 @@ bool EnergyTraceProcessorId8::AddData(void *data, size_t size)
 
 
 //---------------------------------
-void* EnergyTraceProcessorId8::GetReadBufferPtr(void)
+void* EnergyTraceProcessorId8::GetReadBufferPtr()
 {
 	return mBuffer.GetReadBufferPtr();
 }
 
 //---------------------------------
-size_t EnergyTraceProcessorId8::GetReadBufferSize(void)
+size_t EnergyTraceProcessorId8::GetReadBufferSize()
 {
 	return mBuffer.GetBufferSize() * sizeof(*mBuffer.GetReadBufferPtr());
 }

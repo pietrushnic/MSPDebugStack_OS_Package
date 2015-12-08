@@ -4,49 +4,49 @@
  * API for accessing EEM functionality of MSP430 library.
  *
  * Copyright (C) 2004 - 2013 Texas Instruments Incorporated - http://www.ti.com/
- * 
- * 
- *  Redistribution and use in source and binary forms, with or without 
- *  modification, are permitted provided that the following conditions 
+ *
+ *
+ *  Redistribution and use in source and binary forms, with or without
+ *  modification, are permitted provided that the following conditions
  *  are met:
  *
- *    Redistributions of source code must retain the above copyright 
+ *    Redistributions of source code must retain the above copyright
  *    notice, this list of conditions and the following disclaimer.
  *
  *    Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the 
- *    documentation and/or other materials provided with the   
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the
  *    distribution.
  *
  *    Neither the name of Texas Instruments Incorporated nor the names of
  *    its contributors may be used to endorse or promote products derived
  *    from this software without specific prior written permission.
  *
- *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS 
- *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT 
+ *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
  *  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT 
- *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, 
- *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT 
+ *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
  *  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
  *  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
- *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
- *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.                                                                                                                                                                                                                                                                                                         
+ *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
 /** \file MSP430_EEM.h
- 
+
  \brief       This file contains the Application Programming Interface (API)
               to access the Enhanced Emulation Module (EEM) of a MSP430 device
               using the MSP430.DLL.
- 
+
               The DLL provides the following functionalities
               - EEM Hardware Resource Management
               - Caller notifying mechanism using Windows Message Queues
                 (Replaced by alternate callback mechanism since version 2.1.2.0)
               - Autonom detection of state changes (e.g. breakpoint hit, single step complete)
- 
+
  \attention   Since the DLL manages all the available HW resources itself it is
               not permitted to mix the old EEM API (EEM_Open(), EEM_Read(),
               EEM_Write()) with the functions provided via this header
@@ -67,13 +67,13 @@
               - MSP430_EEM_Read_Register_Test()
               - MSP430_EEM_Write_Register()
               - MSP430_EEM_Close()
- 
+
  \par         Project:
               MSP430 Enhanced Emulation Module (EEM) API
- 
+
  \par         Developed using:
               MS Visual C++ 2003/2010
- 
+
  \par         Supported API calls:
               - MSP430_EEM_Init()
               - MSP430_EEM_SetBreakpoint()
@@ -143,21 +143,21 @@ extern "C" {
 */
 typedef struct MESSAGE_ID {
    /// Message identification for "Single step complete" event
-   ULONG uiMsgIdSingleStep;
+   uint32_t uiMsgIdSingleStep;
    /// Message identification for "Breakpoint hit" event
-   ULONG uiMsgIdBreakpoint;
+   uint32_t uiMsgIdBreakpoint;
    /// Message identification for "Storage on trace buffer" event
-   ULONG uiMsgIdStorage;
+   uint32_t uiMsgIdStorage;
    /// Message identification for "Change in new state of the sequencer" event
-   ULONG uiMsgIdState;
+   uint32_t uiMsgIdState;
    /// Message identification for "Warning" event
-   ULONG uiMsgIdWarning;
+   uint32_t uiMsgIdWarning;
    /// Message identification for "Device CPU stopped" event
-   ULONG uiMsgIdCPUStopped;
+   uint32_t uiMsgIdCPUStopped;
 }
 /**
  \brief     The type MessageID_t enables the caller of the function
-            MSP430_EEM_Init(LONG lhWnd, MessageID_t* pMsgIdBuffer) to set
+            MSP430_EEM_Init(int32_t lhWnd, MessageID_t* pMsgIdBuffer) to set
             dedicated message IDs for the different events. Using Windows
             user events normaly start at WM_USER (please refer to MSDN help)
 */
@@ -213,11 +213,11 @@ typedef enum BpType {
 /**
  \brief     BpAccess_t gives the supported access modes for a breakpoint.
             Used inside the BREAKPOINT structure.
- 
+
             The following table shows the relation of the access mode to the
             signals Fetch, R/W and DMA.
 
- \code 
+ \code
                                                                                     Fetch | R/W | DMA
                BP_FETCH:                Instuction fetch                              1   | (R) | (0)
                BP_FETCH_HOLD:           Instruction fetch hold                        1   | (R) | (0)
@@ -285,6 +285,8 @@ typedef enum BpAction {
    BP_STO = 2,
    /// Break and trigger state storage on trigger
    BP_BRK_STO = 3,
+   /// Cycle counter
+   BP_CC = 4
 } BpAction_t;
 
 
@@ -335,11 +337,11 @@ typedef struct BREAKPOINT {
   /// Breakpoint modes
   BpMode_t          bpMode;
    /// Breakpoint address/value (ignored for clear breakpoint)
-  LONG				lAddrVal;
+  int32_t           lAddrVal;
   /// Breakpoint type (used for range and complex breakpoints)
   BpType_t          bpType;
   /// Breakpoint register (used for complex breakpoints with register-write trigger)
-  LONG              lReg;
+  int32_t           lReg;
   /// Breakpoint access (used only for range and complex breakpoints)
   BpAccess_t        bpAccess;
   /// Breakpoint action (break/storage) (used for range and complex breakpoints)
@@ -347,29 +349,29 @@ typedef struct BREAKPOINT {
   /// Breakpoint operator (used for complex breakpoints)
   BpOperat_t        bpOperat;
   /// Breakpoint mask (used for complex breakpoints)
-  LONG				lMask;
+  int32_t           lMask;
   /// Range breakpoint end address (used for range breakpoints)
-  LONG				lRangeEndAdVa;
+  int32_t           lRangeEndAdVa;
   /// Range breakpoint action (inside/outside) (used for range breakpoints)
   BpRangeAction_t   bpRangeAction;
   /// Complex breakpoint: Condition available
   BpCondition_t     bpCondition;
   /// Complex breakpoint: MDB value (used for complex breakpoints)
-  ULONG				lCondMdbVal;
+  uint32_t          lCondMdbVal;
   /// Complex breakpoint: Access (used for complex breakpoints)
   BpAccess_t        bpCondAccess;
   /// Complex breakpoint: Mask Value(used for complex breakpoints)
-  LONG				lCondMask;
+  int32_t           lCondMask;
   /// Complex breakpoint: Operator (used for complex breakpoints)
   BpOperat_t        bpCondOperat;
   /// Combine breakpoint: Reference of a combination handle
-  WORD			    wExtCombine;
+  uint16_t          wExtCombine;
 }
 /**
  \brief  The type BpParameter_t is used as a source parameter to the function
-         MSP430_EEM_SetBreakpoint(WORD* pwBpHandle, BpParameter_t* pBpBuffer)
+         MSP430_EEM_SetBreakpoint(uint16_t* pwBpHandle, BpParameter_t* pBpBuffer)
          and as a destination parameter to the function
-         MSP430_EEM_GetBreakpoint(WORD wBpHandle, BpParameter_t* pBpDestBuffer)
+         MSP430_EEM_GetBreakpoint(uint16_t wBpHandle, BpParameter_t* pBpDestBuffer)
 */
 BpParameter_t;
 
@@ -434,7 +436,7 @@ typedef struct TRACE_CTRL {
 /**
  \brief  The type TrParameter_t is used by the functions:
          - MSP430_EEM_SetTrace(TrParameter_t* pTrBuffer) as a source buffer
-         - MSP430_EEM_SetTrace(TrParameter_t* pTrDestBuffer) as a destination buffer 
+         - MSP430_EEM_SetTrace(TrParameter_t* pTrDestBuffer) as a destination buffer
          for the trace settings.
 */
 TrParameter_t;
@@ -447,16 +449,16 @@ TrParameter_t;
 */
 typedef struct TRACE_BUFFER {
    /// Trace buffer MAB
-   LONG    lTrBufMAB;
+   int32_t    lTrBufMAB;
    /// Trace buffer MDB
-   LONG    lTrBufMDB;
+   int32_t    lTrBufMDB;
    /// Trace buffer control signals
-   WORD   wTrBufCNTRL;
+   uint16_t   wTrBufCNTRL;
 }
 
 /**
  \brief  The type TraceBuffer_t is used by the function:
-         - MSP430_EEM_ReadTraceBuffer(TraceBuffer_t* pTraceBuffer) as a destination buffer 
+         - MSP430_EEM_ReadTraceBuffer(TraceBuffer_t* pTraceBuffer) as a destination buffer
          for the read out data.
 */
 TraceBuffer_t;
@@ -498,13 +500,13 @@ typedef struct VARIABLE_WATCH {
    /// Set/clear variable
    VwControl_t	vwControl;
    /// Address of the watched variable (ignored for VW_CLEAR)
-   ULONG     lAddr;
+   uint32_t     lAddr;
    /// Data type of the variable (ignored for VW_CLEAR)
    VwDataType_t	vwDataType;
 }
 /**
  \brief  The type VwParameter_t is used by the function:
-         - MSP430_EEM_SetVariable(WORD* pVwHandle, VwParameter_t* pVwBuffer) as a source buffer
+         - MSP430_EEM_SetVariable(uint16_t* pVwHandle, VwParameter_t* pVwBuffer) as a source buffer
          for the variable watch settings.
 */
 VwParameter_t;
@@ -516,15 +518,15 @@ VwParameter_t;
 */
 typedef struct VAR_WATCH_RESOURCES {
    /// Handle of the variable trigger
-   WORD		vwHandle;
+   uint16_t     vwHandle;
    /// Address of the watched variable
-   ULONG     lAddr;
+   uint32_t     lAddr;
    /// Data type of the variable
    VwDataType_t	vwDataType;
 }
 /**
  \brief  The type VwResources_t is used as a array of 8 by the function:
-         - MSP430_EEM_GetVariableWatch(BOOL* pbVwEnable, VwResouces_t* paVwDestBuffer)
+         - MSP430_EEM_GetVariableWatch(VwEnable_t* pbVwEnable, VwResouces_t* paVwDestBuffer)
          as a destination buffer for the variable watch settings.
 */
 VwResources_t;
@@ -575,7 +577,7 @@ typedef enum CcModule {
 
 /**
 \brief  Clock control: Switch general clock off (logic AND operation)
-\note   This function does influence the module clock control.\n 
+\note   This function does influence the module clock control.\n
         If the general clock is not stop it could not be stopped at the module
 */
 typedef enum CcGeneralCLK {
@@ -597,16 +599,16 @@ typedef enum CcGeneralCLK {
 */
 typedef struct CLOCK_CONTROL {
    /// Extended emulation clock control (enable/disable clock control)
-   CcControl_t	ccControl;
+   CcControl_t  ccControl;
    /// Switch clock for modules off (1 bit per clock module, 1: stop clock module while CPU halted)
-   WORD		ccModule;
+   uint16_t     ccModule;
    /// Switch general clock off (1 bit per clock, 1: stop clock while CPU halted)
-   WORD		ccGeneralCLK;
+   uint16_t     ccGeneralCLK;
 }
 /**
  \brief  The type CcParameter_t is used by the functions:
          - MSP430_EEM_SetClockControl(CcParameter_t* pCcBuffer) as a source buffer
-         - MSP430_EEM_GetClockControl(CcParameter_t* pCcDestBuffer) as a destination buffer 
+         - MSP430_EEM_GetClockControl(CcParameter_t* pCcDestBuffer) as a destination buffer
          for the clock control settings.
 */
 CcParameter_t;
@@ -641,20 +643,20 @@ typedef enum SeqState {
 */
 typedef struct SEQUENCER {
    /// Trigger sequencer Control (enable/disable)
-   SeqControl_t	seqControl;
+   SeqControl_t seqControl;
    /// Select breakpoint as a reset trigger to set start state 0 (0 = off)
-   WORD		wHandleRstTrig;
+   uint16_t     wHandleRstTrig;
    /// Select action on entering final state
    BpAction_t	bpAction;
    //  State X:
    /// Select next state x that followed of state X
    SeqState_t   seqNextStateX[MAX_SEQ_STATE];
    /// Select breakpoint as a trigger for switching from state x into next state: x path
-   WORD     wHandleStateX[MAX_SEQ_STATE];
+   uint16_t     wHandleStateX[MAX_SEQ_STATE];
    /// Select next state y that followed of state X
    SeqState_t   seqNextStateY[MAX_SEQ_STATE];
    /// Select breakpoint as a trigger for switching from state x into next state: y path
-   WORD     wHandleStateY[MAX_SEQ_STATE];
+   uint16_t     wHandleStateY[MAX_SEQ_STATE];
 }
 /**
 \brief   The type SeqParameter_t is used by the functions:
@@ -663,6 +665,89 @@ typedef struct SEQUENCER {
 */
 SeqParameter_t;
 
+
+/// Cycle counter operation mode
+typedef enum {
+	/// Basic mode (default): counter 0 is reserved for legacy behavior
+	CYC_MODE_BASIC = 0x0,
+	/// Advanced mode: counter 0 is available for manual configuration
+	CYC_MODE_ADVANCED = 0x1
+} CycleCounterMode_t;
+
+/// Cycle counter count mode
+typedef enum {
+	/// Counter is stopped
+	CYC_COUNT_STOPPED = 0x0,
+	/// Count on cycle counter trigger reaction (only counter 1)
+	CYC_COUNT_ON_REACTION = 0x1,
+	/// Count on all IFCLKs (used and unused by CPU or DMA)
+	CYC_COUNT_ON_IFCLK = 0x2,
+	/// Count on instruction fetch
+	CYC_COUNT_ON_FETCH = 0x4,
+	/// Count on all bus cycles (CPU or DMA)
+	CYC_COUNT_ON_ALL_BUS = 0x5,
+	/// Count on CPU bus cycles
+	CYC_COUNT_ON_CPU_BUS = 0x6,
+	/// Count on DMA bus cycles
+	CYC_COUNT_ON_DMA_BUS = 0x7
+}  CycleCounterCountMode_t;
+
+/// Cycle counter start mode
+typedef enum {
+	/// Start counter when released from debug halt
+	CYC_START_ON_RELEASE = 0x0,
+	/// Start counter on counter trigger reaction (only counter 1)
+	CYC_START_ON_REACTION = 0x1,
+	/// Start when other counter starts (only targets with 2 counters)
+	CYC_START_ON_COUNTER = 0x2,
+	/// Start counter immediately
+	CYC_START_IMMEDIATELY = 0x3
+}  CycleCounterStartMode_t;
+
+/// Cycle counter stop mode
+typedef enum
+{
+	/// Stop counter on debug halt
+	CYC_STOP_ON_DBG_HALT = 0x0,
+	/// Stop counter on counter trigger reaction (only counter 1)
+	CYC_STOP_ON_REACTION = 0x1,
+	/// Stop counter when other counter stops (only targets with 2 counters)
+	CYC_STOP_ON_COUNTER = 0x2,
+	/// Never stop counter
+	CYC_STOP_NO_EVENT = 0x3
+} CycleCounterStopMode_t;
+
+/// Cycler counter clear mode
+typedef enum
+{
+	/// Never automatically reset counter
+	CYC_CLEAR_NO_EVENT = 0x0,
+	/// Reset counter on counter trigger reaction (only counter 1)
+	CYC_CLEAR_ON_REACTION = 0x1,
+	/// Reset counter when other counter automatically resets (only targets with 2 counters)
+	CYC_CLEAR_ON_COUNTER = 0x2
+} CycleCounterClearMode_t;
+
+/**
+\brief   Cycle counter parameter structure:
+The data structure contains the configuration settings for a cycle counter.
+*/
+typedef struct
+{
+	/// Condition to increase counter
+	CycleCounterCountMode_t countMode;
+	/// Condition to start counter
+	CycleCounterStartMode_t startMode;
+	/// Condition to stop counter
+	CycleCounterStopMode_t stopMode;
+	/// Condition to clear/reset counter
+	CycleCounterClearMode_t clearMode;
+}
+/**
+\brief   The type CycleCounterConfig_t is used by the functions:
+- MSP430_EEM_ConfigureCycleCounter(uint32_t wCounter, CycleCounterConfig_t pCycConfig)
+*/
+CycleCounterConfig_t;
 
 
 //==============================================================================
@@ -675,19 +760,19 @@ SeqParameter_t;
 		 A handle to the callback function is passed to the DLL by calling
 		 MSP430_EEM_Init().
 */
-typedef void (* MSP430_EVENTNOTIFY_FUNC) (UINT MsgId, UINT wParam, LONG lParam, LONG clientHandle);
+typedef void (* MSP430_EVENTNOTIFY_FUNC) (uint32_t MsgId, uint32_t wParam, int32_t lParam, int32_t clientHandle);
 
 //==============================================================================
 #endif /* MSP430_EEM_TYPES */
 
 /**
-\fn    STATUS_T WINAPI MSP430_EEM_Init(MSP430_EVENTNOTIFY_FUNC callback, LONG clientHandle, MessageID_t* pMsgIdBuffer);
+\fn    STATUS_T WINAPI MSP430_EEM_Init(MSP430_EVENTNOTIFY_FUNC callback, int32_t clientHandle, MessageID_t* pMsgIdBuffer);
 
 \brief   Initialisation to enable and use the functionality of the
          Enhanced Emulation Module (EEM). This function resets and
          intitializes the EEM.
 
-\note    1. MSP430_OpenDevice() has to be called prior to this function  
+\note    1. MSP430_OpenDevice() has to be called prior to this function
 \note    2. This function initializes the EEM API. By calling this function
             you are no longer allowed to call the following functions of the old EEM API:
 			- MSP430_Breakpoint()
@@ -699,7 +784,7 @@ typedef void (* MSP430_EVENTNOTIFY_FUNC) (UINT MsgId, UINT wParam, LONG lParam, 
 			- MSP430_State()
 			- MSP430_Configure()\n
 			All of these functions will post an according warning message.
- 
+
 \param   callback:     Pointer to the callback function of the calling application.
                        (see type definition MSP430_EVENTNOTIFY_FUNC)
 \param   clientHandle: A handle to the calling application.
@@ -708,15 +793,15 @@ typedef void (* MSP430_EVENTNOTIFY_FUNC) (UINT MsgId, UINT wParam, LONG lParam, 
 
 \code
           Sample Client Code:
-          a) Client’s callback function 
+          a) Client’s callback function
 
-             static LONG my_handle;
+             static int32_t my_handle;
 
              void MY_MSP430_EVENTNOTIFY_FUNC(
-			                 UINT MsgId,
-							 UINT wParam,
-							 LONG lParam,
-							 LONG clientHandle)
+                             uint32_t MsgId,
+                             uint32_t wParam,
+                             int32_t lParam,
+                             int32_t clientHandle)
              {
                 if(clientHandle == my_handle)
                 {
@@ -727,8 +812,8 @@ typedef void (* MSP430_EVENTNOTIFY_FUNC) (UINT MsgId, UINT wParam, LONG lParam, 
                 }
              }
 
-          b) Client’s main 
-          
+          b) Client’s main
+
 			 int main(int argc, char** argv)
              {
                 // do msp430 init
@@ -755,10 +840,10 @@ typedef void (* MSP430_EVENTNOTIFY_FUNC) (UINT MsgId, UINT wParam, LONG lParam, 
 \n       EEM_INIT_ERR
 \n       THREAD_ERR
 */
-DLL430_SYMBOL STATUS_T WINAPI MSP430_EEM_Init(MSP430_EVENTNOTIFY_FUNC callback, LONG clientHandle, MessageID_t* pMsgIdBuffer);
+DLL430_SYMBOL STATUS_T WINAPI MSP430_EEM_Init(MSP430_EVENTNOTIFY_FUNC callback, int32_t clientHandle, const MessageID_t* pMsgIdBuffer);
 
 /**
-\fn    STATUS_T WINAPI MSP430_EEM_SetBreakpoint(WORD* pwBpHandle, BpParameter_t* pBpBuffer);
+\fn    STATUS_T WINAPI MSP430_EEM_SetBreakpoint(uint16_t* pwBpHandle, BpParameter_t* pBpBuffer);
 
 \brief   This function is used to set, modify or clear breakpoints.
          A breakpoint handle is returned via the pointer pBpHandle.
@@ -787,13 +872,13 @@ DLL430_SYMBOL STATUS_T WINAPI MSP430_EEM_Init(MSP430_EVENTNOTIFY_FUNC callback, 
 \n		 BREAKPOINT_ERR
 \n       CLR_SEQ_TRIGGER
 */
-DLL430_SYMBOL STATUS_T WINAPI MSP430_EEM_SetBreakpoint(WORD* pwBpHandle, BpParameter_t* pBpBuffer);
+DLL430_SYMBOL STATUS_T WINAPI MSP430_EEM_SetBreakpoint(uint16_t* pwBpHandle, const BpParameter_t* pBpBuffer);
 
 
 
 
 /**
-\fn    STATUS_T WINAPI MSP430_EEM_GetBreakpoint(WORD wBpHandle, BpParameter_t* pBpDestBuffer);
+\fn    STATUS_T WINAPI MSP430_EEM_GetBreakpoint(uint16_t wBpHandle, BpParameter_t* pBpDestBuffer);
 
 \brief   This function reads back the settings of a breakpoint.
          No change or other action on the breakpoint is performed.
@@ -806,17 +891,17 @@ DLL430_SYMBOL STATUS_T WINAPI MSP430_EEM_SetBreakpoint(WORD* pwBpHandle, BpParam
 
 \return  STATUS_OK:      breakpoint settings provided
 \return  STATUS_ERROR:   breakpoint settings not provided.
-  
+
 \par     Error codes:
          PARAMETER_ERR
 */
-DLL430_SYMBOL STATUS_T WINAPI MSP430_EEM_GetBreakpoint(WORD wBpHandle, BpParameter_t* pBpDestBuffer);
+DLL430_SYMBOL STATUS_T WINAPI MSP430_EEM_GetBreakpoint(uint16_t wBpHandle, BpParameter_t* pBpDestBuffer);
 
 
 
 
 /**
-\fn    STATUS_T WINAPI MSP430_EEM_SetCombineBreakpoint(CbControl_t CbControl, WORD wCount, WORD* pwCbHandle, WORD* pawBpHandle);
+\fn    STATUS_T WINAPI MSP430_EEM_SetCombineBreakpoint(CbControl_t CbControl, uint16_t wCount, uint16_t* pwCbHandle, uint16_t* pawBpHandle);
 
 \brief   This function sets or clears combinations of breakpoints.
          The parameter wCount includes the number of breakpoints to combine or clear.
@@ -848,13 +933,13 @@ DLL430_SYMBOL STATUS_T WINAPI MSP430_EEM_GetBreakpoint(WORD wBpHandle, BpParamet
 \n       CLR_SEQ_TRIGGER
 \n       SET_SEQ_TRIGGER
 */
-DLL430_SYMBOL STATUS_T WINAPI MSP430_EEM_SetCombineBreakpoint(CbControl_t CbControl, WORD wCount, WORD* pwCbHandle, WORD* pawBpHandle);
+DLL430_SYMBOL STATUS_T WINAPI MSP430_EEM_SetCombineBreakpoint(CbControl_t CbControl, uint16_t wCount, uint16_t* pwCbHandle, const uint16_t* pawBpHandle);
 
 
 
 
 /**
-\fn    STATUS_T WINAPI MSP430_EEM_GetCombineBreakpoint(WORD wCbHandle, WORD* pwCount, WORD* pawBpHandle);
+\fn    STATUS_T WINAPI MSP430_EEM_GetCombineBreakpoint(uint16_t wCbHandle, uint16_t* pwCount, uint16_t* pawBpHandle);
 
 \brief   This function reads back the number and list of combined breakpoints
 
@@ -876,7 +961,7 @@ DLL430_SYMBOL STATUS_T WINAPI MSP430_EEM_SetCombineBreakpoint(CbControl_t CbCont
 \n		 INTERNAL_ERR
 
 */
-DLL430_SYMBOL STATUS_T WINAPI MSP430_EEM_GetCombineBreakpoint(WORD wCbHandle, WORD* pwCount, WORD* pawBpHandle);
+DLL430_SYMBOL STATUS_T WINAPI MSP430_EEM_GetCombineBreakpoint(uint16_t wCbHandle, uint16_t* pwCount, uint16_t* pawBpHandle);
 
 
 
@@ -901,7 +986,7 @@ DLL430_SYMBOL STATUS_T WINAPI MSP430_EEM_GetCombineBreakpoint(WORD wCbHandle, WO
 \n       RESOURCE_ERR
 \n		 INTERNAL_ERR
 */
-DLL430_SYMBOL STATUS_T WINAPI MSP430_EEM_SetTrace(TrParameter_t* pTrBuffer);
+DLL430_SYMBOL STATUS_T WINAPI MSP430_EEM_SetTrace(const TrParameter_t* pTrBuffer);
 
 
 
@@ -911,7 +996,7 @@ DLL430_SYMBOL STATUS_T WINAPI MSP430_EEM_SetTrace(TrParameter_t* pTrBuffer);
 
 \brief   This function reads back the settings of a Trace Configuration Register.
          No change or other action on the trace is performed.
-      
+
 \note    Observe the size of the destination buffer as a type of the structure TRACE
 \note    MSP430_EEM_Init() must have been called prior to this function
 
@@ -953,7 +1038,7 @@ DLL430_SYMBOL STATUS_T WINAPI MSP430_EEM_ReadTraceBuffer(TraceBuffer_t* pTraceBu
 
 
 /**
-\fn    STATUS_T WINAPI MSP430_EEM_ReadTraceData(TraceBuffer_t* pTraceBuffer, ULONG* pulCount);
+\fn    STATUS_T WINAPI MSP430_EEM_ReadTraceData(TraceBuffer_t* pTraceBuffer, uint32_t* pulCount);
 
 \brief   This function reads the content of the Trace Buffer of the EEM.
          No change or other action on the trace is performed.
@@ -974,7 +1059,7 @@ DLL430_SYMBOL STATUS_T WINAPI MSP430_EEM_ReadTraceBuffer(TraceBuffer_t* pTraceBu
 \n		 STATE_STOR_ERR
 \n       READ_TRACE_ERR
 */
-DLL430_SYMBOL STATUS_T WINAPI MSP430_EEM_ReadTraceData(TraceBuffer_t* pTraceBuffer, ULONG* pulCount);
+DLL430_SYMBOL STATUS_T WINAPI MSP430_EEM_ReadTraceData(TraceBuffer_t* pTraceBuffer, uint32_t* pulCount);
 
 
 
@@ -999,7 +1084,7 @@ DLL430_SYMBOL STATUS_T WINAPI MSP430_EEM_RefreshTraceBuffer(void);
 
 \brief   This function configures the EEM State Storage Module to work as a Real Time Monitor for
          a variable.
-         
+
 \note    MSP430_EEM_Init() must have been called prior to this function
 
 \param   VwEnable:      Enable the variable watch function if TRUE and the
@@ -1022,10 +1107,10 @@ DLL430_SYMBOL STATUS_T WINAPI MSP430_EEM_SetVariableWatch(VwEnable_t VwEnable);
 
 
 /**
-\fn    STATUS_T WINAPI MSP430_EEM_SetVariable(WORD* pVwHandle, VwParameter_t* pVwBuffer);
+\fn    STATUS_T WINAPI MSP430_EEM_SetVariable(uint16_t* pVwHandle, VwParameter_t* pVwBuffer);
 
 \brief   This function sets one variable to watch.
-         
+
 \note    MSP430_EEM_Init() must have been called prior to this function
 \note    The variable watch function must be enabled.
 
@@ -1042,7 +1127,7 @@ DLL430_SYMBOL STATUS_T WINAPI MSP430_EEM_SetVariableWatch(VwEnable_t VwEnable);
 \n       VAR_WATCH_EN_ERR
 \n		 INTERNAL_ERR
 */
-DLL430_SYMBOL STATUS_T WINAPI MSP430_EEM_SetVariable(WORD* pVwHandle, VwParameter_t* pVwBuffer);
+DLL430_SYMBOL STATUS_T WINAPI MSP430_EEM_SetVariable(uint16_t* pVwHandle, const VwParameter_t* pVwBuffer);
 
 
 
@@ -1098,7 +1183,7 @@ DLL430_SYMBOL STATUS_T WINAPI MSP430_EEM_GetVariableWatch(VwEnable_t* pVwEnable,
 \n		 INTERNAL_ERR
 \n		 RESET_ERR
 */
-DLL430_SYMBOL STATUS_T WINAPI MSP430_EEM_SetClockControl(CcParameter_t* pCcBuffer);
+DLL430_SYMBOL STATUS_T WINAPI MSP430_EEM_SetClockControl(const CcParameter_t* pCcBuffer);
 
 
 
@@ -1127,7 +1212,7 @@ DLL430_SYMBOL STATUS_T WINAPI MSP430_EEM_GetClockControl(CcParameter_t* pCcDestB
 
 /**
 \fn    STATUS_T WINAPI MSP430_EEM_SetSequencer(SeqParameter_t* pSeqBuffer);
-                                                                
+
 \brief   This function will be used to configure the trigger sequencer feature.
          When disabling the sequencer all further parameters will be ignored.
          For each state two of four different sequencer triggers can be set as condition
@@ -1136,7 +1221,7 @@ DLL430_SYMBOL STATUS_T WINAPI MSP430_EEM_GetClockControl(CcParameter_t* pCcDestB
 
 \note    MSP430_EEM_Init() must have been called prior to this function
 \note    MSP430_EEM_Open() will be called if required.
-\note    Use only 4 different breakpoints as trigger for switching in the next state. 
+\note    Use only 4 different breakpoints as trigger for switching in the next state.
          More resources not to be available.
 
 \param   pSeqBuffer:    Pointer to the source buffer (Type of structure SEQUENCER).
@@ -1152,7 +1237,7 @@ DLL430_SYMBOL STATUS_T WINAPI MSP430_EEM_GetClockControl(CcParameter_t* pCcDestB
 \n		 SEQUENCER_ERR
 \n		 INTERNAL_ERR
 */
-DLL430_SYMBOL STATUS_T WINAPI MSP430_EEM_SetSequencer(SeqParameter_t* pSeqBuffer);
+DLL430_SYMBOL STATUS_T WINAPI MSP430_EEM_SetSequencer(const SeqParameter_t* pSeqBuffer);
 
 
 
@@ -1198,6 +1283,121 @@ DLL430_SYMBOL STATUS_T WINAPI MSP430_EEM_GetSequencer(SeqParameter_t* pSeqDestBu
 \n       SEQ_ENABLE_ERR
 */
 DLL430_SYMBOL STATUS_T WINAPI MSP430_EEM_ReadSequencerState(SeqState_t* pSeqState);
+
+
+
+
+/**
+\fn    STATUS_T WINAPI MSP430_EEM_SetCycleCounterMode(CycleCounterMode_t mode);
+
+\brief   Configures the global cycle counter operation mode
+
+\note    MSP430_EEM_Init() must have been called prior to this function
+
+\param   mode: CYC_MODE_BASIC or CYC_MODE_ADVANCED (see CycleCounterMode_t).
+
+\return  STATUS_OK:     The cycle counter mode was changed.
+\return  STATUS_ERROR:  The cycle counter mode was not changed.
+
+\par     Error codes:
+NO_DEVICE_ERR
+FEATURE_NOT_SUPPORTED
+PARAMETER_ERR
+*/
+DLL430_SYMBOL STATUS_T WINAPI MSP430_EEM_SetCycleCounterMode(CycleCounterMode_t mode);
+
+
+
+
+/**
+\fn    STATUS_T WINAPI MSP430_EEM_ConfigureCycleCounter(uint32_t wCounter, CycleCounterConfig_t pCycConfig);
+
+\brief   Set configuration for a cycle counter
+
+\note    MSP430_EEM_Init() must have been called prior to this function
+
+\param   wCounter: counter to configure (0 for first counter, 1 for second counter if available).
+\param   pCycConfig: configuration settings for the counter
+
+\return  STATUS_OK:     The cycle counter was configured.
+\return  STATUS_ERROR:  The cycle counter was not configured.
+
+\par     Error codes:
+NO_DEVICE_ERR
+CYCLE_COUNTER_CONFLICT
+PARAMETER_ERR
+EEM_NOT_ACCESSIBLE
+*/
+DLL430_SYMBOL STATUS_T WINAPI MSP430_EEM_ConfigureCycleCounter(uint32_t wCounter, CycleCounterConfig_t pCycConfig);
+
+
+
+
+/**
+\fn    STATUS_T WINAPI MSP430_EEM_ReadCycleCounterValue(uint32_t wCounter, uint64_t* value);
+
+\brief   Read current counter value
+
+\note    MSP430_EEM_Init() must have been called prior to this function
+
+\param   wCounter: counter to read (0 for first counter, 1 for second counter if available).
+\param   value: pointer to an unsigned 64bit variable that the value will be written to.
+
+\return  STATUS_OK:     The cycle counter value is stored in value.
+\return  STATUS_ERROR:  The cycle counter value is not stored in value.
+
+\par     Error codes:
+NO_DEVICE_ERR
+CYCLE_COUNTER_CONFLICT
+PARAMETER_ERR
+EEM_NOT_ACCESSIBLE
+*/
+DLL430_SYMBOL STATUS_T WINAPI MSP430_EEM_ReadCycleCounterValue(uint32_t wCounter, uint64_t* value);
+
+
+
+
+/**
+\fn    STATUS_T WINAPI MSP430_EEM_WriteCycleCounterValue(uint32_t wCounter, uint64_t value);
+
+\brief   Set counter value
+
+\note    MSP430_EEM_Init() must have been called prior to this function
+
+\param   wCounter: counter to set (0 for first counter, 1 for second counter if available).
+\param   value: value that the counter will be set to.
+
+\return  STATUS_OK:     The cycle counter value was set.
+\return  STATUS_ERROR:  The cycle counter value was not set.
+
+\par     Error codes:
+NO_DEVICE_ERR
+CYCLE_COUNTER_CONFLICT
+EEM_NOT_ACCESSIBLE
+*/
+DLL430_SYMBOL STATUS_T WINAPI MSP430_EEM_WriteCycleCounterValue(uint32_t wCounter, uint64_t value);
+
+
+
+
+/**
+\fn    STATUS_T WINAPI MSP430_EEM_ResetCycleCounter(uint32_t wCounter);
+
+\brief   Reset counter value to 0
+
+\note    MSP430_EEM_Init() must have been called prior to this function
+
+\param   wCounter: counter to reset (0 for first counter, 1 for second counter if available).
+
+\return  STATUS_OK:     The cycle counter was reset.
+\return  STATUS_ERROR:  The cycle counter was not reset.
+
+\par     Error codes:
+NO_DEVICE_ERR
+CYCLE_COUNTER_CONFLICT
+EEM_NOT_ACCESSIBLE
+*/
+DLL430_SYMBOL STATUS_T WINAPI MSP430_EEM_ResetCycleCounter(uint32_t wCounter);
 
 
 #if defined(__cplusplus)

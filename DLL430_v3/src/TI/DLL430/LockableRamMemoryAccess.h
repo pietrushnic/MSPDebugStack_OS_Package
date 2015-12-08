@@ -35,27 +35,22 @@
  *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#if _MSC_VER > 1000
 #pragma once
-#endif
-#ifndef DLL430_LOCKABLERAMMEMORYACCESS_H
-#define DLL430_LOCKABLERAMMEMORYACCESS_H
 
-#include "MemoryAreaBase.h"
-#include <boost/shared_ptr.hpp>
+#include "RandomMemoryAccess.h"
 #include "FuncletCode.h"
 
 namespace TI
 {
 	namespace DLL430
 	{
-		class LockableRamMemoryAccess : public MemoryAreaBase
+		class LockableRamMemoryAccess : public RandomMemoryAccess
 		{
 		public:
 			LockableRamMemoryAccess
 			(
-				const std::string& name,
-				DeviceHandleV3* devHandle,
+				MemoryArea::Name name,
+				DeviceHandle* devHandle,
 				uint32_t start,
 				uint32_t end,
 				uint32_t seg,
@@ -65,27 +60,22 @@ namespace TI
 				MemoryManager* mm,
 				uint8_t psa
 			);
-			virtual ~LockableRamMemoryAccess ();
 
-			bool doRead (uint32_t address, uint32_t* buffer , size_t count);
-			bool doWrite (uint32_t address, uint32_t* buffer, size_t count);
-			bool doWrite (uint32_t address, uint32_t value);
+			virtual bool doRead(uint32_t address, uint8_t* buffer, size_t count) OVERRIDE;
+			virtual bool doWrite(uint32_t address, const uint8_t* buffer, size_t count) OVERRIDE;
+			virtual bool doWrite(uint32_t address, uint32_t value) OVERRIDE;
 
-			bool erase ();
-			bool erase (uint32_t start, uint32_t end);
+			virtual bool erase() OVERRIDE;
+			virtual bool erase(uint32_t start, uint32_t end) OVERRIDE;
 
 		protected:
-			virtual bool preSync ();
-			virtual bool postSync (const HalExecCommand&);
-			MemoryManager* mm;
-			bool erase (uint32_t start, uint32_t end, uint32_t block_size, int type);
+			virtual bool preSync() OVERRIDE;
+			virtual bool postSync(const HalExecCommand&) OVERRIDE;
+			bool erase(uint32_t start, uint32_t end, uint32_t block_size, int type);
 
 		private:
 			bool unlockBeforeSync;
-			std::vector<uint32_t> lockState;
-			std::vector<uint32_t> eraseDummyBuffer;
+			std::vector<uint8_t> lockState;
 		};
-	};
-};
-
-#endif /* DLL430_LOCKABLERAMMEMORYACCESS_H */
+	}
+}

@@ -51,17 +51,11 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#if _MSC_VER > 1000
 #pragma once
-#endif
-
-#ifndef ENERGY_TRACE_PROCESSOR_ID7_H
-#define ENERGY_TRACE_PROCESSOR_ID7_H
 
 #include "EnergyTraceProcessor.h"
-#include "EnergyTraceProcessorJState.h"
 #include <DoubleBuffer.h>
-#include <stdint.h>
+
 
 //#define ETLOG
 
@@ -76,13 +70,13 @@ namespace TI
 			 * \brief Constructor creates the two buffers
 			 * \param size The desired size of the buffers
 			 */
-			EnergyTraceProcessorId7(size_t dataSize);
+			EnergyTraceProcessorId7(uint32_t calibrationPoints, size_t dataSize);
 			~EnergyTraceProcessorId7();
 
 			/**
 			 * \brief Resets the internal state of the processor
 			 */
-			void Reset(void);
+			void Reset();
 
 			/**
 			 * \brief Add data to be processed
@@ -95,16 +89,16 @@ namespace TI
 			 * \brief Get the pointer for reading data from the buffer
 			 * \return A pointer to the current read buffer
 			 */
-			void* GetReadBufferPtr(void);
+			void* GetReadBufferPtr();
 
 			/**
 			 * \brief Get the buffer size
 			 * \return the size
 			 */
-			size_t GetReadBufferSize(void);
-			#ifdef ETLOG
-				void Log(char * str);
-			#endif
+			size_t GetReadBufferSize();
+#ifdef ETLOG
+			void Log(char * str);
+#endif
 
 		private:
 			DoubleBuffer<EnergyRecord> mBuffer; ///< The Double buffer that stores all the records
@@ -117,15 +111,11 @@ namespace TI
 			uint32_t mAccumulatedN;
 			uint32_t mCurrent;
 			bool mCurrentValid;
-			EnergyTraceProcessorJState mJStateParser;
 
-			#ifdef ETLOG
-				char logStr [256];
-			#endif
-
-			FILE * filePtr;
+#ifdef ETLOG
+			char logStr [256];
+			FILE *filePtr;
+#endif
 		};
 	}
 }
-
-#endif // ENERGY_TRACE_PROCESSOR_H

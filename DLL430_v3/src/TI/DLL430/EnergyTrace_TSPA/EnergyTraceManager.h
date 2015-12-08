@@ -51,11 +51,7 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#if _MSC_VER > 1000
 #pragma once
-#endif
-#ifndef DLL430_ENERGYTRACEMANAGER_H
-#define DLL430_ENERGYTRACEMANAGER_H
 
 #include "HalExecCommand.h"
 #include "FetHandleV3.h"
@@ -77,16 +73,14 @@ namespace TI
 			EnergyTraceManager(FetHandleV3* parent, PollingManager* pollingManager);
 			~EnergyTraceManager ();
 			//! \brief Do calibration for all resistors
-			bool doCalibration(uint16_t vcc);
+			void doCalibration(uint16_t vcc);
 
-			bool startEnergyTrace(DebugEventTarget * cb, ETMode_t mode , ETCallback_mode callbackMode, DeviceHandle* devHandle);
+			bool startEnergyTrace(DebugEventTarget * cb, ETMode_t mode, ETCallback_mode callbackMode, DeviceHandle* devHandle);
 
 			void * getEnergyTraceBuffer();
 
 			size_t getEnergyTraceBufferSize();
 
-			void pausePolling();
-			void resumePolling();
 			void stopPolling();
 
 			bool ResetEnergyTrace();
@@ -95,17 +89,20 @@ namespace TI
 
 		private:
 			void runEvent(MessageDataPtr messageData);
+			void calibrateResistor(uint16_t resistor);
 
 			FetHandleV3* mParent;
-			boost::shared_ptr<IDataProcessor> mDataProcessor; // Post-processing of EnergyTrace Data
+			std::shared_ptr<IDataProcessor> mDataProcessor; // Post-processing of EnergyTrace Data
 			DebugEventTarget* mCbx;
 			PollingManager* mPollingManager;
-			double calibrationValues[5];
+			std::vector<double> calibrationValues;
+			std::vector<double> resistorValues;
+			uint32_t timerStep;
 			uint16_t vcc;
+			std::vector<uint16_t> calibrationResistors;
 
+			std::mutex callbackMutex;
 		};
 
 	};
 };
-
-#endif /* DLL430_ENERGYTRACEMANAGER_H */

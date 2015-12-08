@@ -92,13 +92,37 @@
 
 
 #ifdef MSP_FET
-    #define XT2SEL_PORT         P7SEL
-    #define XT2SEL_PINS         (BIT2 + BIT3)
+    //define xt2 pins fo fets
+    #define XT2SEL_PORT             P7SEL
+    #define XT2SEL_PINS             (BIT2 + BIT3)
+
+    //define LEDS pins fo fets
+    #define GREEN_LED               BIT3
+    #define GREEN_LED_PORT          P5OUT
+    #define GREEN_LED_PORT_DIR      P5DIR
+
+    #define RED_LED                 BIT7
+    #define RED_LED_PORT            P6OUT
+    #define RED_LED_PORT_DIR        P6DIR
+
+    #define TIME_OUT_COUNT          1000
 #endif
 
 #ifdef eZ_FET
-    #define XT2SEL_PORT         P5SEL
-    #define XT2SEL_PINS         (BIT2 + BIT3)
+    //define xt2 pins fo fets
+    #define XT2SEL_PORT             P5SEL
+    #define XT2SEL_PINS             (BIT2 + BIT3)
+
+    //define LEDS pins fo fets
+    #define GREEN_LED               BIT3
+    #define GREEN_LED_PORT          P1OUT
+    #define GREEN_LED_PORT_DIR      P1DIR
+
+    #define RED_LED                 BIT2
+    #define RED_LED_PORT            P1OUT
+    #define RED_LED_PORT_DIR        P1DIR
+
+    #define TIME_OUT_COUNT          1000
 #endif
 
 //Device Specific Definitions

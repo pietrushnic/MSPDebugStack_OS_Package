@@ -88,7 +88,7 @@ __no_init volatile unsigned int LockedStatus;
 #pragma location = 0x2418
 __no_init int FwRamKey;
 
-#define API_VERSION (0x06)
+#define API_VERSION (0x08)
 #ifdef RAM_WRITE_ONLY_BSL
 #    define API_V (API_VERSION + RAM_WRITE_ONLY_BSL)
 #else
@@ -123,11 +123,8 @@ __low_level_init(void)
 void BSL430_API_init()
 {
 #ifdef RAM_WRITE_ONLY_BSL
-    LockedStatus = DEFAULT_STATE;
+    LockedStatus = UNLOCKED;
     FwRamKey = FWKEY;
-    PMMCTL0_H = PMMPW_H;                  // open PMM registers
-    PM5CTL0 &= ~LOCKLPM5;                 // clear lock IO
-    PMMCTL0_H = 0x00;                     // close PMM registers
 #endif
 
 #ifdef RAM_BASED_BSL
@@ -163,7 +160,7 @@ char BSL430_lock_BSL()
 
 char BSL430_unlock_BSL(char* data)
 {
-    int i;
+    /*int i;
     int retValue = 0;
     char *interrupts = (char*)INTERRUPT_VECTOR_START;
 
@@ -176,15 +173,17 @@ char BSL430_unlock_BSL(char* data)
 #ifndef RAM_WRITE_ONLY_BSL
         volatile int i;
         for (i = MASS_ERASE_DELAY - 1; i > 0; i--) ;
-#endif
-        LockedStatus = UNLOCKED;
-        return SUCCESSFUL_OPERATION;
-    }
+#endif*/
+
+    LockedStatus = UNLOCKED;
+    return SUCCESSFUL_OPERATION;
+
+    /*}
     else
     {
         BSL430_massErase();
         return BSL_PASSWORD_ERROR;
-    }
+    }*/
 }
 
 /*******************************************************************************

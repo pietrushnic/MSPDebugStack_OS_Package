@@ -3,47 +3,40 @@
  *
  * Registration of devices at central instance to be accessed by a DeviceDbManager.
  *
- * Copyright (C) 2011 Texas Instruments Incorporated - http://www.ti.com/ 
- * 
- * 
- *  Redistribution and use in source and binary forms, with or without 
- *  modification, are permitted provided that the following conditions 
+ * Copyright (C) 2011 Texas Instruments Incorporated - http://www.ti.com/
+ *
+ *
+ *  Redistribution and use in source and binary forms, with or without
+ *  modification, are permitted provided that the following conditions
  *  are met:
  *
- *    Redistributions of source code must retain the above copyright 
+ *    Redistributions of source code must retain the above copyright
  *    notice, this list of conditions and the following disclaimer.
  *
  *    Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the 
- *    documentation and/or other materials provided with the   
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the
  *    distribution.
  *
  *    Neither the name of Texas Instruments Incorporated nor the names of
  *    its contributors may be used to endorse or promote products derived
  *    from this software without specific prior written permission.
  *
- *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS 
- *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT 
+ *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
  *  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT 
- *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, 
- *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT 
+ *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
  *  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
  *  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
- *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
- *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.                                                                                                                                                                                                                                                                                                         
+ *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <pch.h>
 #include "Registration.h"
-
-#include <iostream>
-#include <map>
-#include <vector>
-#include "boost/date_time/posix_time/posix_time.hpp"
-#include "boost/foreach.hpp"
-#include <fstream>
-
 #include <DeviceInfo.h>
 
 #include "DatabaseImplementation.h"
@@ -77,7 +70,7 @@ public:
 };
 
 
-Registration::Registration() 
+Registration::Registration()
 {
 
 }
@@ -95,24 +88,24 @@ void Registration::insertDeviceCreator(const MatchImpl& match, DeviceCreatorPtr 
 void Registration::dumpDatabase() const
 {
 	std::ofstream out("dbdump.txt");
-	out << "Device name,ID,Fuses,EEM level\n";
+	out << "Device name, ID, Fuses, EEM level\n";
 	out << std::hex << std::uppercase << std::setfill('0');
 
-	BOOST_FOREACH(const DeviceMapImpl::value_type& entry, DeviceMap::instance())
+	for (const DeviceMapImpl::value_type& entry : DeviceMap::instance())
 	{
 		DeviceCreatorBase::DeviceTypePtr device = entry.second->create();
 		const IdCodeImpl& code = device->match_.value_;
 
 		out << device->description_;
-		out << ",0x" << std::setw(4) << code.verId_;
-		out << ",0x" << std::setw(2) << (unsigned)code.fuses_;
-		out << "," << (unsigned)device->eemInfo_.trigger_.emulation_level_;
+		out << ", 0x" << std::setw(4) << code.verId_;
+		out << ", 0x" << std::setw(2) << (unsigned)code.fuses_;
+		out << ", " << (unsigned)device->eemInfo_.trigger_.emulation_level_;
 
 		const unsigned numMemoryAreas = device->getMemorySize();
 		for (unsigned i = 0; i < numMemoryAreas; ++i)
 		{
 			MemoryInfoImpl memory = device->getMemoryAt(i);
-			out << "," << memory.name_ << std::setw(4) << " (0x" << memory.offset_ << "-0x" << (memory.offset_ + memory.size_ - 1) << ")";
+			out << ", " << memory.name_ << std::setw(4) << " (0x" << memory.offset_ << "-0x" << (memory.offset_ + memory.size_ - 1) << ")";
 		}
 
 		out << std::endl;
@@ -122,17 +115,17 @@ void Registration::dumpDatabase() const
 size_t Registration::FindAndPrepareDevice(const IdCodeImpl& idCode)
 {
 	const DeviceMapImpl& map = DeviceMap::instance();
-	
+
 	DeviceMapConstIterator it = map.begin();
-	for(; it != map.end(); ++it) 
+	for (; it != map.end(); ++it)
 	{
-		if(it->first == idCode) 
+		if (it->first == idCode)
 		{
 			break;
 		}
 	}
 
-	if(it != map.end() ) 
+	if (it != map.end() )
 	{
 		Registration::DeviceCreatorPtr creator = (*it).second;
 		currentDevice_ = (*creator).create();
@@ -141,22 +134,12 @@ size_t Registration::FindAndPrepareDevice(const IdCodeImpl& idCode)
 	return -1;
 }
 
-const char* Registration::GetCurrentDeviceDescription() const
-{
-	return currentDevice_->description_.c_str();
-}
-
-bool Registration::HasCurrentDeviceVpp() const
-{
-	return currentDevice_->voltageInfo_.hasTestVpp_;
-}
-
-DeviceInfoPtr Registration::GetDeviceInfo(size_t id) const 
+DeviceInfoPtr Registration::GetDeviceInfo(size_t id) const
 {
 	using TI::DLL430::DeviceInfo;
 
 	DeviceMapConstIterator it = DeviceMap::instance().begin();
-	if(id < DeviceMap::instance().size())
+	if (id < DeviceMap::instance().size())
 	{
 		std::advance(it, id);
 	}
@@ -165,8 +148,8 @@ DeviceInfoPtr Registration::GetDeviceInfo(size_t id) const
 		it = DeviceMap::instance().end();
 	}
 	DeviceInfoPtr info = DeviceInfoPtr(new DeviceInfo);
-	
-	if(it == DeviceMap::instance().end())
+
+	if (it == DeviceMap::instance().end())
 	{
 		return info;
 	}
@@ -175,13 +158,12 @@ DeviceInfoPtr Registration::GetDeviceInfo(size_t id) const
 	const DeviceCreatorBase::DeviceTypePtr currDevice = devCreatorPtr->create();
 	currentDevice_ = currDevice;
 
-	info->setObjectId(currDevice->objectDbEntry_);
 	uint8_t bits = currDevice->bits_;
-	switch (currDevice->flags_ & DLL430_PSA_MASK) 
+	switch (currDevice->flags_ & DLL430_PSA_MASK)
 	{
 	case DLL430_PSA_REGULAR:
 		info->setPsaType(DeviceInfo::PSATYPE_REGULAR);
-		break;	
+		break;
 	case DLL430_PSA_ENHANCED:
 		info->setPsaType(DeviceInfo::PSATYPE_ENHANCED);
 		break;
@@ -198,27 +180,28 @@ DeviceInfoPtr Registration::GetDeviceInfo(size_t id) const
 	info->quickMemRead(currDevice->featuresInfo_.quickMemRead_);
 	info->hasFram(currDevice->featuresInfo_.hasFram_);
 	info->clockSystem(currDevice->featuresInfo_.clock_);
-	info->noBsl(currDevice->featuresInfo_.noBsl_);
 	info->psach(currDevice->extFeaturesInfo_.psach_);
 	info->b1377(currDevice->extFeaturesInfo_._1377_);
 
 	info->setDescription(currDevice->description_.c_str());
 
 	info->powerTestRegMask(currDevice->powerSettings_.powerTestRegMask_);
+	info->powerTestRegDefault(currDevice->powerSettings_.powerTestRegDefault_);
 	info->testRegEnableLpmx5(currDevice->powerSettings_.testRegEnableLpmx5_);
 	info->testRegDisableLpmx5(currDevice->powerSettings_.testRegDisableLpmx5_);
 
 	info->powerTestReg3VMask(currDevice->powerSettings_.powerTestReg3VMask_);
+	info->powerTestReg3VDefault(currDevice->powerSettings_.powerTestReg3VDefault_);
 	info->testReg3VEnableLpmx5(currDevice->powerSettings_.testReg3VEnableLpmx5_);
 	info->testReg3VDisableLpmx5(currDevice->powerSettings_.testReg3VDisableLpmx5_);
 
-	for (unsigned int i = 0; i < currDevice->getMemorySize(); ++i) 
+	for (unsigned int i = 0; i < currDevice->getMemorySize(); ++i)
 	{
 		const MemoryInfoImpl& memInfo = currDevice->getMemoryAt(i);
 		DeviceInfo::memoryInfo* m = new DeviceInfo::memoryInfo;
 
-		m->name.assign(memInfo.name_);
-		switch (memInfo.flags_ & 0x300) 
+		m->name = memInfo.name_;
+		switch (memInfo.flags_ & 0x300)
 		{
 		case DLL430_MEMFLAG_FLASH:
 			m->type = DeviceInfo::MEMTYPE_FLASH;
@@ -241,19 +224,19 @@ DeviceInfoPtr Registration::GetDeviceInfo(size_t id) const
 		m->offset = memInfo.offset_;
 		m->seg_size = memInfo.seg_size_;
 		m->banks = memInfo.banks_;
-		m->mask = std::vector<uint8_t>(memInfo.memoryMaskImpl_.data_, 
+		m->mask = std::vector<uint8_t>(memInfo.memoryMaskImpl_.data_,
 									   memInfo.memoryMaskImpl_.data_ + memInfo.memoryMaskImpl_.size_);
 		m->memoryCreatorPtr = memInfo.memoryCreator_;
 		m->mmapped = ((memInfo.flags_ & DLL430_MEMFLAG_MAPPED) != 0);
 		m->isProtected= memInfo.protected_;
 		info->addMemoryInfo(m);
 	}
-	
+
 	const FunctionMappingImpl::FunctionMapping& fcntMap = currDevice->fnctMap_.GetMap();
-	if(!fcntMap.empty()) 
+	if (!fcntMap.empty())
 	{
 		FunctionMappingImpl::FunctionMapping::const_iterator it = fcntMap.begin();
-		for (unsigned int i = 0; it != fcntMap.end(); ++it, ++i) 
+		for (unsigned int i = 0; it != fcntMap.end(); ++it, ++i)
 		{
 			info->addFunctionMapping((*it).first, (*it).second);
 		}
@@ -273,10 +256,10 @@ DeviceInfoPtr Registration::GetDeviceInfo(size_t id) const
 	info->setSFll(currDevice->featuresInfo_.sflldh_);
 	info->setTriggerMask(currDevice->eemInfo_.trigger_.mem_umaskLevel_);
 
-	info->setPossibleTrigger(currDevice->eemInfo_.trigger_.mem_,0);			/**< number of memory triggers */
-	info->setPossibleTrigger(currDevice->eemInfo_.trigger_.reg_,1);			/**< number of register-write triggers */
-	info->setPossibleTrigger(currDevice->eemInfo_.trigger_.combinations_,2);/**< number of trigger combinations (trigger groups) */ 
-	
+	info->setPossibleTrigger(currDevice->eemInfo_.trigger_.mem_, 0);			/**< number of memory triggers */
+	info->setPossibleTrigger(currDevice->eemInfo_.trigger_.reg_, 1);			/**< number of register-write triggers */
+	info->setPossibleTrigger(currDevice->eemInfo_.trigger_.combinations_, 2);/**< number of trigger combinations (trigger groups) */
+
 	info->setTriggerOptionsModes(currDevice->eemInfo_.trigger_.options_);
 	info->setTriggerDmaModes(currDevice->eemInfo_.trigger_.dma_);
 	info->setTriggerReadWriteModes(currDevice->eemInfo_.trigger_.readwrite_);

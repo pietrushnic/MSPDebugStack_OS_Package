@@ -35,23 +35,16 @@
  *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef DLL430_SOFTWARE_BREAKPOINT_MANAGER_H
-#define DLL430_SOFTWARE_BREAKPOINT_MANAGER_H
+#pragma once
 
-#include <stdint.h>
-#include <map>
-#include <boost/function.hpp>
-#include <boost/shared_ptr.hpp>
-
-#include <vector>
 namespace TI { namespace DLL430 {
 
 class SoftwareBreakpointManager
 {
 public:
-	typedef boost::function3<bool, uint32_t, uint32_t*, size_t> ReadFunction;
-	typedef boost::function3<bool, uint32_t, uint32_t*, size_t> WriteFunction;
-	typedef boost::function0<bool> SyncFunction;
+	typedef std::function<bool (uint32_t, uint8_t*, size_t)> ReadFunction;
+	typedef std::function<bool (uint32_t, const uint8_t*, size_t)> WriteFunction;
+	typedef std::function<bool ()> SyncFunction;
 
 	static void setMemoryAccessFunctions(ReadFunction read, WriteFunction write, SyncFunction sync);
 
@@ -79,6 +72,7 @@ private:
 	typedef std::map<uint32_t, uint16_t> InstructionTable;
 
 	void writeGroup(const std::vector<InstructionTable::iterator>& group);
+	bool verifyValueAt(uint32_t address, uint16_t expectedValue) const;
 
 	InstructionTable mInstructionTable;
 	uint16_t mTriggerOpCode;
@@ -88,8 +82,6 @@ private:
 	static SyncFunction sSync;
 };
 
-typedef boost::shared_ptr<SoftwareBreakpointManager> SoftwareBreakpointManagerPtr;
+typedef std::shared_ptr<SoftwareBreakpointManager> SoftwareBreakpointManagerPtr;
 
 }}
-
-#endif

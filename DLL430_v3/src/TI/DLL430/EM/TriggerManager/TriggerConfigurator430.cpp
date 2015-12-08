@@ -3,50 +3,44 @@
  *
  * Handles assignment of triggers to trigger blocks
  *
- * Copyright (C) 2007 - 2011 Texas Instruments Incorporated - http://www.ti.com/ 
- * 
- * 
- *  Redistribution and use in source and binary forms, with or without 
- *  modification, are permitted provided that the following conditions 
+ * Copyright (C) 2007 - 2011 Texas Instruments Incorporated - http://www.ti.com/
+ *
+ *
+ *  Redistribution and use in source and binary forms, with or without
+ *  modification, are permitted provided that the following conditions
  *  are met:
  *
- *    Redistributions of source code must retain the above copyright 
+ *    Redistributions of source code must retain the above copyright
  *    notice, this list of conditions and the following disclaimer.
  *
  *    Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the 
- *    documentation and/or other materials provided with the   
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the
  *    distribution.
  *
  *    Neither the name of Texas Instruments Incorporated nor the names of
  *    its contributors may be used to endorse or promote products derived
  *    from this software without specific prior written permission.
  *
- *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS 
- *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT 
+ *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
  *  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT 
- *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, 
- *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT 
+ *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
  *  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
  *  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
- *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
+ *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
 
-
+#include <pch.h>
 #include "TriggerConfigurator430.h"
-
-#include <vector>
-#include <algorithm>
 
 using namespace std;
 using namespace TI::DLL430;
-
-//@OPTION In case of performance issues with trigger configuration
-#define REDUCED_TRIGGER_TABLE
 
 
 template<typename T, int N>
@@ -63,13 +57,12 @@ TriggerConfigurator430::TriggerConfigurator430(deque<const Trigger430*>& trigger
 	, sequencerEnabled(sequencerEnabled)
 	, sequencerOutId(0xFF)
 	, sequencerResetId(0xFF)
-	
+
 {
 	setupConstraints(combinationTriggers.size());
 }
 
 
-//Must be adjusted for each EEM (use this for large >=8 combinations)
 void TriggerConfigurator430::setupConstraints(size_t numCombinationTriggers)
 {
 	for (uint32_t id = 0; id < numCombinationTriggers; ++id)
@@ -83,31 +76,36 @@ void TriggerConfigurator430::setupConstraints(size_t numCombinationTriggers)
 		if (id > 0)
 		{
 			possibleIDs[TR_CYCLE_COUNTER].insert(id);
-		
+
 			if (numCombinationTriggers >= 8)
 			{
 				possibleIDs[TR_STATE_STORAGE].insert(id);
-				possibleIDs[TR_VARIABLE_WATCH].insert(id);
+
+				//Only 8 slots in the storage buffer, each mapped to the corresponding combination register
+				if (id < 8)
+				{
+					possibleIDs[TR_VARIABLE_WATCH].insert(id);
+				}
 			}
 		}
 	}
 
 	if (numCombinationTriggers == 6)
 	{
-		const uint32_t validForSequencer[] = {2,3,4,5};	
+		const uint32_t validForSequencer[] = {2, 3, 4, 5};
 		possibleIDs[TR_SEQUENCER] = arrayToSet(validForSequencer);
-		possibleIDs[TR_SEQUENCER_RESET].insert(1);		
-		
+		possibleIDs[TR_SEQUENCER_RESET].insert(1);
+
 		sequencerOutId = 5;
 		sequencerResetId = 1;
 	}
 
 	if (numCombinationTriggers >= 8)
 	{
-		const uint32_t validForSequencer[] = {4,5,6,7};
+		const uint32_t validForSequencer[] = {4, 5, 6, 7};
 		possibleIDs[TR_SEQUENCER] = arrayToSet(validForSequencer);
-		possibleIDs[TR_SEQUENCER_RESET].insert(3);		
-		
+		possibleIDs[TR_SEQUENCER_RESET].insert(3);
+
 		sequencerOutId = 7;
 		sequencerResetId = 3;
 	}
@@ -125,9 +123,9 @@ bool TriggerConfigurator430::checkReactionCounts() const
 	}
 
 	size_t reactionCounts[TR_NUM_REACTIONS] = {0};
-	BOOST_FOREACH(const Trigger430* trigger, triggers)
+	for (const Trigger430* trigger : triggers)
 	{
-		BOOST_FOREACH(TriggerReaction reaction, trigger->getReactions())
+		for (TriggerReaction reaction : trigger->getReactions())
 		{
 			if (++reactionCounts[reaction] > possibleIDs[reaction].size())
 				return false;
@@ -142,10 +140,10 @@ set<uint32_t> TriggerConfigurator430::getValidIDsForTriggerReactions(const Trigg
 {
 	set<uint32_t> idSet = availableIDs;
 
-	BOOST_FOREACH(TriggerReaction r, trigger.getReactions())
+	for (TriggerReaction r : trigger.getReactions())
 	{
 		set<uint32_t> intersection;
-		set_intersection(idSet.begin(), idSet.end(), 
+		set_intersection(idSet.begin(), idSet.end(),
 							possibleIDs[r].begin(), possibleIDs[r].end(),
 							inserter(intersection, intersection.end()));
 		idSet = intersection;
@@ -190,16 +188,15 @@ void TriggerConfigurator430::filterSequencerIDs()
 
 
 //Quick check if there are still any valid ids left for all triggers
-bool TriggerConfigurator430::hasImpossibleTrigger()
+bool TriggerConfigurator430::hasImpossibleTrigger() const
 {
-	BOOST_FOREACH(const set<uint32_t>& options, triggerOptions)
+	for (const set<uint32_t>& options : triggerOptions)
 	{
 		if (options.empty())
 			return true;
 	}
 	return false;
 }
-
 
 
 bool TriggerConfigurator430::assignTriggers()
@@ -223,8 +220,11 @@ bool TriggerConfigurator430::assignTriggers()
 			idInUse[id] = false;
 		}
 
-		while (++id < numCombinationTriggers && (idInUse[id] || triggerOptions[curTrigger].count(id) == 0) ) ;
-			
+		do
+		{
+			++id;
+		} while (id < numCombinationTriggers && (idInUse[id] || triggerOptions[curTrigger].count(id) == 0));
+
 		if (id < numCombinationTriggers)
 		{
 			idInUse[id] = true;
@@ -301,7 +301,7 @@ bool TriggerConfigurator430::checkTriggerConfiguration() const
 	//Check for unassigned triggers, invalid combination trigger ids
 	//or multiple triggers mapped to the same combination trigger
 	vector<bool> inUse(combinationTriggers.size(), false);
-	BOOST_FOREACH(const Trigger430* trigger, triggers)
+	for (const Trigger430* trigger : triggers)
 	{
 		const uint32_t id = getCombinationTriggerId(trigger);
 		if (id >= combinationTriggers.size() || inUse[id])
@@ -312,9 +312,9 @@ bool TriggerConfigurator430::checkTriggerConfiguration() const
 	}
 
 	//Make sure no combination triggers are configured for unused triggers
-	BOOST_FOREACH(const Trigger430* triggerPtr, combinationTriggers)
+	for (const Trigger430* triggerPtr : combinationTriggers)
 	{
-		if ( triggerPtr != NULL && find(triggers.begin(), triggers.end(), triggerPtr) == triggers.end() )
+		if ( triggerPtr && find(triggers.begin(), triggers.end(), triggerPtr) == triggers.end() )
 		{
 			return false;
 		}
@@ -323,21 +323,21 @@ bool TriggerConfigurator430::checkTriggerConfiguration() const
 
 	int collisions = 0;
 
-	BOOST_FOREACH(const Trigger430* trigger, triggers)
+	for (const Trigger430* trigger : triggers)
 	{
 		if (!trigger->getReactions().empty())
 		{
 			const uint32_t assignedCombinationTriggerId = getCombinationTriggerId(trigger);
 
 			//Check if trigger id is valid for all reactions
-			BOOST_FOREACH(TriggerReaction reaction, trigger->getReactions())
+			for (TriggerReaction reaction : trigger->getReactions())
 			{
 				if (possibleIDs[reaction].count(assignedCombinationTriggerId) == 0)
 				{
 					++collisions;
 				}
 			}
-			
+
 			//Check if trigger using sequencer out id is only configured as sequencer input
 			if (sequencerEnabled && assignedCombinationTriggerId == sequencerOutId)
 			{

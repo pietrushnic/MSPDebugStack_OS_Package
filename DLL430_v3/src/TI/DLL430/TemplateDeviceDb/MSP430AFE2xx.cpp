@@ -3,39 +3,39 @@
  *
  * Definition MSP430AFE2xx devices.
  *
- * Copyright (C) 2011 Texas Instruments Incorporated - http://www.ti.com/ 
- * 
- * 
- *  Redistribution and use in source and binary forms, with or without 
- *  modification, are permitted provided that the following conditions 
+ * Copyright (C) 2011 Texas Instruments Incorporated - http://www.ti.com/
+ *
+ *
+ *  Redistribution and use in source and binary forms, with or without
+ *  modification, are permitted provided that the following conditions
  *  are met:
  *
- *    Redistributions of source code must retain the above copyright 
+ *    Redistributions of source code must retain the above copyright
  *    notice, this list of conditions and the following disclaimer.
  *
  *    Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the 
- *    documentation and/or other materials provided with the   
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the
  *    distribution.
  *
  *    Neither the name of Texas Instruments Incorporated nor the names of
  *    its contributors may be used to endorse or promote products derived
  *    from this software without specific prior written permission.
  *
- *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS 
- *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT 
+ *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
  *  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT 
- *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, 
- *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT 
+ *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
  *  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
  *  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
- *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
- *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.                                                                                                                                                                                                                                                                                                         
+ *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "MSP430F2xxx.h"
+#include <pch.h>
 
 using namespace TI::DLL430;
 using namespace TemplateDeviceDb;
@@ -49,10 +49,10 @@ template<const uint8_t fuses >
 struct MSP430AFE2xx_Match : Match< IdCode<0x5302, 0x0, 0, 0, 0, 0, fuses, 0>, MSP430AFE2xxIdMask> {};
 
 template<class FlashOffset, class FlashSize, class RamSize>
-struct MemoryModel : MemoryList<boost::tuple<
-			MSP430F2xxx_MainFlashMemory<FlashSize, FlashOffset>, 
-			MSP430F2xxx_InfoFlashMemoryInfo, 
-			MSP430F2xxx_SystemRamInfo< RamSize >, 
+struct MemoryModel : MemoryList<std::tuple<
+			MSP430F2xxx_MainFlashMemory<FlashSize, FlashOffset>,
+			MSP430F2xxx_InfoFlashMemoryInfo,
+			MSP430F2xxx_SystemRamInfo< RamSize >,
 			MSP430F1_2_4xxx_peripherl16lbitMemoryInfo,
 			MSP430F1_2_4xxx_peripherl8lbitMemoryInfo<sfrMask_f3ffdfffc0ff>,
 			MSP430F2xxx_CPUMemoryInfo,
@@ -63,17 +63,7 @@ typedef MemoryModel< Offset<0xF000>, Size<0x1000>, Size<0x100> > MemoryModel1000
 typedef MemoryModel< Offset<0xE000>, Size<0x2000>, Size<0x200> > MemoryModel2000;
 typedef MemoryModel< Offset<0xC000>, Size<0x4000>, Size<0x200> > MemoryModel4000;
 
-typedef Features<BC_2xx, false, true, true, false, false, true> MSP430AFE2xx_Features;
-
-
-struct FunctionMappingAFE2xx : public FunctionMappingBase
-{
-	FunctionMappingAFE2xx()
-	{
-		FunctionMappingImpl::fcntMap_ = boost::assign::map_list_of
-			(ID_EemDataExchange, ID_EemDataExchangeAFE2xx);
-	}
-};
+typedef Features<BC_2xx, false, true, true, false, false> MSP430AFE2xx_Features;
 
 
 template<
@@ -82,15 +72,14 @@ template<
 	class MemoryModelType
 >
 struct MSP430AFE2xx : Device<
-		description, 
-		ObjectId<0>,
-		DefaultBits16Type, 
-		regular, 
+		description,
+		DefaultBits16Type,
+		regular,
 		MSP430AFE2xx_Match<fuses>,
 		LowEemMode,
 		MSP430F2xxx_DefaultVoltageTestVpp,
 		MSP430AFE2xx_ClockInfo,
-		FunctionMappingAFE2xx,
+		FunctionMappingNone,
 		FuncletMapping1_2xx,
 		MemoryModelType,
 		MSP430AFE2xx_Features

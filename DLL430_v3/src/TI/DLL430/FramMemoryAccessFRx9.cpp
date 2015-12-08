@@ -35,30 +35,21 @@
  *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <MSP430.h>
+#include <pch.h>
 #include "FramMemoryAccessFRx9.h"
 #include "HalExecCommand.h"
-#include "DeviceHandleV3.h"
-#include "ConfigManagerV3.h"
-#include "FetHandleV3.h"
-#include "MpuFr5969.h"
+#include "DeviceHandle.h"
+#include "MpuFRx.h"
+#include "ConfigManager.h"
 #include "EM/EmulationManager/IEmulationManager.h"
 
 using namespace TI::DLL430;
-using boost::bind;
-using boost::shared_ptr;
-
-#define RST_PIN 10
-#define STOP_DEVICE 0xA55A
-#define MAIN_ERASE_MODE 0x1A1A
-#define MASS_ERASE_MODE 0x1B1B
-#define LONG_MAILBOX_MODE 0x11
 
 template<class MPU>
 FramMemoryAccessFRx9<MPU>::FramMemoryAccessFRx9
 (
-				const std::string& name,
-				DeviceHandleV3* devHandle,
+				MemoryArea::Name name,
+				DeviceHandle* devHandle,
 				uint32_t start,
 				uint32_t end,
 				uint32_t seg,
@@ -72,15 +63,11 @@ FramMemoryAccessFRx9<MPU>::FramMemoryAccessFRx9
 {
 }
 
-template<class MPU>
-FramMemoryAccessFRx9<MPU>::~FramMemoryAccessFRx9()
-{
-}
 
 template<class MPU>
 bool FramMemoryAccessFRx9<MPU>::erase(uint32_t start, uint32_t end, uint32_t block_size, int type)
 {
-	MemoryArea* main = this->mm->getMemoryArea("main", 0);
+	MemoryArea* main = this->mm->getMemoryArea(MemoryArea::MAIN, 0);
 	if (!main)
 	{
 		return false;
@@ -90,15 +77,12 @@ bool FramMemoryAccessFRx9<MPU>::erase(uint32_t start, uint32_t end, uint32_t blo
 	{
 		HalExecCommand cmd;
 		cmd.setTimeout(10000);	// overwrite 3 sec default with 10 sec
-		HalExecElement* el = new HalExecElement(ID_SetDeviceChainInfo);
-		el->appendInputData16(static_cast<uint16_t>(this->devHandle->getDevChainInfo()->getBusId()));
-		cmd.elements.push_back(el);
 
-		el = new HalExecElement(this->devHandle->checkHalId(ID_SendJtagMailboxXv2));
+		HalExecElement* el = new HalExecElement(this->devHandle->checkHalId(ID_SendJtagMailboxXv2));
 		el->appendInputData16(LONG_MAILBOX_MODE);	// Mailbox Mode
 		el->appendInputData16(STOP_DEVICE);			// Data 1 Mailbox
 		el->appendInputData16(MAIN_ERASE_MODE);		// Data 2 Mailbox
-		cmd.elements.push_back(el);
+		cmd.elements.emplace_back(el);
 
 		if (!this->devHandle->send(cmd))
 		{
@@ -113,4 +97,4 @@ bool FramMemoryAccessFRx9<MPU>::erase(uint32_t start, uint32_t end, uint32_t blo
 	return FramMemoryAccessBase<MPU>::erase(start, end, block_size, type);
 }
 
-template class FramMemoryAccessFRx9<MpuFr5969>;
+template class TI::DLL430::FramMemoryAccessFRx9<MpuFRx>;

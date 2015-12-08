@@ -35,14 +35,9 @@
  *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#if _MSC_VER > 1000
 #pragma once
-#endif
-#ifndef DLL430_FRAMMEMORYACCESSBASEFRx9_H
-#define DLL430_FRAMMEMORYACCESSBASEFRx9_H
 
 #include "FramMemoryAccessBase.h"
-
 
 namespace TI
 {
@@ -54,8 +49,8 @@ namespace TI
 		public:
 			FramMemoryAccessFRx9
 			(
-				const std::string& name,
-				DeviceHandleV3* devHandle,
+				MemoryArea::Name name,
+				DeviceHandle* devHandle,
 				uint32_t start,
 				uint32_t end,
 				uint32_t seg,
@@ -65,12 +60,9 @@ namespace TI
 				MemoryManager* mm,
 				uint8_t psa
 			);
-			virtual ~FramMemoryAccessFRx9();
 
 		protected:
-			bool erase(uint32_t start, uint32_t end, uint32_t block_size, int type);
+			bool erase(uint32_t start, uint32_t end, uint32_t block_size, int type) OVERRIDE;
 		};
-	};
-};
-
-#endif /* DLL430_FRAMMEMORYACCESSBASE_H */
+	}
+}

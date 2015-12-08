@@ -3,50 +3,51 @@
  *
  * Handles setting of correct clock frequency for flash accesses.
  *
- * Copyright (C) 2007 - 2011 Texas Instruments Incorporated - http://www.ti.com/ 
- * 
- * 
- *  Redistribution and use in source and binary forms, with or without 
- *  modification, are permitted provided that the following conditions 
+ * Copyright (C) 2007 - 2011 Texas Instruments Incorporated - http://www.ti.com/
+ *
+ *
+ *  Redistribution and use in source and binary forms, with or without
+ *  modification, are permitted provided that the following conditions
  *  are met:
  *
- *    Redistributions of source code must retain the above copyright 
+ *    Redistributions of source code must retain the above copyright
  *    notice, this list of conditions and the following disclaimer.
  *
  *    Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the 
- *    documentation and/or other materials provided with the   
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the
  *    distribution.
  *
  *    Neither the name of Texas Instruments Incorporated nor the names of
  *    its contributors may be used to endorse or promote products derived
  *    from this software without specific prior written permission.
  *
- *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS 
- *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT 
+ *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
  *  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT 
- *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, 
- *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT 
+ *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
  *  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
  *  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
- *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
- *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.                                                                                                                                                                                                                                                                                                         
+ *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <pch.h>
 #include "ClockCalibration.h"
 
 #include "MemoryManager.h"
 #include "ConfigManager.h"
 #include "HalExecCommand.h"
-#include "DeviceHandleV3.h"
+#include "DeviceHandle.h"
 #include "DeviceInfo.h"
 
 using namespace TI::DLL430;
 
 
-ClockCalibration* ClockCalibration::create(DeviceHandleV3* devHandle, MemoryManager* mm, 
+ClockCalibration* ClockCalibration::create(DeviceHandle* devHandle, MemoryManager* mm,
 											const ConfigManager* configMan, const DeviceInfo& info)
 {
 	if (configMan && configMan->freqCalibrationEnabled())
@@ -65,7 +66,7 @@ ClockCalibration* ClockCalibration::create(DeviceHandleV3* devHandle, MemoryMana
 }
 
 
-ClockCalibrationDCO::ClockCalibrationDCO(DeviceHandleV3* devHandle, MemoryManager* mm, uint32_t maxBCS)
+ClockCalibrationDCO::ClockCalibrationDCO(DeviceHandle* devHandle, MemoryManager* mm, uint32_t maxBCS)
 	: devHandle_(devHandle)
 	, mm_(mm)
 	, maxBCS_(maxBCS)
@@ -84,8 +85,8 @@ bool ClockCalibrationDCO::determineSettings()
 {
 	if (!isCalibrated_)
 	{
-		MemoryArea* ram = mm_->getMemoryArea("system");
-		if(ram==NULL)
+		MemoryArea* ram = mm_->getMemoryArea(MemoryArea::RAM);
+		if (ram==nullptr)
 		{
 			return false;
 		}
@@ -93,9 +94,9 @@ bool ClockCalibrationDCO::determineSettings()
 		HalExecElement* el = new HalExecElement( devHandle_->checkHalId(ID_GetDcoFrequency) );
 		el->appendInputData16(ram->getStart());
 		el->appendInputData16(maxBCS_);
-		
+
 		HalExecCommand cmd;
-		cmd.elements.push_back(el);
+		cmd.elements.emplace_back(el);
 		cmd.setTimeout(5000);
 
 		//If calibration failed, we keep the existing default values
@@ -114,7 +115,7 @@ bool ClockCalibrationDCO::backupSettings()
 {
 	madeBackup_ = false;
 
-	if ( MemoryArea* peripheral = mm_->getMemoryArea("peripheral8bit") )
+	if ( MemoryArea* peripheral = mm_->getMemoryArea(MemoryArea::PERIPHERY_8BIT) )
 	{
 		madeBackup_ = peripheral->read(0x56, &backupDCO_, 1) &&
 					 peripheral->read(0x57, &backupBCS1_, 1) &&
@@ -126,10 +127,10 @@ bool ClockCalibrationDCO::backupSettings()
 
 bool ClockCalibrationDCO::makeSettings() const
 {
-	if ( MemoryArea* peripheral = mm_->getMemoryArea("peripheral8bit") )
+	if ( MemoryArea* peripheral = mm_->getMemoryArea(MemoryArea::PERIPHERY_16BIT) )
 	{
-		//Set default values for BCSCTL1 (XT2OFF, RSEL 7), the funclet will set the actual value
-		return peripheral->write(0x57, 0x87) &&
+		//BCL12: set RSEL to 7
+		return peripheral->write(0x57, (0x7 | (backupBCS1_ & 0xC0))) &&
 			   peripheral->write(0x58, calibBCS2_) &&
 			   peripheral->sync();
 	}
@@ -143,9 +144,11 @@ bool ClockCalibrationDCO::restoreSettings()
 
 	madeBackup_ = false;
 
-	if ( MemoryArea* peripheral = mm_->getMemoryArea("peripheral8bit") )
+	if ( MemoryArea* peripheral = mm_->getMemoryArea(MemoryArea::PERIPHERY_8BIT) )
 	{
-		return peripheral->write(0x56, backupDCO_) &&
+		//BCL12: set RSEL to 7 first
+		return peripheral->write(0x57, (0x7 | (backupBCS1_ & 0xC0))) &&
+				peripheral->write(0x56, backupDCO_) &&
 				peripheral->write(0x57, backupBCS1_) &&
 				peripheral->write(0x58, backupBCS2_) &&
 				peripheral->sync();
@@ -160,12 +163,11 @@ uint16_t ClockCalibrationDCO::getCal0() const
 
 uint16_t ClockCalibrationDCO::getCal1() const
 {
-	return calibBCS1_;
+	return (calibBCS1_ & 0x3F) | (backupBCS1_ & 0xC0);
 }
 
 
-
-ClockCalibrationFLL::ClockCalibrationFLL(DeviceHandleV3* devHandle, MemoryManager* mm)
+ClockCalibrationFLL::ClockCalibrationFLL(DeviceHandle* devHandle, MemoryManager* mm)
 	: devHandle_(devHandle)
 	, mm_(mm)
 	, backupSCFQCTL_(0)
@@ -187,8 +189,8 @@ bool ClockCalibrationFLL::determineSettings()
 {
 	if (!isCalibrated_)
 	{
-		MemoryArea* ram = mm_->getMemoryArea("system");
-		if(ram==NULL)
+		MemoryArea* ram = mm_->getMemoryArea(MemoryArea::RAM);
+		if (ram==nullptr)
 		{
 			return false;
 		}
@@ -196,9 +198,9 @@ bool ClockCalibrationFLL::determineSettings()
 		HalExecElement* el = new HalExecElement( devHandle_->checkHalId(ID_GetDcoFrequency) );
 		el->appendInputData16(ram->getStart());
 		el->appendInputData16(0);
-		
+
 		HalExecCommand cmd;
-		cmd.elements.push_back(el);
+		cmd.elements.emplace_back(el);
 		cmd.setTimeout(5000);
 
 		//If calibration failed, we keep the existing default values
@@ -219,7 +221,7 @@ bool ClockCalibrationFLL::backupSettings()
 {
 	madeBackup_ = false;
 
-	if ( MemoryArea* peripheral = mm_->getMemoryArea("peripheral8bit") )
+	if ( MemoryArea* peripheral = mm_->getMemoryArea(MemoryArea::PERIPHERY_8BIT) )
 	{
 		madeBackup_ = peripheral->read(0x50, &backupSCFI0_, 1) &&
 					  peripheral->read(0x51, &backupSCFI1_, 1) &&
@@ -233,13 +235,13 @@ bool ClockCalibrationFLL::backupSettings()
 
 bool ClockCalibrationFLL::makeSettings() const
 {
-	if ( MemoryArea* peripheral = mm_->getMemoryArea("peripheral8bit") )
+	if ( MemoryArea* peripheral = mm_->getMemoryArea(MemoryArea::PERIPHERY_8BIT) )
 	{
 		return peripheral->write(0x50, calibSCFI0_) &&
 			   peripheral->write(0x51, calibSCFI1_) &&
 			   peripheral->write(0x52, calibSCFQCTL_) &&
-			   peripheral->write(0x53, calibFLLCTL0_) &&
-			   peripheral->write(0x54, calibFLLCTL1_) &&
+			   peripheral->write(0x53, (calibFLLCTL0_ & 0x80) | (backupFLLCTL0_ & 0x7F)) &&
+			   peripheral->write(0x54, (calibFLLCTL1_ & 0x5F) | (backupFLLCTL1_ & 0xA0)) &&
 			   peripheral->sync();
 	}
 	return false;
@@ -252,7 +254,7 @@ bool ClockCalibrationFLL::restoreSettings()
 
 	madeBackup_ = false;
 
-	if ( MemoryArea* peripheral = mm_->getMemoryArea("peripheral8bit") )
+	if ( MemoryArea* peripheral = mm_->getMemoryArea(MemoryArea::PERIPHERY_8BIT) )
 	{
 		return peripheral->write(0x50, backupSCFI0_) &&
 			   peripheral->write(0x51, backupSCFI1_) &&

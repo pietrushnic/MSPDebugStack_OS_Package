@@ -37,8 +37,6 @@
 */
 
 #pragma once
-#include <string>
-#include <boost/cstdint.hpp>
 
 //Error header (top 8 bits) definitions
 #define MSL_BSL_PHYSICAL_INTERFACE_HEADER  0x0300

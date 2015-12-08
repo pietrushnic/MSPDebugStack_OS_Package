@@ -35,6 +35,9 @@
  *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
 */
+
+#include <pch.h>
+
 #include "MSPBSL_PacketHandler5xxUSB.h"
 #include "MSPBSL_PhysicalInterface.h"
 

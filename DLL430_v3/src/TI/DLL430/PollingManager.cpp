@@ -3,39 +3,39 @@
  *
  * Manages the various polling macros and their combinations.
  *
- * Copyright (C) 2007 - 2011 Texas Instruments Incorporated - http://www.ti.com/ 
- * 
- * 
- *  Redistribution and use in source and binary forms, with or without 
- *  modification, are permitted provided that the following conditions 
+ * Copyright (C) 2007 - 2011 Texas Instruments Incorporated - http://www.ti.com/
+ *
+ *
+ *  Redistribution and use in source and binary forms, with or without
+ *  modification, are permitted provided that the following conditions
  *  are met:
  *
- *    Redistributions of source code must retain the above copyright 
+ *    Redistributions of source code must retain the above copyright
  *    notice, this list of conditions and the following disclaimer.
  *
  *    Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the 
- *    documentation and/or other materials provided with the   
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the
  *    distribution.
  *
  *    Neither the name of Texas Instruments Incorporated nor the names of
  *    its contributors may be used to endorse or promote products derived
  *    from this software without specific prior written permission.
  *
- *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS 
- *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT 
+ *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
  *  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT 
- *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, 
- *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT 
+ *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
  *  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
  *  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
- *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
- *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.                                                                                                                                                                                                                                                                                                         
+ *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <boost/foreach.hpp>
+#include <pch.h>
 
 #include "PollingManager.h"
 #include "DeviceHandleV3.h"
@@ -44,7 +44,7 @@
 using namespace TI::DLL430;
 
 
-PollingManager::PollingManager(FetHandleV3* fetHandle) 
+PollingManager::PollingManager(FetHandleV3* fetHandle)
 	: mFetHandle(fetHandle)
 	, mEnergyTraceMode(ET_POLLING_OFF)
 	, mEtGatedMode(ET_POLLING_GATED_OFF)
@@ -59,7 +59,7 @@ PollingManager::PollingManager(FetHandleV3* fetHandle)
 	mEtModeToMacro[ET_POLLING_ANALOG_DSTATE] = ID_PollJStateReg;
 
 	//Initialize event handling
-	mEventNotifier.setEventHandler( boost::bind(&PollingManager::runEvent, this, _1) );
+	mEventNotifier.setEventHandler( std::bind(&PollingManager::runEvent, this, std::placeholders::_1) );
 	mEventNotifier.startProcessingEvents();
 }
 
@@ -68,10 +68,10 @@ void PollingManager::shutdown()
 	mEventNotifier.stopProcessingEvents();
 }
 
-bool PollingManager::startBreakpointPolling(const DeviceHandleV3& devHandle)
+bool PollingManager::startBreakpointPolling(const DeviceHandle& devHandle)
 {
-	const uint32_t macro = devHandle.checkHalId(ID_WaitForEem);
-	
+	const hal_id macro = devHandle.checkHalId(ID_WaitForEem);
+
 	//Breakpoint polling can turn itself off, which will set response id to 0
 	//If polling automatically stopped, set to inactive and remove before restarting
 	MacroTable::iterator it = mActiveMacros.find(macro);
@@ -87,50 +87,50 @@ bool PollingManager::startBreakpointPolling(const DeviceHandleV3& devHandle)
 	return startPolling(PT_BREAKPOINT, devHandle);
 }
 
-bool PollingManager::stopBreakpointPolling(const DeviceHandleV3& devHandle)
+bool PollingManager::stopBreakpointPolling(const DeviceHandle& devHandle)
 {
 	return stopPolling(PT_BREAKPOINT, devHandle);
 }
 
-bool PollingManager::startLpmPolling(const DeviceHandleV3& devHandle)
+bool PollingManager::startLpmPolling(const DeviceHandle& devHandle)
 {
 	return startPolling(PT_LPM, devHandle);
 }
 
-bool PollingManager::stopLpmPolling(const DeviceHandleV3& devHandle)
+bool PollingManager::stopLpmPolling(const DeviceHandle& devHandle)
 {
 	return stopPolling(PT_LPM, devHandle);
 }
 
-bool PollingManager::startStateStoragePolling(const DeviceHandleV3& devHandle)
+bool PollingManager::startStateStoragePolling(const DeviceHandle& devHandle)
 {
 	return startPolling(PT_STATE_STORAGE, devHandle);
 }
 
-bool PollingManager::stopStateStoragePolling(const DeviceHandleV3& devHandle)
+bool PollingManager::stopStateStoragePolling(const DeviceHandle& devHandle)
 {
 	return stopPolling(PT_STATE_STORAGE, devHandle);
 }
 
 
-bool PollingManager::startPolling(POLLING_TYPE type, const DeviceHandleV3& devHandle)
+bool PollingManager::startPolling(POLLING_TYPE type, const DeviceHandle& devHandle)
 {
 	//Check if not already active, determine device specific macro and add to loop
 	if (!mPollingActive[type])
 	{
-		const uint32_t macro = devHandle.checkHalId(mPollingMacro[type]);
+		const hal_id macro = devHandle.checkHalId(mPollingMacro[type]);
 		mPollingActive[type] = true;
 		return addMacro(macro);
 	}
 	return true;
 }
 
-bool PollingManager::stopPolling(POLLING_TYPE type, const DeviceHandleV3& devHandle)
+bool PollingManager::stopPolling(POLLING_TYPE type, const DeviceHandle& devHandle)
 {
 	//If active, determine device specific macro and disable
 	if (mPollingActive[type])
 	{
-		const uint32_t macro = devHandle.checkHalId(mPollingMacro[type]);
+		const hal_id macro = devHandle.checkHalId(mPollingMacro[type]);
 		mPollingActive[type] = false;
 		return removeMacro(macro);
 	}
@@ -143,7 +143,7 @@ bool PollingManager::startEnergyTracePolling(EtPollingMode mode, EtGatedMode gat
 	//If currently off and have macro for polling mode, set configuration and add to loop
 	if (mEnergyTraceMode == ET_POLLING_OFF)
 	{
-		const uint32_t macroId = mEtModeToMacro[mode];
+		const hal_id macroId = mEtModeToMacro[mode];
 		if (macroId != 0)
 		{
 			mEnergyTraceMode = mode;
@@ -157,7 +157,7 @@ bool PollingManager::startEnergyTracePolling(EtPollingMode mode, EtGatedMode gat
 
 bool PollingManager::stopEnergyTracePolling()
 {
-	const uint32_t macroId = mEtModeToMacro[mEnergyTraceMode];
+	const hal_id macroId = mEtModeToMacro[mEnergyTraceMode];
 	if (macroId != 0)
 	{
 		mEnergyTraceMode = ET_POLLING_OFF;
@@ -167,10 +167,10 @@ bool PollingManager::stopEnergyTracePolling()
 }
 
 
-bool PollingManager::addMacro(uint32_t macroId)
+bool PollingManager::addMacro(hal_id macroId)
 {
 	//If already in loop, kill it first, so it will restart with new parameters
-	Macro& macro = mActiveMacros[macroId];	
+	Macro& macro = mActiveMacros[macroId];
 	if ((macro.count++ > 0) && (macro.cmd->getResponseId() > 0))
 	{
 		if (!mFetHandle->kill(*macro.cmd))
@@ -181,7 +181,7 @@ bool PollingManager::addMacro(uint32_t macroId)
 	return addToLoop(macroId);
 }
 
-bool PollingManager::removeMacro(uint32_t macroId)
+bool PollingManager::removeMacro(hal_id macroId)
 {
 	MacroTable::iterator it = mActiveMacros.find(macroId);
 	if (it != mActiveMacros.end())
@@ -208,15 +208,15 @@ bool PollingManager::removeMacro(uint32_t macroId)
 	return true;
 }
 
-bool PollingManager::addToLoop(uint32_t macroId)
+bool PollingManager::addToLoop(hal_id macroId)
 {
-	const uint64_t jstateBpMask = 0x4400000000000000LL;
 	const uint16_t eemBpMask = 0x80;
 
-	HalExecElement* el = NULL;
-	switch(macroId)
+	HalExecElement* el = nullptr;
+	switch (macroId)
 	{
 	case ID_PollJStateReg:
+	case ID_PollJStateReg20:
 	case ID_PollJStateRegEt8:
 	case ID_PollJStateRegFR57xx:
 		//Parameters for jstate polling have been set by calling functions
@@ -235,6 +235,7 @@ bool PollingManager::addToLoop(uint32_t macroId)
 
 	case ID_WaitForStorage:
 	case ID_WaitForStorageX:
+	case ID_WaitForDebugHalt:
 		el = new HalExecElement(macroId);
 		break;
 
@@ -245,45 +246,45 @@ bool PollingManager::addToLoop(uint32_t macroId)
 	{
 		//Get/create command, configure and send
 		HalExecCommand& cmd = *mActiveMacros[macroId].cmd;
-		cmd.setCallBack( boost::bind(&PollingManager::queueEvent, this, _1), 0 );
+		cmd.setCallBack( std::bind(&PollingManager::queueEvent, this, std::placeholders::_1), 0 );
 		cmd.setAsyncMode(!mKillAfterEvent[macroId]);
 
 		cmd.elements.clear();
-		cmd.elements.push_back(el);
-		return mFetHandle->getControl()->send(cmd);		
+		cmd.elements.emplace_back(el);
+		return mFetHandle->getControl()->send(cmd);
 	}
 	return false;
 }
 
-uint8_t PollingManager::getResponseId(uint32_t baseMacroId, const DeviceHandleV3& devHandle) const
+uint8_t PollingManager::getResponseId(hal_id baseMacroId, const DeviceHandle& devHandle) const
 {
 	MacroTable::const_iterator it = mActiveMacros.find( devHandle.checkHalId(baseMacroId) );
 	return (it != mActiveMacros.end()) ? it->second.cmd->getResponseId() : 0;
 }
 
 
-void PollingManager::pauseStateStoragePolling(const DeviceHandleV3& devHandle)
+void PollingManager::pauseStateStoragePolling(const DeviceHandle& devHandle)
 {
 	pausePolling(PT_STATE_STORAGE, devHandle);
 }
 
-void PollingManager::resumeStateStoragePolling(const DeviceHandleV3& devHandle)
+void PollingManager::resumeStateStoragePolling(const DeviceHandle& devHandle)
 {
 	resumePolling(PT_STATE_STORAGE, devHandle);
 }
 
-void PollingManager::pausePolling(POLLING_TYPE type, const DeviceHandleV3& devHandle)
+void PollingManager::pausePolling(POLLING_TYPE type, const DeviceHandle& devHandle)
 {
-	const uint32_t macroId = mPollingMacro[type];
+	const hal_id macroId = mPollingMacro[type];
 	if (const uint8_t id = getResponseId(macroId, devHandle))
 	{
 		mFetHandle->pauseLoopCmd(id);
 	}
 }
 
-void PollingManager::resumePolling(POLLING_TYPE type, const DeviceHandleV3& devHandle)
+void PollingManager::resumePolling(POLLING_TYPE type, const DeviceHandle& devHandle)
 {
-	const uint32_t macroId = mPollingMacro[type];
+	const hal_id macroId = mPollingMacro[type];
 	if (const uint8_t id = getResponseId(macroId, devHandle))
 	{
 		mFetHandle->resumeLoopCmd(id);
@@ -292,7 +293,7 @@ void PollingManager::resumePolling(POLLING_TYPE type, const DeviceHandleV3& devH
 
 void PollingManager::pausePolling()
 {
-	BOOST_FOREACH(const MacroTable::value_type& entry, mActiveMacros)
+	for (const MacroTable::value_type& entry : mActiveMacros)
 	{
 		//Don't pause analog energy trace macro
 		if (entry.first == ID_PollJStateRegEt8)
@@ -309,7 +310,7 @@ void PollingManager::pausePolling()
 
 void PollingManager::resumePolling()
 {
-	BOOST_FOREACH(const MacroTable::value_type& entry, mActiveMacros)
+	for (const MacroTable::value_type& entry : mActiveMacros)
 	{
 		if (const uint8_t id = entry.second.cmd->getResponseId())
 		{
@@ -338,13 +339,13 @@ void PollingManager::setEnergyTraceCallback(const Callback& callback)
 {
 	mCallbacks[ENERGYTRACE_INFO] = callback;
 }
-			
+
 void PollingManager::queueEvent(MessageDataPtr messageData)
 {
 	mEventNotifier.queueEvent(messageData);
 }
 
-void PollingManager::runEvent(MessageDataPtr messageData)
+void PollingManager::runEvent(MessageDataPtr messageData) const
 {
 	uint16_t eventMask = 0;
 	(*messageData) >> eventMask;
@@ -352,9 +353,9 @@ void PollingManager::runEvent(MessageDataPtr messageData)
 	messageData->reset();
 
 	//Check callback table for matching entries and execute if valid
-	BOOST_FOREACH(const CallbackTable::value_type& entry, mCallbacks)
+	for (const CallbackTable::value_type& entry : mCallbacks)
 	{
-		if ((eventMask & entry.first) && !entry.second.empty())
+		if ((eventMask & entry.first) && entry.second)
 		{
 			entry.second(messageData);
 		}

@@ -128,8 +128,6 @@ Loop
             dec     R11                   ; Loop on erase cycles.
             jnz     Again
             
-            mov.b   #XT2OFF+RSEL2+RSEL1+RSEL0,&BCSCTL1 ;BCL12 Workaround
-
             jmp     Stop
 ;-------------------------------------------------------------------------------
 ; Program End

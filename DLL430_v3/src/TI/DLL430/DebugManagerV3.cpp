@@ -3,52 +3,44 @@
  *
  * Functionality for debugging target device.
  *
- * Copyright (C) 2007 - 2011 Texas Instruments Incorporated - http://www.ti.com/ 
- * 
- * 
- *  Redistribution and use in source and binary forms, with or without 
- *  modification, are permitted provided that the following conditions 
+ * Copyright (C) 2007 - 2011 Texas Instruments Incorporated - http://www.ti.com/
+ *
+ *
+ *  Redistribution and use in source and binary forms, with or without
+ *  modification, are permitted provided that the following conditions
  *  are met:
  *
- *    Redistributions of source code must retain the above copyright 
+ *    Redistributions of source code must retain the above copyright
  *    notice, this list of conditions and the following disclaimer.
  *
  *    Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the 
- *    documentation and/or other materials provided with the   
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the
  *    distribution.
  *
  *    Neither the name of Texas Instruments Incorporated nor the names of
  *    its contributors may be used to endorse or promote products derived
  *    from this software without specific prior written permission.
  *
- *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS 
- *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT 
+ *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
  *  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT 
- *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, 
- *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT 
+ *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
  *  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
  *  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
- *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
- *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.                                                                                                                                                                                                                                                                                                         
+ *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifdef _MSC_VER
-#ifndef _CRT_SECURE_NO_WARNINGS
-#define _CRT_SECURE_NO_WARNINGS //disabling warnings to use secure c-function versions (e.g. strcpy_s) as this is not compatible with none MS development
-#endif
-#endif
-
-#include <algorithm>
+#include <pch.h>
 
 #include "EemMemoryAccess.h"
-
-#include "MemoryCacheGeneric.h"
-
+#include "CpuRegisters.h"
 #include "DebugManagerV3.h"
-#include "DeviceHandleV3.h"
+#include "DeviceHandle.h"
 #include "FetHandleV3.h"
 #include "HalExecCommand.h"
 #include "HalResponse.h"
@@ -78,68 +70,74 @@ enum INTERNAL_STATE_MODES {
 
 #define J_STATE_LPMX_MASK_HIGH 0x40000000ull
 
-DebugManagerV3::DebugManagerV3 (DeviceHandleV3* parent, const DeviceInfo* devInfo)
- : parent(parent)
- , clockControl(devInfo->getClockControl())
- , genclkcntrl(DefaultClkCntrl)
- , mclkcntrl0(devInfo->getClockModDefault())
- , defaultMclkcntrl0(devInfo->getClockModDefault())
- , emulationLevel(devInfo->getEmulationLevel())
- , moduleStrings(0)
- , nModuleStrings(0)
- , clockStrings(0)
- , nClockStrings(0)
- , lpmDebuggingEnabled(false)
- , deviceInLpm5(false)
- , lpm5WakeupDetected(false)
- , mdbPatchValue(0)
- , cbx(0)
- , cycleCounter_(parent, devInfo)
- , resetCycleCounterBeforeNextStep(true)
- , storagePollingActive(false)
- , mPollingManager(NULL) 
+DebugManagerV3::DebugManagerV3(DeviceHandle* parent, const DeviceInfo* devInfo)
+	: parent(parent)
+	, clockControl(devInfo->getClockControl())
+	, genclkcntrl(DefaultClkCntrl)
+	, mclkcntrl0(devInfo->getClockModDefault())
+	, defaultGenClkCntrl(DefaultClkCntrl)
+	, defaultMclkcntrl0(devInfo->getClockModDefault())
+	, emulationLevel(devInfo->getEmulationLevel())
+	, moduleStrings(0)
+	, nModuleStrings(0)
+	, clockStrings(0)
+	, nClockStrings(0)
+	, lpmDebuggingEnabled(false)
+	, lpm5WakeupDetected(false)
+	, mdbPatchValue(0)
+	, cbx(0)
+	, cycleCounter_(devInfo)
+	, resetCycleCounterBeforeNextStep(true)
+	, storagePollingActive(false)
+	, mPollingManager(nullptr)
+	, irRequest(0)
 {
+	//Need to set TCE_SMCLK/TCE_SMCLK_MCLK for devices with standard clock control
+	//to prevent a running SMCLK to be sourced from TCLK under debug (default)
+	if (clockControl == GCC_STANDARD || clockControl == GCC_STANDARD_I)
+	{
+		defaultGenClkCntrl |= 0x1;
+		genclkcntrl = defaultGenClkCntrl;
+	}
+
 	createModuleStrings(devInfo->getClockMapping());
 	createClockStrings(devInfo->getClockNames());
 }
 
 DebugManagerV3::~DebugManagerV3 ()
 {
-	if ( FetHandle* fetHandle = parent->getFetHandle() )
+	if (parent->getFetHandle() && mPollingManager)
 	{
-		if(mPollingManager)
-		{
-			mPollingManager->stopBreakpointPolling(*this->parent);
-			mPollingManager->setBreakpointCallback(PollingManager::Callback());
+		mPollingManager->stopBreakpointPolling(*this->parent);
+		mPollingManager->setBreakpointCallback(PollingManager::Callback());
 
-			mPollingManager->stopStateStoragePolling(*this->parent);
-			mPollingManager->setStateStorageCallback(PollingManager::Callback());
-			
-			mPollingManager->stopLpmPolling(*this->parent);
-			mPollingManager->setLpmCallback(PollingManager::Callback());
-		}
+		mPollingManager->stopStateStoragePolling(*this->parent);
+		mPollingManager->setStateStorageCallback(PollingManager::Callback());
+
+		mPollingManager->stopLpmPolling(*this->parent);
+		mPollingManager->setLpmCallback(PollingManager::Callback());
 	}
 
-	if(NULL != moduleStrings)
+	if (nullptr != moduleStrings)
 	{
-		for(uint32_t i = 0; i < nModuleStrings; ++i)
+		for (uint32_t i = 0; i < nModuleStrings; ++i)
 		{
 			delete[] moduleStrings[i];
-			moduleStrings[i] = NULL;		
+			moduleStrings[i] = nullptr;
 		}
 		delete[] moduleStrings;
-		moduleStrings = NULL;
+		moduleStrings = nullptr;
 	}
 
-	if(NULL != clockStrings)
+	if (nullptr != clockStrings)
 	{
-		for(uint32_t i = 0; i < nClockStrings; ++i)
+		for (uint32_t i = 0; i < nClockStrings; ++i)
 		{
 			delete[] clockStrings[i];
-			clockStrings[i] = NULL;		
+			clockStrings[i] = nullptr;
 		}
 		delete[] clockStrings;
-		clockStrings = NULL;
+		clockStrings = nullptr;
 	}
 }
 
@@ -147,12 +145,12 @@ void DebugManagerV3::createModuleStrings(const DeviceInfo::ClockMapping& clockMa
 {
 	nModuleStrings = static_cast<uint32_t>(clockMapping.size());
 	moduleStrings = new char*[nModuleStrings];
-	for(uint32_t i = 0; i < nModuleStrings; ++i)
+	for (uint32_t i = 0; i < nModuleStrings; ++i)
 	{
 		size_t size = clockMapping[i].first.size() + 1;
 		moduleStrings[i] = new char[size];
 		memset(moduleStrings[i], 0, size);
-		strncpy(moduleStrings[i], clockMapping[i].first.c_str(), size - 1);	
+		strncpy(moduleStrings[i], clockMapping[i].first.c_str(), size - 1);
 	}
 }
 
@@ -160,21 +158,21 @@ void DebugManagerV3::createClockStrings(const DeviceInfo::ClockNames& clockNames
 {
 	nClockStrings = static_cast<uint32_t>(clockNames.size());
 	clockStrings = new char*[nClockStrings];
-	for(uint32_t i = 0; i < nClockStrings; ++i)
+	for (uint32_t i = 0; i < nClockStrings; ++i)
 	{
 		size_t size = clockNames[i].size() + 1;
 		clockStrings[i] = new char[size];
 		memset(clockStrings[i], 0, size);
-		strncpy(clockStrings[i], clockNames[i].c_str(), size - 1);	
+		strncpy(clockStrings[i], clockNames[i].c_str(), size - 1);
 	}
 }
 
-void DebugManagerV3::setPollingManager(PollingManager* pollingManager) 
+void DebugManagerV3::setPollingManager(PollingManager* pollingManager)
 {
 	this->mPollingManager = pollingManager;
-	pollingManager->setBreakpointCallback(boost::bind(&DebugManagerV3::runEvent, this, _1));
-	pollingManager->setLpmCallback(boost::bind(&DebugManagerV3::runEvent, this, _1));
-	pollingManager->setStateStorageCallback(boost::bind(&DebugManagerV3::runEvent, this, _1));
+	pollingManager->setBreakpointCallback(std::bind(&DebugManagerV3::runEvent, this, std::placeholders::_1));
+	pollingManager->setLpmCallback(std::bind(&DebugManagerV3::runEvent, this, std::placeholders::_1));
+	pollingManager->setStateStorageCallback(std::bind(&DebugManagerV3::runEvent, this, std::placeholders::_1));
 }
 
 
@@ -199,6 +197,18 @@ bool DebugManagerV3::activateJStatePolling(DebugEventTarget * cb)
 }
 
 
+void DebugManagerV3::enableLegacyCycleCounter(bool enable)
+{
+	const bool wasEnabled = cycleCounter_.isEnabled();
+	cycleCounter_.enable(enable);
+
+	if (enable && !wasEnabled)
+	{
+		cycleCounter_.configure();
+	}
+}
+
+
 bool DebugManagerV3::startStoragePolling()
 {
 	if (!mPollingManager)
@@ -206,7 +216,7 @@ bool DebugManagerV3::startStoragePolling()
 		return false;
 	}
 	storagePollingActive = mPollingManager->startStateStoragePolling(*parent);
-	return storagePollingActive;	
+	return storagePollingActive;
 }
 
 
@@ -227,42 +237,42 @@ bool DebugManagerV3::reconnectJTAG()
 
 	if ( FetHandle* fetHandle = parent->getFetHandle() )
 	{
-		if ( ConfigManager* cm = parent->getFetHandle()->getConfigManager() )
+		if ( ConfigManager* cm = fetHandle->getConfigManager() )
 			success = (cm->start() > 0);
 
-		if(mPollingManager)
+		if (mPollingManager)
 		{
 			mPollingManager->resumePolling();
 		}
-	}	
+	}
 	return success;
 }
 
-bool DebugManagerV3::run (uint16_t controlMask, DebugEventTarget * cb, bool releaseJtag)
+bool DebugManagerV3::run(uint16_t controlMask, DebugEventTarget * cb, bool releaseJtag)
 {
 	MemoryManager* mm = this->parent->getMemoryManager();
-	MemoryArea* cpu = mm->getMemoryArea("CPU"); 
+	CpuRegisters* cpu = mm->getCpuRegisters();
 	if (!cpu)
-    {
+	{
 		return false;
-    }
+	}
 
 	lpm5WakeupDetected = false;
 
-	if(cb!=0)
+	if (cb!=0)
 	{
-		cbx=cb;	
+		cbx=cb;
 	}
 
 	uint32_t pc, sr;
-	cpu->read(0, &pc, 1);
-	cpu->read(2, &sr, 1);
+	cpu->read(0, &pc);
+	cpu->read(2, &sr);
 
-	if(mm->flushAll()==false)
+	if (!cpu->flushCache())
 	{
 		return false;
 	}
-	
+
 	cycleCounter_.reset();
 	ConfigManager *cm = parent->getFetHandle()->getConfigManager();
 
@@ -273,10 +283,10 @@ bool DebugManagerV3::run (uint16_t controlMask, DebugEventTarget * cb, bool rele
 	}
 
 	HalExecElement* el = new HalExecElement(this->parent->checkHalId(ID_RestoreContext_ReleaseJtag));
-	this->parent->getWatchdogControl()->addParamsTo(el);
+	this->parent->getWatchdogControl()->addRestoreParamsTo(el);
 	el->appendInputData32(pc);
 	el->appendInputData16(sr);
-	el->appendInputData16(controlMask!=0? 0x0007: 0x0006);	// eem control bits 
+	el->appendInputData16(controlMask!=0? 0x0007: 0x0006);	// eem control bits
 	el->appendInputData16(mdbPatchValue);		// mdb
 	el->appendInputData16(releaseJtag ? 1 : 0);
 	el->appendInputData16(cm->ulpDebugEnabled() ? 1 : 0);
@@ -284,13 +294,13 @@ bool DebugManagerV3::run (uint16_t controlMask, DebugEventTarget * cb, bool rele
 	mdbPatchValue = 0;
 
 	HalExecCommand cmd;
-	cmd.elements.push_back(el);
+	cmd.elements.emplace_back(el);
 
 	if (!this->parent->send(cmd))
 	{
 		return false;
 	}
-	
+
 	// handle lpmx5 polling
 	if (releaseJtag)
 	{
@@ -299,14 +309,11 @@ bool DebugManagerV3::run (uint16_t controlMask, DebugEventTarget * cb, bool rele
 	else
 	{
 		this->resumePolling();
-	}	
+	}
 
-	if (controlMask!=0 && !releaseJtag)
+	if (controlMask != 0 && !releaseJtag && !activatePolling(controlMask))
 	{
-		if (!activatePolling(controlMask))
-		{
-			return false;
-		}
+		return false;
 	}
 
 	resetCycleCounterBeforeNextStep = true;
@@ -335,16 +342,14 @@ void DebugManagerV3::runEvent(MessageDataPtr messageData)
 
 		if (maskHigh & J_STATE_LPMX_MASK_HIGH)
 		{
-			deviceInLpm5 = true;
-			if(cbx)
+			if (cbx)
 			{
 				cbx->event(DebugEventTarget::Lpm5Sleep);
 			}
 		}
 		else
 		{
-			deviceInLpm5 = false;
-			if(cbx)
+			if (cbx)
 			{
 				cbx->event(DebugEventTarget::Lpm5Wakeup);
 			}
@@ -356,10 +361,10 @@ void DebugManagerV3::runEvent(MessageDataPtr messageData)
 		saveContext();
 
 		MemoryManager* mm = this->parent->getMemoryManager();
-		if (MemoryArea* cpu = mm ? mm->getMemoryArea("CPU") : 0)
+		if (CpuRegisters* cpu = mm ? mm->getCpuRegisters() : 0)
 		{
 			uint32_t pc = 0;
-			cpu->read(0, &pc, 1);
+			cpu->read(0, &pc);
 
 			try
 			{
@@ -378,14 +383,14 @@ void DebugManagerV3::runEvent(MessageDataPtr messageData)
 			cbx->event(DebugEventTarget::BreakpointHit);
 		}
 	}
-	
+
 	if (eventMask & STATE_STORAGE_FLAG)
 	{
 		uint16_t numEntries = 0;
 		(*messageData) >> numEntries;
 
 		if (cbx)
-		{			
+		{
 			try
 			{
 				const size_t bufferSize = parent->getEmulationManager()->getTrace()->getTraceData().size();
@@ -411,10 +416,10 @@ bool DebugManagerV3::wakeupDevice()
 	if (parent->getDeviceCode() == 0x20404020)
 	{
 		ConfigManager *cm = parent->getFetHandle()->getConfigManager();
-		return cm && (cm->MSP430I_MagicPattern() != -1);
+		return cm && (cm->MSP430I_MagicPattern((uint16_t)ConfigManager::JTAG_MODE_AUTOMATIC) != -1);
 	}
 
-	list<PinState> stateChanges;
+	std::list<PinState> stateChanges;
 	stateChanges.push_back( PinState(JTAG_PIN_TST, true, 5) );
 	stateChanges.push_back( PinState(JTAG_PIN_RST, true, 5) );
 
@@ -425,20 +430,30 @@ bool DebugManagerV3::wakeupDevice()
 
 	stateChanges.push_back( PinState(JTAG_PIN_TST, true, 5) );
 
-	int i = 0;
 	bool isSleeping = true;
 
-	while (isSleeping && i++ < 5)
-    {
-		sendPinSequence(stateChanges, parent->getFetHandle());
+	if (FetHandleV3* fetHandle = parent->getFetHandle())
+	{
+		int i = 0;
+		while (isSleeping && i++ < 5)
+		{
+			// Power down JTAG LDO to enable RST NMI wakeup
+			if (parent->getJtagId() == 0x99)
+			{
+				fetHandle->sendJtagShift(HIL_CMD_JTAG_IR, 0x2F);
+				fetHandle->sendJtagShift(HIL_CMD_JTAG_DR, 0xC020, 16);
+			}
+			sendPinSequence(stateChanges, fetHandle);
 
-		ConfigManager *cm = parent->getFetHandle()->getConfigManager();
-		cm->start();
+			ConfigManager *cm = fetHandle->getConfigManager();
 
-		isSleeping = queryLpm5State();
-    }
+			cm->start();
 
-    return !isSleeping;
+			isSleeping = queryIsInLpm5State();
+		}
+	}
+
+	return !isSleeping;
 }
 
 /* sync Jtag */
@@ -451,31 +466,34 @@ bool DebugManagerV3::stop(bool jtagWasReleased)
 
 	// Pause the polling loop while we try to wake up the device and sync again
 	this->pausePolling();
-	
+
 	do
 	{
-		success = false;
-		
-		if (queryLpm5State())
+		if (queryIsInLpm5State())
 		{
 			isSleeping = !wakeupDevice();
 			wasInLpmx5 = true;
-			if(!jtagWasReleased)
+			if (!jtagWasReleased)
 			{
 				this->resumePolling();
-				boost::this_thread::sleep(boost::get_system_time() + boost::posix_time::milliseconds(500));	
-				this->pausePolling();	
+				std::this_thread::sleep_for(std::chrono::milliseconds(500));
+				this->pausePolling();
 			}
 		}
-
-		// just save context when no wakeup was detected before
+		// save context when wakeup was detected
 		if (lpm5WakeupDetected)
 		{
 			wasInLpmx5 = true;
+			success = saveContext();
 		}
-		success = saveContext();
-	} 
+	}
 	while ( isSleeping && --attemptsLeft );
+
+	// just save context when no wakeup was detected before
+	if (!lpm5WakeupDetected)
+	{
+		success = saveContext();
+	}
 
 	success = success && !isSleeping;
 
@@ -483,20 +501,20 @@ bool DebugManagerV3::stop(bool jtagWasReleased)
 	if ( success && wasInLpmx5)
 	{
 		MemoryManager* mm = parent->getMemoryManager();
-		if ( MemoryArea* cpu = mm->getMemoryArea("CPU") )
+		if ( CpuRegisters* cpu = mm->getCpuRegisters() )
 		{
-			uint32_t buffer[2];
+			uint8_t buffer[2];
 			if (mm->read(0xFFFE, buffer, 2) && mm->sync() && mm->read(0xFFFE, buffer, 2) && mm->sync())
 			{
 				cpu->write(0, buffer[0] | (buffer[1] << 8));
-				cpu->write(2, 0); // BTT2001 status register bugfix
+				cpu->write(2, 0);
 			}
-		}				
+		}
 	}
 
 	// If the JTAG was released, we could not know that the device went into LPMx.5,
 	// thus manually generate the event in this case
-	if(jtagWasReleased && wasInLpmx5)
+	if (jtagWasReleased && wasInLpmx5)
 	{
 		MessageDataPtr data(new MessageData);
 		(*data) << (uint16_t)JSTATE_CAPTURE_FLAG;
@@ -512,24 +530,24 @@ bool DebugManagerV3::stop(bool jtagWasReleased)
 bool DebugManagerV3::syncDeviceAfterLPMx5()
 {
 	lpm5WakeupDetected = true;
-    return true;
+	return true;
 }
 
 bool DebugManagerV3::singleStep (uint32_t* cycles)
 {
 	MemoryManager* mm = this->parent->getMemoryManager();
-	MemoryArea* cpu = mm->getMemoryArea("CPU");
+	CpuRegisters* cpu = mm->getCpuRegisters();
 	if (!cpu)
 		return false;
 
 	lpm5WakeupDetected = false;
 
 	uint32_t pc, sr;
-	cpu->read(0, &pc, 1);
-	cpu->read(2, &sr, 1);
-	
+	cpu->read(0, &pc);
+	cpu->read(2, &sr);
+
 	/* flush and clear all caches */
-	if (!mm->flushAll())
+	if (!cpu->flushCache())
 	{
 		return false;
 	}
@@ -539,21 +557,16 @@ bool DebugManagerV3::singleStep (uint32_t* cycles)
 		cycleCounter_.reset();
 	}
 
-	HalExecElement* el = new HalExecElement(ID_SetDeviceChainInfo);
-	el->appendInputData16(static_cast<uint16_t>(this->parent->getDevChainInfo()->getBusId()));
-	
-	HalExecCommand cmd;	
-	cmd.elements.push_back(el);
+	HalExecCommand cmd;
 
 	HalExecElement* instructionRead = 0;
 	if (cycles && emulationLevel < EMEX_EXTRA_SMALL_5XX)
 	{
-		//we run that inline instead of through the MemoryManager 
+		//we run that inline instead of through the MemoryManager
 		instructionRead = new HalExecElement(this->parent->checkHalId(ID_ReadMemWords));
 		instructionRead->appendInputData32(pc);
 		instructionRead->appendInputData32(2);
-		instructionRead->setOutputSize(4);
-		cmd.elements.push_back(instructionRead);
+		cmd.elements.emplace_back(instructionRead);
 	}
 
 	ConfigManager *cm = parent->getFetHandle()->getConfigManager();
@@ -562,31 +575,35 @@ bool DebugManagerV3::singleStep (uint32_t* cycles)
 	{
 		mdbPatchValue = mdb;
 	}
-	boost::shared_ptr<WatchdogControl> wdt = this->parent->getWatchdogControl();
-	el = new HalExecElement(this->parent->checkHalId(ID_SingleStep));
-	// append stored watchdog value with hold bit
-	wdt->addParamsTo(el);
+	std::shared_ptr<WatchdogControl> wdt = this->parent->getWatchdogControl();
+	HalExecElement* el = new HalExecElement(this->parent->checkHalId(ID_SingleStep));
+	//Parameters for RestoreContext_ReleaseJtag
+	wdt->addRestoreParamsTo(el);
 	el->appendInputData32(pc);
 	el->appendInputData16(static_cast<uint16_t>(sr));
-	el->appendInputData16(7);		// mask for RestoreContext_ReleaseJtag (inside SingleStep macro)
+	el->appendInputData16(7);
 	el->appendInputData16(mdbPatchValue);
-	el->appendInputData16(0);//releaseJtag
-	el->appendInputData16(cm->ulpDebugEnabled() ? 1 : 0); // ULP debug settings
+	//releaseJtag
+	el->appendInputData16(0);
+	el->appendInputData16(cm->ulpDebugEnabled() ? 1 : 0);
+	//Parameters for SingleStep
+	el->appendInputData16(irRequest);
+	//Parameters for SyncJtag_Conditional_SaveContext
+	wdt->addHoldParamsTo(el);
 
 	mdbPatchValue = 0;
 
-	el->setOutputSize(8);
-	cmd.elements.push_back(el);
-	
+	cmd.elements.emplace_back(el);
+
 	mPollingManager->resumeStateStoragePolling(*parent);
 	if (!this->parent->send(cmd))
 	{
 		return false;
 	}
 	mPollingManager->pauseStateStoragePolling(*parent);
-	
+
 	// Exit if device stepped into LPMx.5 mode
-	if(queryLpm5State())
+	if (queryIsInLpm5State())
 	{
 		return true;
 	}
@@ -603,11 +620,15 @@ bool DebugManagerV3::singleStep (uint32_t* cycles)
 	pc = el->getOutputAt32(2);
 	sr = el->getOutputAt16(6);
 
+	irRequest = el->getOutputAt16(8);
+
 	// write PC and SR to MemoryManager to signal that _NO_ additional
 	// SyncJTAG is necessary
 	cpu->write(0, pc);
 	cpu->write(2, sr);
-	cpu->getCacheCtrl()->fill(0, 16);
+	cpu->fillCache(0, 16);
+
+	setLeaAccessibility();
 
 	if (cycles)
 	{
@@ -621,7 +642,7 @@ bool DebugManagerV3::singleStep (uint32_t* cycles)
 	}
 
 	resetCycleCounterBeforeNextStep = false;
-	
+
 	return true;
 }
 
@@ -632,10 +653,10 @@ bool DebugManagerV3::initEemRegister()
 
 	EmulationManagerPtr emManager = parent->getEmulationManager();
 
-	emManager->writeRegister(GENCTRL,0x0);
+	emManager->writeRegister(GENCTRL, 0x0);
+	emManager->writeRegister(GENCLKCTRL, defaultGenClkCntrl);
 	emManager->writeRegister(MODCLKCTRL0, defaultMclkcntrl0);
-	emManager->writeRegister(GENCLKCTRL, DefaultClkCntrl);
-	
+
 	cycleCounter_.configure();
 
 	return success;
@@ -652,9 +673,9 @@ uint16_t DebugManagerV3::getClockControlSetting() const
 	return genclkcntrl;
 }
 
-void DebugManagerV3::setClockControlSetting(uint16_t clkcntrl)
+uint16_t DebugManagerV3::getGeneralClockDefaultSetting() const
 {
-	genclkcntrl = clkcntrl;
+	return defaultGenClkCntrl;
 }
 
 uint16_t DebugManagerV3::getClockModuleDefaultSetting() const
@@ -665,11 +686,6 @@ uint16_t DebugManagerV3::getClockModuleDefaultSetting() const
 uint16_t DebugManagerV3::getClockModuleSetting() const
 {
 	return mclkcntrl0;
-}
-
-void DebugManagerV3::setClockModuleSetting(uint16_t modules)
-{
-	mclkcntrl0 = modules;
 }
 
 char ** DebugManagerV3::getModuleStrings(uint32_t * n) const
@@ -693,16 +709,15 @@ bool DebugManagerV3::saveContext()
 {
 	MemoryManager* mm = this->parent->getMemoryManager();
 
-	MemoryArea* cpu = mm->getMemoryArea("CPU");
+	CpuRegisters* cpu = mm->getCpuRegisters();
 	if (!cpu)
 		return false;
 
 	HalExecElement* el0 = new HalExecElement(this->parent->checkHalId(ID_SyncJtag_Conditional_SaveContext));
-	this->parent->getWatchdogControl()->addParamsTo(el0, true);
-	el0->setOutputSize(8);
-	
+	this->parent->getWatchdogControl()->addHoldParamsTo(el0);
+
 	HalExecCommand cmd;
-	cmd.elements.push_back(el0);
+	cmd.elements.emplace_back(el0);
 
 	if (!this->parent->send(cmd))
 	{
@@ -719,12 +734,15 @@ bool DebugManagerV3::saveContext()
 	// get register values
 	uint32_t pc = el0->getOutputAt32(2);
 	uint32_t sr = el0->getOutputAt16(6);
+	irRequest = el0->getOutputAt16(8);
 
 	cpu->write(0, pc);
 	cpu->write(2, sr);
-	cpu->getCacheCtrl()->fill(0, 16);
+	cpu->fillCache(0, 16);
 
 	cycleCounter_.read();
+
+	setLeaAccessibility();
 
 	return true;
 }
@@ -739,7 +757,7 @@ bool DebugManagerV3::getLpmDebugging()
 	return lpmDebuggingEnabled;
 }
 
-bool DebugManagerV3::queryLpm5State()
+bool DebugManagerV3::queryIsInLpm5State()
 {
 	if (!getLpmDebugging() && (parent->getDeviceCode() != 0x20404020))
 	{
@@ -747,7 +765,6 @@ bool DebugManagerV3::queryLpm5State()
 	}
 
 	const uint64_t bit = 1;
-	uint64_t mask = (bit << 62);
 
 	HalExecElement* el = new HalExecElement(parent->checkHalId(ID_PollJStateReg));
 	el->appendInputData16(1); //Query once, force send
@@ -756,25 +773,17 @@ bool DebugManagerV3::queryLpm5State()
 	el->appendInputData16(0); //Energy Trace
 	el->appendInputData16(0); //Gated Mode
 
-	// ToDo enhance for Energy trace
-	el->setOutputSize(10);
-
 	HalExecCommand cmd;
-	cmd.elements.push_back(el);
+	cmd.elements.emplace_back(el);
 
 	uint64_t jstate = 0;
-	
-	if(this->parent->send(cmd))
+
+	if (this->parent->send(cmd))
 	{
 		jstate  = el->getOutputAt32(2);
 		jstate |= (uint64_t)el->getOutputAt32(6) << 32;
 	}
 	return (( jstate & (bit << 62) ) != 0);
-}
-
-bool DebugManagerV3::isDeviceInLpm5()
-{
-	return deviceInLpm5;
 }
 
 void DebugManagerV3::pausePolling()
@@ -790,5 +799,29 @@ void DebugManagerV3::resumePolling()
 	if (mPollingManager)
 	{
 		mPollingManager->resumePolling();
+	}
+}
+
+void DebugManagerV3::setLeaAccessibility()
+{
+	MemoryManager* mm = this->parent->getMemoryManager();
+	if (MemoryArea* lea_registers = mm ? mm->getMemoryArea(MemoryArea::LEA_PERIPHERY) : nullptr)
+	{
+		HalExecElement* el = new HalExecElement(ID_LeaSyncConditional);
+		el->appendInputData32(lea_registers->getStart());
+
+		HalExecCommand cmd;
+		cmd.elements.emplace_back(el);
+
+		if (this->parent->send(cmd))
+		{
+			const bool leaBusy = el->getOutputAt16(1) != 0;
+
+			lea_registers->setAccessible(!leaBusy);
+			if (MemoryArea* lea_ram = mm->getMemoryArea(MemoryArea::LEA_RAM))
+			{
+				lea_ram->setAccessible(!leaBusy);
+			}
+		}
 	}
 }

@@ -52,7 +52,8 @@
     
     dint                            ;Disable interrupts.
 
-    mov.b   #XT2OFF+RSEL2+RSEL1+RSEL0,&BCSCTL1 ;BCL12 Workaround    
+    bic.b   #0x3F,&BCSCTL1			;BCL12 Workaround
+    bis.b   #0x07,&BCSCTL1			;BCL12 Workaround
 
     mov.b   valDCO,&DCOCTL          ;Load DCO value.
     mov.b   valBCS1,&BCSCTL1        ;Load BCS1 value.

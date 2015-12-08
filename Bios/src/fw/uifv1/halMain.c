@@ -39,11 +39,8 @@
 //! \file halMain.c
 //! \brief
 //!
-//! \author  Detlef Fink (03/10/2011)
-
 //! \page hal_page1 Hardware Abstraction Layer (HAL)
 //! \brief The HAL ...
-//! \author  Detlef Fink (03/10/2011)
 //!
 //! <b>files</b>\n
 //! \li startup.s43
@@ -59,10 +56,7 @@
 #include "string.h"
 #include "HalGlobalVars.h"
 
-#define VERSION_MAJOR 3
-#define VERSION_MINOR 3
-#define VERSION_PATCH 1
-#define VERSION_BUILD 3
+#include "../../../../DLL430_v3/version.h"
 
 extern void globalVarsInit(void);
 

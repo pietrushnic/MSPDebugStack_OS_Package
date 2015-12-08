@@ -35,10 +35,10 @@
  *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
 */
-#include "MSPBSL_PhysicalInterfaceUSB.h"
 
-#include <boost/asio.hpp> // include boost
-#include <boost/thread/thread.hpp>
+#include <pch.h>
+
+#include "MSPBSL_PhysicalInterfaceUSB.h"
 
 using namespace std;
 using namespace::boost::asio;
@@ -114,9 +114,6 @@ MSPBSL_PhysicalInterfaceUSB::MSPBSL_PhysicalInterfaceUSB(string initString)
 		ss << tempPID;
 		ss >> myPID;
 	}
-
-	physicalInterfaceCommand(ENUMERATE_COMMAND);
-
 }
 
 /***************************************************************************//**
@@ -192,7 +189,7 @@ uint16_t MSPBSL_PhysicalInterfaceUSB::RX_Bytes( uint8_t* buf, uint16_t numBytes 
 			return ERROR_READING_DATA; 
 		}
 
-		boost::this_thread::sleep(boost::posix_time::milliseconds(500)); 
+		this_thread::sleep_for(chrono::milliseconds(500));
 	}
 
 	return 0;

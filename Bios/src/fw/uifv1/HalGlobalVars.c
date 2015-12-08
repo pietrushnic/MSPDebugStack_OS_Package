@@ -74,7 +74,7 @@ extern unsigned short ret_len;
 extern DeviceSettings deviceSettings;
 extern DevicePowerSettings devicePowerSettings;
 extern unsigned short altRomAddressForCpuRead;
-extern unsigned short setPCclockBeforeCapture;
+extern unsigned short wdtctlAddress5xx;
 
 
 void globalVarsInit(void)
@@ -84,31 +84,31 @@ void globalVarsInit(void)
     _stream_Funcs = NULL;
 #endif
     memset(&hal_infos_in_ram_, 0, sizeof(HAL_INFOS));
-    
+
     //SyncJtagAssertPor_SaveContextXv2.c
     memset(mclk_modules, 0, sizeof(mclk_modules));
-    
+
     // hal.c
     memset(&chain_Configuration, 0, sizeof(chain_Configuration));
     activeDevice = 0;
     numOfDevices = 0;
     TCE = 0;
     _hal_mclkCntrl0 = 0x0417;
-    
+
     // hil.c
     gprotocol_id = 0;
-    bVccOn        = 3000;  // Target Vcc is switched off by default
+    bVccOn        = 3300;  // Target Vcc is switched to 3.3V by default
     bIccMonitorOn = 1;
     bHighCurrent  = 0;
     last_ext_vcc = 0;
     over_current_count = 0;
     last_vcc = 0;
-    
+
     // Currently only sets clock control type to none
     memset(&deviceSettings, 0, sizeof(deviceSettings));
     // Disable device power settings by default
     memset(&devicePowerSettings, 0, sizeof(devicePowerSettings));
-    
+
     altRomAddressForCpuRead = 1;
-    setPCclockBeforeCapture = 0;
+    wdtctlAddress5xx = 0x015C;
 }

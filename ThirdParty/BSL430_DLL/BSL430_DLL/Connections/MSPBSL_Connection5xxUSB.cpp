@@ -36,14 +36,14 @@
  *
 */
 
-#include <boost/thread.hpp>
-#include <boost/date_time/posix_time/posix_time.hpp>
+#include <pch.h>
 
 #include "MSPBSL_Connection5xxUSB.h"
 #include "MSPBSL_PhysicalInterfaceUSB.h"
 #include "MSPBSL_PacketHandler.h"
 
 #include "RAM_BSL_FLASH_MODE_eZ_FET.h"
+#include "RAM_BSL_FLASH_MODE_MSP_FET.h"
 
 using namespace std;
 
@@ -70,7 +70,7 @@ void MSPBSL_Connection5xxUSB:: closeBslconnection()
 {
 	uint8_t usbDisconnct = USB_DISCONNECT_COMMAND;
 	this->thePacketHandler->TX_Packet(&usbDisconnct,1);
-	boost::this_thread::sleep( boost::posix_time::seconds(5));
+	this_thread::sleep_for(chrono::seconds(5));
 }
 
 /***************************************************************************//**
@@ -81,10 +81,10 @@ void MSPBSL_Connection5xxUSB:: closeBslconnection()
 *        
 * \return the result of the LoadRAM_BSL function call
 ******************************************************************************/
-uint16_t MSPBSL_Connection5xxUSB::loadRAM_BSL(void)
+uint16_t MSPBSL_Connection5xxUSB::loadRAM_BSL(uint16_t toolPid)
 {
 	uint8_t buf_array[] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
-	return loadRAM_BSL( buf_array );
+	return loadRAM_BSL( buf_array, toolPid );
 }
 
 /***************************************************************************//**
@@ -101,24 +101,40 @@ uint16_t MSPBSL_Connection5xxUSB::loadRAM_BSL(void)
 *            continue using this class
 *        >0: one or more errors occured
 ******************************************************************************/
-uint16_t MSPBSL_Connection5xxUSB::loadRAM_BSL(uint8_t* password)
+#define MSPBSL_EZ_FET_USB_PID 0x0203
+#define MSPBSL_MSP_FET_USB_PID 0x0204
+
+uint16_t MSPBSL_Connection5xxUSB::loadRAM_BSL(uint8_t* password, uint16_t toolPid)
 {	
 	uint16_t retValue = RX_Password( password );
 	if( retValue != ACK )
 	{
 		return retValue;
 	}
-	retValue = RX_DataBlockFast( RAM_BSL_FLASH_MODE_eZ_FETImage, 0x2500, sizeof RAM_BSL_FLASH_MODE_eZ_FETImage  );
-	if( retValue != ACK )
+
+	if(MSPBSL_EZ_FET_USB_PID == toolPid)
 	{
-		return retValue;
+	retValue = RX_DataBlockFast(RAM_BSL_FLASH_MODE_eZ_FETImage, 0x2500, sizeof RAM_BSL_FLASH_MODE_eZ_FETImage);
+		if( retValue != ACK )
+		{
+			return retValue;
+		}
 	}
+	if(MSPBSL_MSP_FET_USB_PID == toolPid)
+	{
+		retValue = RX_DataBlockFast(RAM_BSL_FLASH_MODE_MSP_FETImage, 0x2500, sizeof RAM_BSL_FLASH_MODE_MSP_FETImage);
+		if( retValue != ACK )
+		{
+			return retValue;
+		}
+	}
+
 	retValue = setPC(0x2504);
 	if( retValue != ACK )
 	{
 		return retValue;
 	}
-	boost::this_thread::sleep( boost::posix_time::seconds(1));
+	this_thread::sleep_for(chrono::seconds(1));
 
 	return ACK;
 }

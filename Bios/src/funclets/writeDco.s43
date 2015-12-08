@@ -131,8 +131,6 @@ Next
             dec     R6              ;Decrement word counter.
             jnz     Prog            ;Program Length words.
 
-            mov.b   #XT2OFF+RSEL2+RSEL1+RSEL0,&BCSCTL1 ;BCL12 Workaround
-
             jmp     Stop            ; Jump to the end of the program (must be located at offset EEh)
 ;-------------------------------------------------------------------------------
 ; End

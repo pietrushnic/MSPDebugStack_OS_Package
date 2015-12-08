@@ -75,6 +75,9 @@
     <ClCompile Include="Connections\MSPBSL_Connection5xxUART.cpp">
       <Filter>Source Files\BSL Connection Source</Filter>
     </ClCompile>
+    <ClCompile Include="pch.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Connections\MSPBSL_Connection.h">
@@ -113,11 +116,14 @@
     <ClInclude Include="Utility_Classes\MSPBSL_CRCEngine.h">
       <Filter>Source Files</Filter>
     </ClInclude>
-    <ClInclude Include="Utility_Classes\MSPBSL_TestResetControl.h">
-      <Filter>Source Files</Filter>
+    <ClInclude Include="pch.h">
+      <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="MSPBSL_Factory.h">
-      <Filter>Source Files</Filter>
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Utility_Classes\MSPBSL_TestResetControl.h">
+      <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

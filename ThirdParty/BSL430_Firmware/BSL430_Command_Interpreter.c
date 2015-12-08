@@ -92,8 +92,8 @@ void main(void)
     volatile int i, ii;
 
     BSL430_API_init();
-
     PI_init();
+
     while (1)
     {
         eventFlags = PI_receivePacket();
